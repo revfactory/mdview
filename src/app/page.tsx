@@ -185,6 +185,7 @@ export default function Home() {
               editor={tiptapEditor}
               onExport={() => setHwpExportOpen(true)}
               onToggleToc={() => useUIStore.getState().actions.toggleToc()}
+              documentTitle={activeDocument?.title}
             />
           </div>
 

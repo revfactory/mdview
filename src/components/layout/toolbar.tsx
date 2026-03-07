@@ -16,6 +16,7 @@ import {
   SplitSquareVertical,
   PenLine,
   PanelRight,
+  Download,
   ChevronDown,
   Heading,
   Heading1,
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Tooltip } from '../ui/tooltip';
 import { useUIStore } from '@/stores/ui-store';
+import { htmlToMarkdown } from '@/lib/markdown';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
 interface ToolbarButtonProps {
@@ -78,9 +80,10 @@ export interface ToolbarProps {
   editor?: TipTapEditor | null;
   onExport?: () => void;
   onToggleToc?: () => void;
+  documentTitle?: string;
 }
 
-export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) {
+export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }: ToolbarProps) {
   const viewMode = useUIStore((s) => s.viewMode);
   const { setViewMode } = useUIStore((s) => s.actions);
   const blockLabel = getActiveBlockLabel(editor);
@@ -124,6 +127,19 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
     action();
     setBlockMenuOpen(false);
   }, []);
+
+  const handleExportMarkdown = useCallback(() => {
+    if (!editor) return;
+    const markdown = htmlToMarkdown(editor.getHTML());
+    const safeName = (documentTitle || '문서').replace(/[<>:"/\\|?*]/g, '_');
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [editor, documentTitle]);
 
   return (
     <div data-toolbar className="flex items-center h-11 px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
@@ -263,34 +279,39 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
 
       <div className="flex-1" />
 
-      {/* View Mode - 3 segment control */}
-      <div className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
-        {([
-          { mode: 'wysiwyg' as const, icon: PenLine, label: 'WYSIWYG 모드' },
-          { mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' },
-          { mode: 'source' as const, icon: Eye, label: '소스 보기' },
-        ]).map(({ mode, icon: ModeIcon, label }) => (
-          <Tooltip content={label} side="bottom" key={mode}>
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setViewMode(mode)}
-              aria-label={label}
-              className={`flex items-center justify-center w-8 h-7 rounded-md text-xs transition-all duration-150 cursor-pointer ${
-                viewMode === mode
-                  ? 'bg-[var(--color-bg)] text-[var(--color-accent)] shadow-sm'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-              }`}
-            >
-              <ModeIcon className="w-3.5 h-3.5" />
-            </button>
-          </Tooltip>
-        ))}
+      <div className="flex items-center gap-0.5 shrink-0">
+        <ToolbarButton icon={Download} tooltip="마크다운 내보내기" disabled={noEditor} onClick={handleExportMarkdown} />
+
+        <Divider />
+
+        {/* View Mode - 3 segment control */}
+        <div className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
+          {([
+            { mode: 'wysiwyg' as const, icon: PenLine, label: 'WYSIWYG 모드' },
+            { mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' },
+            { mode: 'source' as const, icon: Eye, label: '소스 보기' },
+          ]).map(({ mode, icon: ModeIcon, label }) => (
+            <Tooltip content={label} side="bottom" key={mode}>
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setViewMode(mode)}
+                aria-label={label}
+                className={`flex items-center justify-center w-8 h-7 rounded-md text-xs transition-all duration-150 cursor-pointer ${
+                  viewMode === mode
+                    ? 'bg-[var(--color-bg)] text-[var(--color-accent)] shadow-sm'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                }`}
+              >
+                <ModeIcon className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+
+        <Divider />
+
+        <ToolbarButton icon={PanelRight} tooltip="목차" onClick={onToggleToc} />
       </div>
-
-      <Divider />
-
-      {/* TOC */}
-      <ToolbarButton icon={PanelRight} tooltip="목차" onClick={onToggleToc} />
 
     </div>
   );
