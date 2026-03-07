@@ -1,0 +1,125 @@
+import Dexie from 'dexie';
+import { nanoid } from 'nanoid';
+import { db } from '@/db';
+import type { Document } from '@/types';
+
+function computeExcerpt(content: string): string {
+  const plain = content.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  return plain.length > 200 ? plain.slice(0, 200) + '...' : plain;
+}
+
+function computeWordCount(content: string): number {
+  const plain = content.replace(/<[^>]*>/g, '').trim();
+  if (!plain) return 0;
+  return plain.split(/\s+/).filter(Boolean).length;
+}
+
+function computeCharCount(content: string): number {
+  return content.replace(/<[^>]*>/g, '').length;
+}
+
+function computeReadingTime(wordCount: number): number {
+  return Math.max(1, Math.ceil(wordCount / 200));
+}
+
+export async function createDocument(partial?: Partial<Document>): Promise<string> {
+  const now = new Date();
+  const id = partial?.id ?? nanoid();
+  const content = partial?.content ?? '';
+  const wordCount = partial?.wordCount ?? computeWordCount(content);
+  const charCount = partial?.charCount ?? computeCharCount(content);
+
+  const doc: Document = {
+    id,
+    title: partial?.title ?? '제목 없음',
+    content,
+    htmlContent: partial?.htmlContent ?? '',
+    excerpt: partial?.excerpt ?? computeExcerpt(content),
+    folderId: partial?.folderId ?? null,
+    tags: partial?.tags ?? [],
+    isFavorite: partial?.isFavorite ?? false,
+    isPinned: partial?.isPinned ?? false,
+    wordCount,
+    charCount,
+    readingTime: partial?.readingTime ?? computeReadingTime(wordCount),
+    sortOrder: partial?.sortOrder ?? Date.now(),
+    createdAt: partial?.createdAt ?? now,
+    updatedAt: partial?.updatedAt ?? now,
+    lastOpenedAt: partial?.lastOpenedAt ?? now,
+  };
+
+  await db.documents.add(doc);
+  return id;
+}
+
+export async function getDocument(id: string): Promise<Document | undefined> {
+  return db.documents.get(id);
+}
+
+export async function updateDocument(id: string, changes: Partial<Document>): Promise<void> {
+  await db.documents.update(id, {
+    ...changes,
+    updatedAt: new Date(),
+  });
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  await db.documents.delete(id);
+}
+
+export async function getDocumentsByFolder(folderId: string | null): Promise<Document[]> {
+  if (folderId === null) {
+    const all = await db.documents.toArray();
+    return all
+      .filter((d) => d.folderId === null || d.folderId === undefined)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+  return db.documents
+    .where('[folderId+sortOrder]')
+    .between([folderId, Dexie.minKey], [folderId, Dexie.maxKey])
+    .toArray();
+}
+
+export async function getFavorites(): Promise<Document[]> {
+  return db.documents
+    .where('isFavorite')
+    .equals(1)
+    .toArray();
+}
+
+export async function getRecentDocuments(limit: number = 10): Promise<Document[]> {
+  return db.documents
+    .orderBy('updatedAt')
+    .reverse()
+    .limit(limit)
+    .toArray();
+}
+
+export async function reorderDocuments(folderId: string | null, orderedIds: string[]): Promise<void> {
+  await db.transaction('rw', db.documents, async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db.documents.update(orderedIds[i], { sortOrder: i });
+    }
+  });
+}
+
+export async function updateContent(
+  id: string,
+  content: string,
+  htmlContent: string,
+): Promise<void> {
+  const wordCount = computeWordCount(content);
+  const charCount = computeCharCount(content);
+  const readingTime = computeReadingTime(wordCount);
+  const excerpt = computeExcerpt(content);
+
+  await db.documents.update(id, {
+    content,
+    htmlContent,
+    excerpt,
+    wordCount,
+    charCount,
+    readingTime,
+    updatedAt: new Date(),
+  });
+}
