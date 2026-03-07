@@ -7,7 +7,7 @@ import {
   FolderPlus,
   Plus,
   Import,
-  Settings,
+  Info,
   Sun,
   Moon,
   ChevronRight,
@@ -32,7 +32,7 @@ import { createFolder, updateFolder, deleteFolder } from '@/db/folders';
 import { updateDocument, createDocument } from '@/db/documents';
 import { markdownToHtml } from '@/lib/markdown';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { PromptDialog, ConfirmDialog } from '@/components/ui/dialog';
+import { PromptDialog, ConfirmDialog, AlertDialog } from '@/components/ui/dialog';
 
 type ViewId = 'all' | 'recent';
 
@@ -219,6 +219,7 @@ export function Sidebar({
   const [folderPromptOpen, setFolderPromptOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const theme = useUIStore((s) => s.theme);
   const { setTheme } = useUIStore((s) => s.actions);
@@ -494,13 +495,13 @@ export function Sidebar({
 
       {/* Footer */}
       <div className="shrink-0 border-t border-[var(--color-border)] px-2 py-2 flex items-center gap-1">
-        <Tooltip content="설정" side="top">
+        <Tooltip content="정보" side="top">
           <button
-            onClick={onSettings}
-            aria-label="설정"
+            onClick={() => setInfoOpen(true)}
+            aria-label="정보"
             className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] transition-all duration-150 cursor-pointer active:scale-90"
           >
-            <Settings className="w-4 h-4" />
+            <Info className="w-4 h-4" />
           </button>
         </Tooltip>
         <div className="flex-1" />
@@ -543,6 +544,41 @@ export function Sidebar({
         confirmLabel="삭제"
         danger
       />
+
+      <AlertDialog open={infoOpen} onClose={() => setInfoOpen(false)} title="MDView">
+        <div className="flex flex-col gap-4">
+          {/* App info */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">마크다운 에디터</p>
+              <p className="text-xs text-[var(--color-text-muted)]">v0.1.0 (Beta)</p>
+            </div>
+          </div>
+
+          {/* Privacy notice */}
+          <div className="rounded-lg bg-[var(--color-surface)] px-3 py-2.5">
+            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+              🔒 모든 문서는 서버에 전송되지 않으며, 개인 브라우저(IndexedDB)에만 저장됩니다.
+            </p>
+          </div>
+
+          {/* Author */}
+          <div className="rounded-lg border border-[var(--color-border)] px-3 py-3">
+            <p className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-2">제작자</p>
+            <p className="text-sm font-medium text-[var(--color-text)] mb-2">황민호</p>
+            <div className="flex flex-col gap-1.5 text-xs">
+              <a href="mailto:revfactory@gmail.com" className="text-[var(--color-accent)] hover:underline">revfactory@gmail.com</a>
+              <div className="flex gap-3">
+                <a href="https://www.facebook.com/rev.minho/" target="_blank" rel="noopener noreferrer" className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors">Facebook</a>
+                <a href="https://www.linkedin.com/in/hwang-minho/" target="_blank" rel="noopener noreferrer" className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors">LinkedIn</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AlertDialog>
     </div>
   );
 }

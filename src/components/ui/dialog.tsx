@@ -149,6 +149,25 @@ export function SelectDialog({ open, onClose, onSelect, title, options, currentV
   );
 }
 
+// AlertDialog
+export interface AlertDialogProps {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children?: React.ReactNode;
+}
+
+export function AlertDialog({ open, onClose, title, children }: AlertDialogProps) {
+  return (
+    <DialogShell open={open} onClose={onClose} title={title}>
+      {children}
+      <div className="flex justify-end mt-4">
+        <button onClick={onClose} className={btnSecondary}>닫기</button>
+      </div>
+    </DialogShell>
+  );
+}
+
 // ConfirmDialog
 export interface ConfirmDialogProps {
   open: boolean;
