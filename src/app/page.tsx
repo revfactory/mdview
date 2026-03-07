@@ -29,6 +29,7 @@ import {
   updateContent,
 } from '@/db/documents';
 import type { Editor as TipTapEditor } from '@tiptap/react';
+import { analytics } from '@/lib/analytics';
 
 export default function Home() {
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
@@ -56,6 +57,7 @@ export default function Home() {
     try {
       const id = await createDocument({ title: '제목 없음' });
       actions.setActiveDocument(id);
+      analytics.documentCreate();
     } catch (error) {
       console.error('Failed to create document:', error);
     }
@@ -64,6 +66,7 @@ export default function Home() {
   const handleSelectDocument = useCallback(
     (id: string) => {
       actions.setActiveDocument(id);
+      analytics.documentOpen();
     },
     [actions]
   );
@@ -84,6 +87,7 @@ export default function Home() {
     async (id: string) => {
       try {
         await deleteDocument(id);
+        analytics.documentDelete();
         if (activeDocumentId === id) {
           actions.setActiveDocument(null);
         }
@@ -108,6 +112,7 @@ export default function Home() {
             tags: [...doc.tags],
           });
           actions.setActiveDocument(newId);
+          analytics.documentDuplicate();
         }
       } catch (error) {
         console.error('Failed to duplicate document:', error);
@@ -139,6 +144,7 @@ export default function Home() {
       const id = await createDocument({ title, content: importedContent });
       actions.setActiveDocument(id);
       setHwpImportOpen(false);
+      analytics.importHwp();
     },
     [actions]
   );
@@ -153,7 +159,7 @@ export default function Home() {
       ) as HTMLInputElement | null;
       searchInput?.focus();
     },
-    onQuickOpen: () => setQuickOpenOpen(true),
+    onQuickOpen: () => { setQuickOpenOpen(true); analytics.quickOpen(); },
   });
 
   return (

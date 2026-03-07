@@ -29,6 +29,7 @@ import { Tooltip } from '../ui/tooltip';
 import { useUIStore } from '@/stores/ui-store';
 import { htmlToMarkdown } from '@/lib/markdown';
 import type { Editor as TipTapEditor } from '@tiptap/react';
+import { analytics } from '@/lib/analytics';
 
 interface ToolbarButtonProps {
   icon: React.ElementType;
@@ -139,6 +140,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
     a.download = `${safeName}.md`;
     a.click();
     URL.revokeObjectURL(url);
+    analytics.exportMarkdown();
   }, [editor, documentTitle]);
 
   return (
@@ -294,7 +296,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
             <Tooltip content={label} side="bottom" key={mode}>
               <button
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setViewMode(mode)}
+                onClick={() => { setViewMode(mode); analytics.viewModeChange(mode); }}
                 aria-label={label}
                 className={`flex items-center justify-center w-8 h-7 rounded-md text-xs transition-all duration-150 cursor-pointer ${
                   viewMode === mode

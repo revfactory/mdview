@@ -33,6 +33,7 @@ import { updateDocument, createDocument } from '@/db/documents';
 import { markdownToHtml } from '@/lib/markdown';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { PromptDialog, ConfirmDialog, AlertDialog } from '@/components/ui/dialog';
+import { analytics } from '@/lib/analytics';
 
 type ViewId = 'all' | 'recent';
 
@@ -240,6 +241,7 @@ export function Sidebar({
     } else {
       document.documentElement.classList.remove('dark');
     }
+    analytics.themeToggle(newTheme);
   }, [isDark, setTheme]);
 
   const handleImportMarkdown = useCallback(() => {
@@ -254,6 +256,7 @@ export function Sidebar({
       const htmlContent = markdownToHtml(text);
       const id = await createDocument({ title, content: text, htmlContent });
       onSelectDocument?.(id);
+      analytics.importMarkdown();
     };
     input.click();
   }, [onSelectDocument]);
@@ -264,6 +267,7 @@ export function Sidebar({
 
   const handleFolderCreate = useCallback(async (name: string) => {
     await createFolder({ name });
+    analytics.folderCreate();
   }, []);
 
   const handleRenameFolder = useCallback((id: string, currentName: string) => {
@@ -283,6 +287,7 @@ export function Sidebar({
   const handleDeleteFolderConfirm = useCallback(async () => {
     if (deleteTarget) {
       await deleteFolder(deleteTarget.id);
+      analytics.folderDelete();
     }
   }, [deleteTarget]);
 
