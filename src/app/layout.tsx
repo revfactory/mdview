@@ -73,6 +73,7 @@ export default function RootLayout({
           }}
         />
         <ThemeScript />
+        <Script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5006269656255106" strategy="lazyOnload" crossOrigin="anonymous" />
         <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
         <Script id="gtag-init" strategy="afterInteractive">
           {`
