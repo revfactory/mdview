@@ -351,9 +351,7 @@ export function Sidebar({
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-14 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-[var(--color-accent)] flex items-center justify-center">
-            <FileText className="w-3.5 h-3.5 text-white" />
-          </div>
+          <img src="/logo.png" alt="MDView" className="w-6 h-6 rounded-md" />
           <span className="font-semibold text-sm text-[var(--color-text)]">MDView</span>
         </div>
         <Tooltip content="새 문서" side="bottom">
@@ -549,9 +547,7 @@ export function Sidebar({
         <div className="flex flex-col gap-4">
           {/* App info */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] flex items-center justify-center shrink-0">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
+            <img src="/logo.png" alt="MDView" className="w-10 h-10 rounded-xl shrink-0" />
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">마크다운 에디터</p>
               <p className="text-xs text-[var(--color-text-muted)]">v0.1.0 (Beta)</p>
