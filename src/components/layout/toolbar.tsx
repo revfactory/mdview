@@ -46,6 +46,7 @@ function ToolbarButton({ icon: Icon, tooltip, active, onClick, disabled }: Toolb
   return (
     <Tooltip content={tooltip} side="bottom">
       <button
+        onMouseDown={(e) => e.preventDefault()}
         onClick={onClick}
         disabled={disabled}
         aria-label={tooltip}
@@ -117,6 +118,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
     <div data-toolbar className="flex items-center h-11 px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
       {/* Block Type Selector */}
       <button
+        onMouseDown={(e) => e.preventDefault()}
         onClick={handleBlockType}
         disabled={noEditor}
         aria-label={`블록 타입: ${blockLabel}`}
@@ -256,6 +258,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
         ]).map(({ mode, icon: ModeIcon, label }) => (
           <Tooltip content={label} side="bottom" key={mode}>
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setViewMode(mode)}
               aria-label={label}
               className={`flex items-center justify-center w-8 h-7 rounded-md text-xs transition-all duration-150 cursor-pointer ${
