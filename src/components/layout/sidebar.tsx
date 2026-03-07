@@ -468,6 +468,17 @@ export function Sidebar({
           </>
         )}
 
+        {/* Add folder button - always visible above document list */}
+        {!hasFolders && (
+          <button
+            onClick={handleAddFolder}
+            className="flex items-center gap-1.5 w-full px-2.5 py-1.5 mb-1 rounded-lg text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span>폴더 추가</span>
+          </button>
+        )}
+
         {/* Document List (root - no folder) */}
         <div
           onDragOver={handleRootDragOver}
@@ -483,17 +494,6 @@ export function Sidebar({
             onDuplicate={onDuplicateDocument}
           />
         </div>
-
-        {/* Add folder button when no folders exist */}
-        {!hasFolders && (
-          <button
-            onClick={handleAddFolder}
-            className="flex items-center gap-1.5 w-full px-2.5 py-1.5 mt-1 rounded-lg text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            <span>폴더 추가</span>
-          </button>
-        )}
       </div>
 
       {/* Footer */}
