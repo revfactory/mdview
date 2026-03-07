@@ -48,6 +48,7 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+        <meta name="google-adsense-account" content="ca-pub-5006269656255106" />
         <link rel="manifest" href="/manifest.json" />
         <link
           rel="stylesheet"
@@ -72,7 +73,6 @@ export default function RootLayout({
           }}
         />
         <ThemeScript />
-        <Script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5006269656255106" strategy="afterInteractive" crossOrigin="anonymous" />
         <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
         <Script id="gtag-init" strategy="afterInteractive">
           {`
