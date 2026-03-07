@@ -35,7 +35,7 @@ function DialogShell({ open, onClose, title, children }: DialogBaseProps & { chi
         onClick={onClose}
       />
       <div
-        className="relative w-full max-w-[400px] mx-4 bg-[var(--color-bg)] rounded-2xl shadow-2xl border border-[var(--color-border)] p-6 will-change-transform animate-[scale-in_150ms_cubic-bezier(0.16,1,0.3,1)]"
+        className="relative w-full max-w-[400px] mx-4 sm:mx-4 bg-[var(--color-bg)] rounded-2xl shadow-2xl border border-[var(--color-border)] p-5 sm:p-6 will-change-transform animate-[scale-in_150ms_cubic-bezier(0.16,1,0.3,1)]"
         role="dialog"
         aria-modal="true"
         aria-label={title}

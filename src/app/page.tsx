@@ -36,6 +36,7 @@ export default function Home() {
   const { actions } = useEditorStore();
   const viewMode = useUIStore((s) => s.viewMode);
   const focusMode = useUIStore((s) => s.focusMode);
+  const isMobile = useUIStore((s) => s.isMobile);
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
@@ -58,6 +59,9 @@ export default function Home() {
       const id = await createDocument({ title: '제목 없음' });
       actions.setActiveDocument(id);
       analytics.documentCreate();
+      if (useUIStore.getState().isMobile) {
+        useUIStore.getState().actions.closeSidebar();
+      }
     } catch (error) {
       console.error('Failed to create document:', error);
     }
@@ -67,6 +71,9 @@ export default function Home() {
     (id: string) => {
       actions.setActiveDocument(id);
       analytics.documentOpen();
+      if (useUIStore.getState().isMobile) {
+        useUIStore.getState().actions.closeSidebar();
+      }
     },
     [actions]
   );
@@ -204,7 +211,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : viewMode === 'wysiwyg' ? (
-                <div style={{ margin: '0 auto', padding: '40px 40px 96px 40px' }}>
+                <div style={{ margin: '0 auto', padding: isMobile ? '20px 16px 64px 16px' : '40px 40px 96px 40px' }}>
                   <DocumentTitle documentId={activeDocumentId} />
                   <Editor
                     content={htmlContent}
@@ -214,7 +221,7 @@ export default function Home() {
                 </div>
               ) : viewMode === 'source' ? (
                 <div className="h-full flex flex-col">
-                  <div className="w-full mx-auto px-[60px] pt-6 shrink-0">
+                  <div className={`w-full mx-auto ${isMobile ? 'px-4 pt-4' : 'px-[60px] pt-6'} shrink-0`}>
                     <DocumentTitle documentId={activeDocumentId} />
                   </div>
                   <div className="flex-1 min-h-0 w-full mx-auto">
@@ -269,8 +276,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* TOC Panel - hidden in focus mode */}
-        {!focusMode && <TocPanel editor={tiptapEditor} />}
+        {/* TOC Panel - hidden in focus mode and mobile */}
+        {!focusMode && !isMobile && <TocPanel editor={tiptapEditor} />}
       </div>
 
       <HwpImport

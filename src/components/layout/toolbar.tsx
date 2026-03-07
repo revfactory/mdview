@@ -24,6 +24,7 @@ import {
   Heading3,
   Pilcrow,
   Quote,
+  Menu,
 } from 'lucide-react';
 import { Tooltip } from '../ui/tooltip';
 import { useUIStore } from '@/stores/ui-store';
@@ -86,7 +87,8 @@ export interface ToolbarProps {
 
 export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }: ToolbarProps) {
   const viewMode = useUIStore((s) => s.viewMode);
-  const { setViewMode } = useUIStore((s) => s.actions);
+  const isMobile = useUIStore((s) => s.isMobile);
+  const { setViewMode, toggleSidebar } = useUIStore((s) => s.actions);
   const blockLabel = getActiveBlockLabel(editor);
   const noEditor = !editor;
 
@@ -144,7 +146,21 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
   }, [editor, documentTitle]);
 
   return (
-    <div data-toolbar className="flex items-center h-11 px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
+    <div data-toolbar className="flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
+      {/* Mobile hamburger */}
+      {isMobile && (
+        <>
+          <button
+            onClick={toggleSidebar}
+            aria-label="메뉴"
+            className="flex items-center justify-center w-8 h-8 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+          <Divider />
+        </>
+      )}
+
       {/* Block Type Selector */}
       <div className="relative">
         <button
@@ -210,27 +226,31 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
         disabled={noEditor}
         onClick={() => editor?.chain().focus().toggleItalic().run()}
       />
-      <ToolbarButton
-        icon={Underline}
-        tooltip="밑줄 (Cmd+U)"
-        active={editor?.isActive('underline')}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().toggleUnderline().run()}
-      />
-      <ToolbarButton
-        icon={Strikethrough}
-        tooltip="취소선"
-        active={editor?.isActive('strike')}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().toggleStrike().run()}
-      />
-      <ToolbarButton
-        icon={Code}
-        tooltip="인라인 코드"
-        active={editor?.isActive('code')}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().toggleCode().run()}
-      />
+      {!isMobile && (
+        <>
+          <ToolbarButton
+            icon={Underline}
+            tooltip="밑줄 (Cmd+U)"
+            active={editor?.isActive('underline')}
+            disabled={noEditor}
+            onClick={() => editor?.chain().focus().toggleUnderline().run()}
+          />
+          <ToolbarButton
+            icon={Strikethrough}
+            tooltip="취소선"
+            active={editor?.isActive('strike')}
+            disabled={noEditor}
+            onClick={() => editor?.chain().focus().toggleStrike().run()}
+          />
+          <ToolbarButton
+            icon={Code}
+            tooltip="인라인 코드"
+            active={editor?.isActive('code')}
+            disabled={noEditor}
+            onClick={() => editor?.chain().focus().toggleCode().run()}
+          />
+        </>
+      )}
 
       <Divider />
 
@@ -249,35 +269,40 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
         disabled={noEditor}
         onClick={() => editor?.chain().focus().toggleBulletList().run()}
       />
-      <Divider />
 
-      {/* Insert Group */}
-      <ToolbarButton
-        icon={Table}
-        tooltip="표 삽입"
-        disabled={noEditor}
-        onClick={() =>
-          editor
-            ?.chain()
-            .focus()
-            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-            .run()
-        }
-      />
-      <ToolbarButton
-        icon={CodeSquare}
-        tooltip="코드 블록"
-        active={editor?.isActive('codeBlock')}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-      />
-      <ToolbarButton
-        icon={Quote}
-        tooltip="인용"
-        active={editor?.isActive('blockquote')}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-      />
+      {!isMobile && (
+        <>
+          <Divider />
+
+          {/* Insert Group */}
+          <ToolbarButton
+            icon={Table}
+            tooltip="표 삽입"
+            disabled={noEditor}
+            onClick={() =>
+              editor
+                ?.chain()
+                .focus()
+                .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                .run()
+            }
+          />
+          <ToolbarButton
+            icon={CodeSquare}
+            tooltip="코드 블록"
+            active={editor?.isActive('codeBlock')}
+            disabled={noEditor}
+            onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+          />
+          <ToolbarButton
+            icon={Quote}
+            tooltip="인용"
+            active={editor?.isActive('blockquote')}
+            disabled={noEditor}
+            onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+          />
+        </>
+      )}
 
       <div className="flex-1" />
 
@@ -286,11 +311,11 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
 
         <Divider />
 
-        {/* View Mode - 3 segment control */}
+        {/* View Mode - segment control */}
         <div className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
           {([
             { mode: 'wysiwyg' as const, icon: PenLine, label: 'WYSIWYG 모드' },
-            { mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' },
+            ...(!isMobile ? [{ mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' }] : []),
             { mode: 'source' as const, icon: Eye, label: '소스 보기' },
           ]).map(({ mode, icon: ModeIcon, label }) => (
             <Tooltip content={label} side="bottom" key={mode}>
@@ -310,9 +335,12 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
           ))}
         </div>
 
-        <Divider />
-
-        <ToolbarButton icon={PanelRight} tooltip="목차" onClick={onToggleToc} />
+        {!isMobile && (
+          <>
+            <Divider />
+            <ToolbarButton icon={PanelRight} tooltip="목차" onClick={onToggleToc} />
+          </>
+        )}
       </div>
 
     </div>
