@@ -20,7 +20,7 @@ export const metadata: Metadata = {
       {
         url: '/banner.png',
         width: 1200,
-        height: 509,
+        height: 670,
         alt: 'MDView - Markdown Editor',
       },
     ],
