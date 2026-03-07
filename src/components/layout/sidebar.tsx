@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  FileCode,
 } from 'lucide-react';
 import { SearchInput } from '../ui/search-input';
 import { Tooltip } from '../ui/tooltip';
@@ -28,7 +29,8 @@ import {
 import { useFolderTree, type FolderTreeNode } from '@/hooks/use-folders';
 import { useUIStore } from '@/stores/ui-store';
 import { createFolder, updateFolder, deleteFolder } from '@/db/folders';
-import { updateDocument } from '@/db/documents';
+import { updateDocument, createDocument } from '@/db/documents';
+import { markdownToHtml } from '@/lib/markdown';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { PromptDialog, ConfirmDialog } from '@/components/ui/dialog';
 
@@ -239,6 +241,22 @@ export function Sidebar({
     }
   }, [isDark, setTheme]);
 
+  const handleImportMarkdown = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.md,.markdown,.txt';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const title = file.name.replace(/\.(md|markdown|txt)$/i, '');
+      const htmlContent = markdownToHtml(text);
+      const id = await createDocument({ title, content: text, htmlContent });
+      onSelectDocument?.(id);
+    };
+    input.click();
+  }, [onSelectDocument]);
+
   const handleAddFolder = useCallback(() => {
     setFolderPromptOpen(true);
   }, []);
@@ -337,26 +355,33 @@ export function Sidebar({
           </div>
           <span className="font-semibold text-sm text-[var(--color-text)]">MDView</span>
         </div>
-        <div className="flex items-center gap-1">
-          <Tooltip content="HWP 불러오기" side="bottom">
-            <button
-              onClick={onImport}
-              aria-label="HWP 불러오기"
-              className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] transition-all duration-150 cursor-pointer active:scale-90"
-            >
-              <Import className="w-4 h-4" />
-            </button>
-          </Tooltip>
-          <Tooltip content="새 문서" side="bottom">
-            <button
-              onClick={onNewDocument}
-              aria-label="새 문서"
-              className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] transition-all duration-150 cursor-pointer active:scale-90"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </Tooltip>
-        </div>
+        <Tooltip content="새 문서" side="bottom">
+          <button
+            onClick={onNewDocument}
+            aria-label="새 문서"
+            className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] transition-all duration-150 cursor-pointer active:scale-90"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* Import Buttons */}
+      <div className="px-3 mb-2 flex gap-2">
+        <button
+          onClick={handleImportMarkdown}
+          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
+        >
+          <FileCode className="w-3.5 h-3.5" />
+          <span>Markdown</span>
+        </button>
+        <button
+          onClick={onImport}
+          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+        >
+          <Import className="w-3.5 h-3.5" />
+          <span>HWP</span>
+        </button>
       </div>
 
       {/* Search */}
