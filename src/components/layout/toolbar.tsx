@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bold,
   Italic,
@@ -9,17 +10,11 @@ import {
   Code,
   List,
   ListOrdered,
-  ListChecks,
   Table,
-  Image,
   CodeSquare,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   Eye,
   SplitSquareVertical,
   PenLine,
-  Download,
   PanelRight,
   ChevronDown,
   Heading,
@@ -30,7 +25,6 @@ import {
   Quote,
 } from 'lucide-react';
 import { Tooltip } from '../ui/tooltip';
-import { PromptDialog } from '../ui/dialog';
 import { useUIStore } from '@/stores/ui-store';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
@@ -77,8 +71,6 @@ function getActiveBlockLabel(editor: TipTapEditor | null): string {
   if (editor.isActive('heading', { level: 1 })) return '제목 1';
   if (editor.isActive('heading', { level: 2 })) return '제목 2';
   if (editor.isActive('heading', { level: 3 })) return '제목 3';
-  if (editor.isActive('blockquote')) return '인용';
-  if (editor.isActive('codeBlock')) return '코드';
   return '본문';
 }
 
@@ -91,43 +83,97 @@ export interface ToolbarProps {
 export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) {
   const viewMode = useUIStore((s) => s.viewMode);
   const { setViewMode } = useUIStore((s) => s.actions);
-  const [imagePromptOpen, setImagePromptOpen] = useState(false);
-
   const blockLabel = getActiveBlockLabel(editor);
   const noEditor = !editor;
 
-  const handleBlockType = () => {
-    if (!editor) return;
-    // Cycle through block types: paragraph -> h1 -> h2 -> h3 -> blockquote -> paragraph
-    if (editor.isActive('paragraph')) {
-      editor.chain().focus().toggleHeading({ level: 1 }).run();
-    } else if (editor.isActive('heading', { level: 1 })) {
-      editor.chain().focus().toggleHeading({ level: 2 }).run();
-    } else if (editor.isActive('heading', { level: 2 })) {
-      editor.chain().focus().toggleHeading({ level: 3 }).run();
-    } else if (editor.isActive('heading', { level: 3 })) {
-      editor.chain().focus().toggleBlockquote().run();
-    } else if (editor.isActive('blockquote')) {
-      editor.chain().focus().setParagraph().run();
-    } else {
-      editor.chain().focus().setParagraph().run();
+  const [blockMenuOpen, setBlockMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const blockMenuRef = useRef<HTMLDivElement>(null);
+  const blockTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!blockMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        blockMenuRef.current && !blockMenuRef.current.contains(e.target as Node) &&
+        blockTriggerRef.current && !blockTriggerRef.current.contains(e.target as Node)
+      ) {
+        setBlockMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [blockMenuOpen]);
+
+  const openBlockMenu = useCallback(() => {
+    if (blockTriggerRef.current) {
+      const rect = blockTriggerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, left: rect.left });
     }
-  };
+    setBlockMenuOpen((v) => !v);
+  }, []);
+
+  const blockTypes = [
+    { label: '본문', icon: Pilcrow, action: () => editor?.chain().focus().setParagraph().run() },
+    { label: '제목 1', icon: Heading1, action: () => editor?.chain().focus().setHeading({ level: 1 }).run() },
+    { label: '제목 2', icon: Heading2, action: () => editor?.chain().focus().setHeading({ level: 2 }).run() },
+    { label: '제목 3', icon: Heading3, action: () => editor?.chain().focus().setHeading({ level: 3 }).run() },
+  ];
+
+  const handleBlockSelect = useCallback((action: () => void) => {
+    action();
+    setBlockMenuOpen(false);
+  }, []);
 
   return (
     <div data-toolbar className="flex items-center h-11 px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
       {/* Block Type Selector */}
-      <button
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={handleBlockType}
-        disabled={noEditor}
-        aria-label={`블록 타입: ${blockLabel}`}
-        className="flex items-center gap-1 h-8 px-2.5 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        <Heading className="w-4 h-4" />
-        <span className="text-xs">{blockLabel}</span>
-        <ChevronDown className="w-3 h-3" />
-      </button>
+      <div className="relative">
+        <button
+          ref={blockTriggerRef}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={openBlockMenu}
+          disabled={noEditor}
+          aria-label={`블록 타입: ${blockLabel}`}
+          className="flex items-center gap-1 h-8 px-2.5 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Heading className="w-4 h-4" />
+          <span className="text-xs">{blockLabel}</span>
+          <ChevronDown className="w-3 h-3" />
+        </button>
+        {blockMenuOpen && createPortal(
+          <div
+            ref={blockMenuRef}
+            className="fixed z-[9999] min-w-[160px] p-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl shadow-lg animate-[scale-in_150ms_ease-out] origin-top"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            {blockTypes.map((bt) => {
+              const BtIcon = bt.icon;
+              const isActive = blockLabel === bt.label;
+              return (
+                <button
+                  key={bt.label}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleBlockSelect(bt.action)}
+                  className={`
+                    flex w-full items-center gap-2.5 px-3 py-2
+                    rounded-lg text-sm font-normal
+                    transition-colors duration-100 cursor-pointer
+                    ${isActive
+                      ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]'
+                      : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
+                    }
+                  `}
+                >
+                  <BtIcon className="w-4 h-4 shrink-0" />
+                  <span>{bt.label}</span>
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
+      </div>
 
       <Divider />
 
@@ -185,14 +231,6 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
         disabled={noEditor}
         onClick={() => editor?.chain().focus().toggleBulletList().run()}
       />
-      <ToolbarButton
-        icon={ListChecks}
-        tooltip="체크리스트"
-        active={editor?.isActive('taskList')}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().toggleTaskList().run()}
-      />
-
       <Divider />
 
       {/* Insert Group */}
@@ -209,42 +247,18 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
         }
       />
       <ToolbarButton
-        icon={Image}
-        tooltip="이미지 삽입"
-        disabled={noEditor}
-        onClick={() => setImagePromptOpen(true)}
-      />
-      <ToolbarButton
         icon={CodeSquare}
         tooltip="코드 블록"
         active={editor?.isActive('codeBlock')}
         disabled={noEditor}
         onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
       />
-
-      <Divider />
-
-      {/* Align Group */}
       <ToolbarButton
-        icon={AlignLeft}
-        tooltip="왼쪽 정렬"
-        active={editor?.isActive({ textAlign: 'left' })}
+        icon={Quote}
+        tooltip="인용"
+        active={editor?.isActive('blockquote')}
         disabled={noEditor}
-        onClick={() => editor?.chain().focus().setTextAlign('left').run()}
-      />
-      <ToolbarButton
-        icon={AlignCenter}
-        tooltip="가운데 정렬"
-        active={editor?.isActive({ textAlign: 'center' })}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().setTextAlign('center').run()}
-      />
-      <ToolbarButton
-        icon={AlignRight}
-        tooltip="오른쪽 정렬"
-        active={editor?.isActive({ textAlign: 'right' })}
-        disabled={noEditor}
-        onClick={() => editor?.chain().focus().setTextAlign('right').run()}
+        onClick={() => editor?.chain().focus().toggleBlockquote().run()}
       />
 
       <div className="flex-1" />
@@ -275,22 +289,9 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
 
       <Divider />
 
-      {/* Export */}
-      <ToolbarButton icon={Download} tooltip="내보내기" onClick={onExport} />
-
       {/* TOC */}
       <ToolbarButton icon={PanelRight} tooltip="목차" onClick={onToggleToc} />
 
-      <PromptDialog
-        open={imagePromptOpen}
-        onClose={() => setImagePromptOpen(false)}
-        onConfirm={(url) => {
-          editor?.chain().focus().setImage({ src: url }).run();
-        }}
-        title="이미지 삽입"
-        placeholder="이미지 URL을 입력하세요"
-        confirmLabel="삽입"
-      />
     </div>
   );
 }

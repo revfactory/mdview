@@ -25,9 +25,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { htmlToMarkdown } from '@/lib/markdown';
 import { TrailingNode } from '@/extensions/trailing-node';
 import { UniqueID } from '@/extensions/unique-id';
-import { SlashCommand } from '@/extensions/slash-command';
 import { EditorBubbleMenu } from '@/components/features/editor/bubble-menu';
-import { SlashCommandMenu } from '@/components/features/editor/slash-command';
 import { useImageDrop, DropOverlay } from '@/components/features/editor/drop-zone';
 import { useEditorStore } from '@/stores/editor-store';
 
@@ -69,7 +67,7 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
           if (node.type.name === 'heading') {
             return '제목을 입력하세요';
           }
-          return "'/'를 눌러 블록을 추가하세요";
+          return '내용을 입력하세요';
         },
       }),
       Typography,
@@ -90,12 +88,14 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
       }),
       TrailingNode,
       UniqueID,
-      SlashCommand,
     ],
     content: initialContentRef.current || '<p></p>',
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML();
       const markdown = htmlToMarkdown(html);
+
+      // Keep ref in sync to prevent content effect from re-setting content
+      initialContentRef.current = html;
 
       // Update character/word counts
       const charCount = ed.storage.characterCount?.characters?.() ?? 0;
@@ -139,7 +139,6 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
     <div className="editor-wrapper relative w-full min-w-0 flex-1" {...dropZoneProps}>
       <DropOverlay visible={isDragging} />
       <EditorBubbleMenu editor={editor} />
-      <SlashCommandMenu editor={editor} />
       <EditorContent editor={editor} />
     </div>
   );
