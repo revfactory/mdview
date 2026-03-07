@@ -6,7 +6,33 @@ import '@/styles/editor.css';
 
 export const metadata: Metadata = {
   title: 'MDView - Markdown Editor',
-  description: '강력하고 아름다운 마크다운 에디터',
+  description: '마크다운 에디터. 문서는 서버에 전송되지 않으며 브라우저에만 저장됩니다.',
+  metadataBase: new URL('https://www.mdview.kr'),
+  openGraph: {
+    title: 'MDView - Markdown Editor',
+    description: '마크다운 에디터. 문서는 서버에 전송되지 않으며 브라우저에만 저장됩니다.',
+    url: 'https://www.mdview.kr',
+    siteName: 'MDView',
+    images: [
+      {
+        url: '/banner.png',
+        width: 3168,
+        height: 1344,
+        alt: 'MDView - Markdown Editor',
+      },
+    ],
+    locale: 'ko_KR',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'MDView - Markdown Editor',
+    description: '마크다운 에디터. 문서는 서버에 전송되지 않으며 브라우저에만 저장됩니다.',
+    images: ['/banner.png'],
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
