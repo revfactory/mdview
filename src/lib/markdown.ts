@@ -72,9 +72,7 @@ export function markdownToHtml(md: string): string {
   if (!md) return '';
 
   ensureMarkedConfigured();
-  const result = marked.parse(md);
+  const result = marked.parse(md, { async: false });
 
-  // marked.parse can return string | Promise<string>
-  // with async: false (default), it returns string
-  return result as string;
+  return result;
 }

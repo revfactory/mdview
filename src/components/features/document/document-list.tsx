@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { Document } from '@/types';
 import { DocumentItem } from './document-item';
 
@@ -21,6 +21,14 @@ export function DocumentList({
   onDelete,
   onDuplicate,
 }: DocumentListProps) {
+  const sorted = useMemo(
+    () => [...documents].sort((a, b) => {
+      if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    }),
+    [documents]
+  );
+
   if (documents.length === 0) {
     return (
       <div className="px-3 py-6 text-center text-xs text-[var(--color-text-muted)]">
@@ -30,8 +38,8 @@ export function DocumentList({
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
-      {documents.map((doc) => (
+    <div className="flex flex-col gap-1">
+      {sorted.map((doc) => (
         <DocumentItem
           key={doc.id}
           id={doc.id}

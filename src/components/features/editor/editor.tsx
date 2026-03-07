@@ -3,6 +3,9 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableCell } from '@tiptap/extension-table-cell';
 import { Image } from '@tiptap/extension-image';
 import { TaskList } from '@tiptap/extension-task-list';
 import { TaskItem } from '@tiptap/extension-task-item';
@@ -25,6 +28,7 @@ import { UniqueID } from '@/extensions/unique-id';
 import { SlashCommand } from '@/extensions/slash-command';
 import { EditorBubbleMenu } from '@/components/features/editor/bubble-menu';
 import { SlashCommandMenu } from '@/components/features/editor/slash-command';
+import { useImageDrop, DropOverlay } from '@/components/features/editor/drop-zone';
 import { useEditorStore } from '@/stores/editor-store';
 
 interface EditorProps {
@@ -52,6 +56,9 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
       Table.configure({
         resizable: true,
       }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Image,
       TaskList,
       TaskItem.configure({
@@ -113,31 +120,24 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
     }
   }, [editor, editable]);
 
-  // Update content when it changes externally
-  const setContent = useCallback(
-    (newContent: string) => {
-      if (!editor) return;
-      const currentContent = editor.getHTML();
-      if (newContent !== currentContent && newContent !== htmlToMarkdown(currentContent)) {
-        editor.commands.setContent(newContent || '<p></p>');
-      }
-    },
-    [editor]
-  );
-
+  // Update content when it changes externally (e.g. switching documents)
   useEffect(() => {
+    if (!editor) return;
     if (content !== initialContentRef.current) {
       initialContentRef.current = content;
-      setContent(content);
+      editor.commands.setContent(content || '<p></p>', { emitUpdate: false });
     }
-  }, [content, setContent]);
+  }, [content, editor]);
+
+  const { isDragging, dropZoneProps } = useImageDrop(editor);
 
   if (!editor) {
     return null;
   }
 
   return (
-    <div className="editor-wrapper relative w-full h-full overflow-y-auto">
+    <div className="editor-wrapper relative w-full min-w-0 flex-1" {...dropZoneProps}>
+      <DropOverlay visible={isDragging} />
       <EditorBubbleMenu editor={editor} />
       <SlashCommandMenu editor={editor} />
       <EditorContent editor={editor} />

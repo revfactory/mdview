@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Toaster } from 'sonner';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import './globals.css';
+import '@/styles/editor.css';
 
 export const metadata: Metadata = {
   title: 'MDView - Markdown Editor',
@@ -15,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.json" />
         <link
           rel="stylesheet"
           as="style"
@@ -23,7 +26,9 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
+        <ErrorBoundary>
         {children}
+        </ErrorBoundary>
         <Toaster
           position="bottom-right"
           toastOptions={{

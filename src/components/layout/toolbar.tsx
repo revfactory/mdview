@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Bold,
   Italic,
@@ -30,6 +30,7 @@ import {
   Quote,
 } from 'lucide-react';
 import { Tooltip } from '../ui/tooltip';
+import { PromptDialog } from '../ui/dialog';
 import { useUIStore } from '@/stores/ui-store';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
@@ -47,9 +48,11 @@ function ToolbarButton({ icon: Icon, tooltip, active, onClick, disabled }: Toolb
       <button
         onClick={onClick}
         disabled={disabled}
+        aria-label={tooltip}
         className={`
           flex items-center justify-center w-8 h-8
-          rounded-md transition-colors duration-100 cursor-pointer
+          rounded-md transition-all duration-100 cursor-pointer
+          active:scale-95
           disabled:opacity-40 disabled:cursor-not-allowed
           ${
             active
@@ -58,14 +61,14 @@ function ToolbarButton({ icon: Icon, tooltip, active, onClick, disabled }: Toolb
           }
         `}
       >
-        <Icon className="w-[18px] h-[18px]" />
+        <Icon className="w-4 h-4" />
       </button>
     </Tooltip>
   );
 }
 
 function Divider() {
-  return <div className="w-px h-5 bg-[var(--color-border)] mx-0.5" />;
+  return <div className="w-px h-4 bg-[var(--color-border)] mx-1.5" />;
 }
 
 function getActiveBlockLabel(editor: TipTapEditor | null): string {
@@ -87,6 +90,7 @@ export interface ToolbarProps {
 export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) {
   const viewMode = useUIStore((s) => s.viewMode);
   const { setViewMode } = useUIStore((s) => s.actions);
+  const [imagePromptOpen, setImagePromptOpen] = useState(false);
 
   const blockLabel = getActiveBlockLabel(editor);
   const noEditor = !editor;
@@ -110,11 +114,12 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
   };
 
   return (
-    <div className="flex items-center h-11 px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] sticky top-0 z-10 shrink-0">
+    <div data-toolbar className="flex items-center h-11 px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
       {/* Block Type Selector */}
       <button
         onClick={handleBlockType}
         disabled={noEditor}
+        aria-label={`블록 타입: ${blockLabel}`}
         className="flex items-center gap-1 h-8 px-2.5 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Heading className="w-4 h-4" />
@@ -205,12 +210,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
         icon={Image}
         tooltip="이미지 삽입"
         disabled={noEditor}
-        onClick={() => {
-          const url = window.prompt('이미지 URL을 입력하세요:');
-          if (url) {
-            editor?.chain().focus().setImage({ src: url }).run();
-          }
-        }}
+        onClick={() => setImagePromptOpen(true)}
       />
       <ToolbarButton
         icon={CodeSquare}
@@ -248,37 +248,26 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
       <div className="flex-1" />
 
       {/* View Mode - 3 segment control */}
-      <div className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] p-0.5">
-        <button
-          onClick={() => setViewMode('wysiwyg')}
-          className={`flex items-center justify-center w-8 h-7 rounded-md transition-colors cursor-pointer ${
-            viewMode === 'wysiwyg'
-              ? 'bg-[var(--color-bg)] text-[var(--color-text)] shadow-sm'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-          }`}
-        >
-          <PenLine className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => setViewMode('split')}
-          className={`flex items-center justify-center w-8 h-7 rounded-md transition-colors cursor-pointer ${
-            viewMode === 'split'
-              ? 'bg-[var(--color-bg)] text-[var(--color-text)] shadow-sm'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-          }`}
-        >
-          <SplitSquareVertical className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => setViewMode('source')}
-          className={`flex items-center justify-center w-8 h-7 rounded-md transition-colors cursor-pointer ${
-            viewMode === 'source'
-              ? 'bg-[var(--color-bg)] text-[var(--color-text)] shadow-sm'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-          }`}
-        >
-          <Eye className="w-4 h-4" />
-        </button>
+      <div className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
+        {([
+          { mode: 'wysiwyg' as const, icon: PenLine, label: 'WYSIWYG 모드' },
+          { mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' },
+          { mode: 'source' as const, icon: Eye, label: '소스 보기' },
+        ]).map(({ mode, icon: ModeIcon, label }) => (
+          <Tooltip content={label} side="bottom" key={mode}>
+            <button
+              onClick={() => setViewMode(mode)}
+              aria-label={label}
+              className={`flex items-center justify-center w-8 h-7 rounded-md text-xs transition-all duration-150 cursor-pointer ${
+                viewMode === mode
+                  ? 'bg-[var(--color-bg)] text-[var(--color-accent)] shadow-sm'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              <ModeIcon className="w-3.5 h-3.5" />
+            </button>
+          </Tooltip>
+        ))}
       </div>
 
       <Divider />
@@ -288,6 +277,17 @@ export function Toolbar({ editor = null, onExport, onToggleToc }: ToolbarProps) 
 
       {/* TOC */}
       <ToolbarButton icon={PanelRight} tooltip="목차" onClick={onToggleToc} />
+
+      <PromptDialog
+        open={imagePromptOpen}
+        onClose={() => setImagePromptOpen(false)}
+        onConfirm={(url) => {
+          editor?.chain().focus().setImage({ src: url }).run();
+        }}
+        title="이미지 삽입"
+        placeholder="이미지 URL을 입력하세요"
+        confirmLabel="삽입"
+      />
     </div>
   );
 }

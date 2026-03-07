@@ -145,7 +145,7 @@ export function SlashCommandMenu({ editor }: SlashCommandMenuProps) {
                 <button
                   key={item.command}
                   ref={isSelected ? selectedItemRef : null}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors cursor-pointer"
                   style={{
                     backgroundColor: isSelected
                       ? 'var(--color-surface-hover)'

@@ -66,6 +66,24 @@ const BODY_SIZE = 1000;
 
 // ---------- HTML to HWPX XML conversion ----------
 
+interface HwpTableCell {
+  text: string;
+  colspan: number;
+  rowspan: number;
+}
+
+interface HwpTable {
+  rows: HwpTableCell[][];
+  colCount: number;
+}
+
+interface HwpImageData {
+  base64: string;
+  mimeType: string;
+  id: string;
+  extension: string;
+}
+
 interface HwpParagraph {
   text: string;
   headingLevel: number; // 0 = body
@@ -76,6 +94,53 @@ interface HwpParagraph {
   isCodeBlock: boolean;
   isBlockquote: boolean;
   isHr: boolean;
+  isTable: boolean;
+  table?: HwpTable;
+  isImage: boolean;
+  imageData?: HwpImageData;
+}
+
+function parseHtmlTable(tableHtml: string): HwpTable {
+  const rows: HwpTableCell[][] = [];
+  const trPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let trMatch: RegExpExecArray | null;
+
+  while ((trMatch = trPattern.exec(tableHtml)) !== null) {
+    const rowHtml = trMatch[1];
+    const cells: HwpTableCell[] = [];
+    const tdPattern = /<(?:td|th)([^>]*)>([\s\S]*?)<\/(?:td|th)>/gi;
+    let tdMatch: RegExpExecArray | null;
+
+    while ((tdMatch = tdPattern.exec(rowHtml)) !== null) {
+      const attrs = tdMatch[1];
+      const cellText = stripHtml(tdMatch[2]).trim();
+
+      const colspanMatch = attrs.match(/colspan\s*=\s*["']?(\d+)["']?/i);
+      const rowspanMatch = attrs.match(/rowspan\s*=\s*["']?(\d+)["']?/i);
+
+      cells.push({
+        text: cellText,
+        colspan: colspanMatch ? parseInt(colspanMatch[1], 10) : 1,
+        rowspan: rowspanMatch ? parseInt(rowspanMatch[1], 10) : 1,
+      });
+    }
+
+    if (cells.length > 0) {
+      rows.push(cells);
+    }
+  }
+
+  // Determine column count (max logical columns considering colspan)
+  let colCount = 0;
+  for (const row of rows) {
+    let count = 0;
+    for (const cell of row) {
+      count += cell.colspan;
+    }
+    if (count > colCount) colCount = count;
+  }
+
+  return { rows, colCount: colCount || 1 };
 }
 
 function htmlToHwpParagraphs(html: string): HwpParagraph[] {
@@ -87,11 +152,50 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
   // Remove doctype, html, head, body wrappers
   let content = html.replace(/<\/?(?:html|head|body|!doctype)[^>]*>/gi, '');
 
-  // Split by block elements
-  const blockPattern = /<(h[1-6]|p|li|pre|blockquote|hr|div|ul|ol)(\s[^>]*)?>[\s\S]*?<\/\1>|<hr\s*\/?>|<(h[1-6]|p|li|pre|blockquote|div)(\s[^>]*)?>[\s\S]*?<\/\3>/gi;
+  // Extract tables first and replace with placeholders
+  const tables: HwpTable[] = [];
+  const tablePattern = /<table[^>]*>[\s\S]*?<\/table>/gi;
+  content = content.replace(tablePattern, (tableHtml) => {
+    const table = parseHtmlTable(tableHtml);
+    const idx = tables.length;
+    tables.push(table);
+    return `\n__HWPTABLE_${idx}__\n`;
+  });
 
-  let match: RegExpExecArray | null;
-  let lastIndex = 0;
+  // Extract images and replace with placeholders
+  const images: HwpImageData[] = [];
+  const imgPattern = /<img[^>]*>/gi;
+  content = content.replace(imgPattern, (imgTag) => {
+    const srcMatch = imgTag.match(/src\s*=\s*["']([^"']+)["']/i);
+    if (!srcMatch) return '';
+
+    const src = srcMatch[1];
+
+    // Only handle base64 data URLs
+    const dataUrlMatch = src.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
+    if (!dataUrlMatch) {
+      // External URL — skip with warning
+      console.warn('[HWP Export] Skipping external image URL:', src.substring(0, 80));
+      return '\n__HWPIMG_SKIP__\n';
+    }
+
+    let mimeSubtype = dataUrlMatch[1].toLowerCase();
+    // Normalize jpeg
+    if (mimeSubtype === 'jpg') mimeSubtype = 'jpeg';
+    const extension = mimeSubtype === 'jpeg' ? 'jpg' : mimeSubtype;
+    const base64Data = dataUrlMatch[2];
+    const id = `image${images.length + 1}`;
+
+    const imageData: HwpImageData = {
+      base64: base64Data,
+      mimeType: `image/${mimeSubtype}`,
+      id,
+      extension,
+    };
+    const idx = images.length;
+    images.push(imageData);
+    return `\n__HWPIMAGE_${idx}__\n`;
+  });
 
   // Process line by line for simpler approach
   const lines = content
@@ -119,7 +223,60 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
         isCodeBlock: false,
         isBlockquote: false,
         isHr: false,
+        isTable: false,
+        isImage: false,
       });
+      continue;
+    }
+
+    // Check for table placeholder
+    const tablePlaceholder = trimmed.match(/^__HWPTABLE_(\d+)__$/);
+    if (tablePlaceholder) {
+      const tableIdx = parseInt(tablePlaceholder[1], 10);
+      if (tableIdx < tables.length) {
+        paragraphs.push({
+          text: '',
+          headingLevel: 0,
+          bold: false,
+          italic: false,
+          isList: false,
+          listPrefix: '',
+          isCodeBlock: false,
+          isBlockquote: false,
+          isHr: false,
+          isTable: true,
+          table: tables[tableIdx],
+          isImage: false,
+        });
+      }
+      continue;
+    }
+
+    // Check for image placeholder
+    const imagePlaceholder = trimmed.match(/^__HWPIMAGE_(\d+)__$/);
+    if (imagePlaceholder) {
+      const imgIdx = parseInt(imagePlaceholder[1], 10);
+      if (imgIdx < images.length) {
+        paragraphs.push({
+          text: '',
+          headingLevel: 0,
+          bold: false,
+          italic: false,
+          isList: false,
+          listPrefix: '',
+          isCodeBlock: false,
+          isBlockquote: false,
+          isHr: false,
+          isTable: false,
+          isImage: true,
+          imageData: images[imgIdx],
+        });
+      }
+      continue;
+    }
+
+    // Skip placeholder for external images
+    if (trimmed === '__HWPIMG_SKIP__') {
       continue;
     }
 
@@ -139,6 +296,8 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
           isCodeBlock: false,
           isBlockquote: false,
           isHr: false,
+          isTable: false,
+          isImage: false,
         });
       }
       continue;
@@ -156,6 +315,8 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
         isCodeBlock: false,
         isBlockquote: false,
         isHr: true,
+        isTable: false,
+        isImage: false,
       });
       continue;
     }
@@ -180,6 +341,8 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
           isCodeBlock: true,
           isBlockquote: false,
           isHr: false,
+          isTable: false,
+          isImage: false,
         });
       }
       continue;
@@ -224,6 +387,8 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
           isCodeBlock: false,
           isBlockquote: false,
           isHr: false,
+          isTable: false,
+          isImage: false,
         });
       }
       continue;
@@ -244,6 +409,8 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
           isCodeBlock: false,
           isBlockquote: true,
           isHr: false,
+          isTable: false,
+          isImage: false,
         });
       }
       continue;
@@ -266,6 +433,8 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
         isCodeBlock: false,
         isBlockquote: false,
         isHr: false,
+        isTable: false,
+        isImage: false,
       });
     }
   }
@@ -299,7 +468,7 @@ function generateMimetype(): string {
   return 'application/hwp+zip';
 }
 
-function generateManifest(sections: number): string {
+function generateManifest(sections: number, imageEntries: HwpImageData[] = []): string {
   let manifest = `<?xml version="1.0" encoding="UTF-8"?>
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
   <manifest:file-entry manifest:media-type="application/hwp+zip" manifest:full-path="/"/>
@@ -311,16 +480,26 @@ function generateManifest(sections: number): string {
   <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Contents/section${i}.xml"/>`;
   }
 
+  for (const img of imageEntries) {
+    manifest += `
+  <manifest:file-entry manifest:media-type="${img.mimeType}" manifest:full-path="BinData/${img.id}.${img.extension}"/>`;
+  }
+
   manifest += `
 </manifest:manifest>`;
   return manifest;
 }
 
-function generateContentHpf(sections: number): string {
+function generateContentHpf(sections: number, imageEntries: HwpImageData[] = []): string {
   let items = '';
   for (let i = 0; i < sections; i++) {
     items += `
     <opf:item id="section${i}" href="section${i}.xml" media-type="text/xml"/>`;
+  }
+
+  for (const img of imageEntries) {
+    items += `
+    <opf:item id="${img.id}" href="../BinData/${img.id}.${img.extension}" media-type="${img.mimeType}"/>`;
   }
 
   let itemRefs = '';
@@ -368,26 +547,46 @@ function generateHeader(options: GenerateMessage['options']): string {
       <hp:fontface ha:lang="LATIN">
         <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
       </hp:fontface>
+      <hp:fontface ha:lang="HANJA">
+        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
+      </hp:fontface>
+      <hp:fontface ha:lang="SYMBOL">
+        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
+      </hp:fontface>
     </hp:fontfaces>
+    <hp:borderFills>
+      <hp:borderFill ha:id="1">
+        <hp:slash ha:type="NONE"/>
+        <hp:leftBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
+        <hp:rightBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
+        <hp:topBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
+        <hp:bottomBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
+      </hp:borderFill>
+      <hp:borderFill ha:id="2">
+        <hp:slash ha:type="NONE"/>
+        <hp:leftBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
+        <hp:rightBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
+        <hp:topBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
+        <hp:bottomBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
+      </hp:borderFill>
+    </hp:borderFills>
     <hp:charProperties>
-      <hp:charPr ha:id="0">
-        <hp:sz ha:val="${Math.round(options.fontSize * 100)}"/>
+      <hp:charPr ha:id="0" ha:height="${Math.round(options.fontSize * 100)}" ha:textColor="#000000">
+        <hp:fontRef ha:hangul="0" ha:latin="0"/>
       </hp:charPr>
-      <hp:charPr ha:id="1">
-        <hp:sz ha:val="2400"/>
-        <hp:bold/>
+      <hp:charPr ha:id="1" ha:height="2400" ha:textColor="#000000" ha:bold="true">
+        <hp:fontRef ha:hangul="0" ha:latin="0"/>
       </hp:charPr>
-      <hp:charPr ha:id="2">
-        <hp:sz ha:val="2000"/>
-        <hp:bold/>
+      <hp:charPr ha:id="2" ha:height="2000" ha:textColor="#000000" ha:bold="true">
+        <hp:fontRef ha:hangul="0" ha:latin="0"/>
       </hp:charPr>
-      <hp:charPr ha:id="3">
-        <hp:sz ha:val="1600"/>
-        <hp:bold/>
+      <hp:charPr ha:id="3" ha:height="1600" ha:textColor="#000000" ha:bold="true">
+        <hp:fontRef ha:hangul="0" ha:latin="0"/>
       </hp:charPr>
     </hp:charProperties>
     <hp:paraProperties>
       <hp:paraPr ha:id="0">
+        <hp:align ha:horizontal="JUSTIFY" ha:vertical="BASELINE"/>
         <hp:lineSpacing ha:type="PERCENT" ha:value="${Math.round(options.lineHeight * 100)}"/>
       </hp:paraPr>
     </hp:paraProperties>
@@ -396,9 +595,101 @@ function generateHeader(options: GenerateMessage['options']): string {
     <hp:pageDef ha:width="${width}" ha:height="${height}"
                 ha:marginTop="${marginTop}" ha:marginBottom="${marginBottom}"
                 ha:marginLeft="${marginLeft}" ha:marginRight="${marginRight}"
-                ha:headerMargin="0" ha:footerMargin="0"/>
+                ha:headerMargin="0" ha:footerMargin="0"
+                ha:gutterType="LEFT_ONLY"/>
   </hp:secDef>
 </hp:head>`;
+}
+
+function generateTableXml(table: HwpTable, options: GenerateMessage['options']): string {
+  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
+  const pageWidth = options.orientation === 'landscape' ? paper.height : paper.width;
+  const marginLeft = options.marginLeft * 100;
+  const marginRight = options.marginRight * 100;
+  const contentWidth = pageWidth - marginLeft - marginRight;
+  const bodySize = Math.round(options.fontSize * 100);
+
+  const colWidth = Math.round(contentWidth / table.colCount);
+  const cellHeight = 1000;
+  const cellMargin = 51;
+
+  let xml = `
+  <hp:p>
+    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
+    <hp:run>
+      <hp:rPr><hp:charPrIDRef ha:val="0"/></hp:rPr>
+      <hp:tbl ha:borderFillIDRef="2" ha:cellSpacing="0" ha:pageBreak="CELL" ha:repeatHeader="false">
+        <hp:inMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
+        <hp:tblPr>
+          <hp:tblSize ha:width="${contentWidth}" ha:widthRelTo="paper"/>
+        </hp:tblPr>`;
+
+  for (const row of table.rows) {
+    xml += `
+        <hp:tr>`;
+    for (const cell of row) {
+      const cellWidth = colWidth * cell.colspan;
+      xml += `
+          <hp:tc ha:name="" ha:header="false" ha:hasMargin="false" ha:protect="false" ha:editable="false">
+            <hp:cellAddr ha:colAddr="0" ha:rowAddr="0"/>
+            <hp:cellSpan ha:colSpan="${cell.colspan}" ha:rowSpan="${cell.rowspan}"/>
+            <hp:cellSz ha:width="${cellWidth}" ha:height="${cellHeight}"/>
+            <hp:cellMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
+            <hp:cellBorderFill ha:borderFillIDRef="2"/>
+            <hp:subList ha:textDirection="HORIZONTAL" ha:lineWrap="BREAK" ha:vertAlign="CENTER" ha:textWidth="${cellWidth - cellMargin * 2}" ha:textHeight="${cellHeight}">
+              <hp:p>
+                <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
+                <hp:run>
+                  <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
+                  <hp:t>${escapeXml(cell.text)}</hp:t>
+                </hp:run>
+              </hp:p>
+            </hp:subList>
+          </hp:tc>`;
+    }
+    xml += `
+        </hp:tr>`;
+  }
+
+  xml += `
+      </hp:tbl>
+    </hp:run>
+  </hp:p>`;
+
+  return xml;
+}
+
+function generateImageXml(imageData: HwpImageData, options: GenerateMessage['options']): string {
+  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
+  const pageWidth = options.orientation === 'landscape' ? paper.height : paper.width;
+  const marginLeft = options.marginLeft * 100;
+  const marginRight = options.marginRight * 100;
+  const contentWidth = pageWidth - marginLeft - marginRight;
+
+  // Default image size: fit to content width, maintain a 4:3 aspect ratio as fallback
+  const imgWidth = contentWidth;
+  const imgHeight = Math.round(contentWidth * 3 / 4);
+
+  const binItemId = imageData.id;
+
+  return `
+  <hp:p>
+    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
+    <hp:run>
+      <hp:rPr><hp:charPrIDRef ha:val="0"/></hp:rPr>
+      <hp:drawing>
+        <hp:anchor ha:type="inline">
+          <hp:sz ha:width="${imgWidth}" ha:height="${imgHeight}" ha:widthRelTo="paper" ha:heightRelTo="paper"/>
+          <hp:pos ha:treatAsChar="true"/>
+          <hp:shapeComment>image</hp:shapeComment>
+          <hp:pic>
+            <hp:picRect/>
+            <hp:img ha:binaryItemIDRef="${binItemId}"/>
+          </hp:pic>
+        </hp:anchor>
+      </hp:drawing>
+    </hp:run>
+  </hp:p>`;
 }
 
 function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['options']): string {
@@ -407,12 +698,24 @@ function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['o
   let paraXml = '';
 
   for (const para of paragraphs) {
+    // Handle table
+    if (para.isTable && para.table) {
+      paraXml += generateTableXml(para.table, options);
+      continue;
+    }
+
+    // Handle image
+    if (para.isImage && para.imageData) {
+      paraXml += generateImageXml(para.imageData, options);
+      continue;
+    }
+
     if (para.isHr) {
-      // Horizontal rule as a paragraph with dashes
       paraXml += `
   <hp:p>
+    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
     <hp:run>
-      <hp:rPr><hp:sz val="${bodySize}"/></hp:rPr>
+      <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
       <hp:t>────────────────────────────────</hp:t>
     </hp:run>
   </hp:p>`;
@@ -420,11 +723,11 @@ function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['o
     }
 
     if (para.text === '') {
-      // Empty paragraph
       paraXml += `
   <hp:p>
+    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
     <hp:run>
-      <hp:rPr><hp:sz val="${bodySize}"/></hp:rPr>
+      <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
       <hp:t></hp:t>
     </hp:run>
   </hp:p>`;
@@ -439,7 +742,7 @@ function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['o
                         para.isBlockquote ? `\u2502 ${para.text}` :
                         para.text;
 
-    let rPr = `<hp:sz val="${fontSize}"/>`;
+    let rPr = `<hp:sz ha:val="${fontSize}"/>`;
     if (para.bold || para.headingLevel > 0) {
       rPr += '<hp:bold/>';
     }
@@ -449,6 +752,7 @@ function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['o
 
     paraXml += `
   <hp:p>
+    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
     <hp:run>
       <hp:rPr>${rPr}</hp:rPr>
       <hp:t>${escapeXml(displayText)}</hp:t>
@@ -477,6 +781,14 @@ async function generateHwpx(markdown: string, options: GenerateMessage['options'
 
   postProgress(50, 'HWPX XML 생성 중...');
 
+  // Collect all image data from paragraphs
+  const imageEntries: HwpImageData[] = [];
+  for (const para of paragraphs) {
+    if (para.isImage && para.imageData) {
+      imageEntries.push(para.imageData);
+    }
+  }
+
   // Generate HWPX structure
   const zip = new JSZip();
 
@@ -484,12 +796,23 @@ async function generateHwpx(markdown: string, options: GenerateMessage['options'
   zip.file('mimetype', generateMimetype(), { compression: 'STORE' });
 
   // META-INF/manifest.xml
-  zip.file('META-INF/manifest.xml', generateManifest(1));
+  zip.file('META-INF/manifest.xml', generateManifest(1, imageEntries));
 
   // Contents/
-  zip.file('Contents/content.hpf', generateContentHpf(1));
+  zip.file('Contents/content.hpf', generateContentHpf(1, imageEntries));
   zip.file('Contents/header.xml', generateHeader(options));
   zip.file('Contents/section0.xml', generateSection(paragraphs, options));
+
+  // BinData/ — embed images as binary
+  for (const img of imageEntries) {
+    // Decode base64 to binary
+    const binaryString = atob(img.base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    zip.file(`BinData/${img.id}.${img.extension}`, bytes, { binary: true });
+  }
 
   postProgress(80, 'HWPX 파일 패키징 중...');
 

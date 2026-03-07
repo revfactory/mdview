@@ -44,7 +44,7 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-[4px] animate-[fade-in_200ms_ease-out]"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-[fade-in_200ms_ease-out]"
         onClick={onClose}
       />
 
@@ -55,7 +55,8 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
           bg-[var(--color-bg)] rounded-2xl
           shadow-2xl border border-[var(--color-border)]
           p-6
-          animate-[scale-in_200ms_ease-out]
+          will-change-transform
+          animate-[scale-in_200ms_cubic-bezier(0.16,1,0.3,1)]
         `}
         role="dialog"
         aria-modal="true"
@@ -67,7 +68,8 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
             <h2 className="text-lg font-semibold text-[var(--color-text)]">{title}</h2>
             <button
               onClick={onClose}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors cursor-pointer"
+              aria-label="닫기"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-all duration-150 cursor-pointer active:scale-90"
             >
               <X className="w-4 h-4" />
             </button>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { updateContent } from '@/db/documents';
+import { DEFAULT_SETTINGS } from '@/lib/constants';
 
 export function useAutosave(
   documentId: string | null,
@@ -73,7 +74,7 @@ export function useAutosave(
     // Debounce save by 1 second
     timeoutRef.current = setTimeout(() => {
       save(content, htmlContent);
-    }, 1000);
+    }, DEFAULT_SETTINGS.autosaveInterval);
 
     return () => {
       if (timeoutRef.current) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { FilePlus2 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Sidebar } from '@/components/layout/sidebar';
@@ -8,12 +8,20 @@ import { Toolbar } from '@/components/layout/toolbar';
 import { StatusBar } from '@/components/layout/status-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Editor } from '@/components/features/editor/editor';
+import { DocumentTitle } from '@/components/features/editor/document-title';
+import { TocPanel } from '@/components/features/editor/toc-panel';
 import { HwpImport } from '@/components/features/import-export/hwp-import';
 import { HwpExport } from '@/components/features/import-export/hwp-export';
 import { ExportMenu } from '@/components/features/import-export/export-menu';
+import { QuickOpen } from '@/components/features/quick-open/quick-open';
+import { ToastContainer } from '@/components/ui/toast';
 import { useEditorStore } from '@/stores/editor-store';
+import { useUIStore } from '@/stores/ui-store';
 import { useEditorManager } from '@/hooks/use-editor';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { SourceEditor } from '@/components/features/editor/source-editor';
+import { SplitView } from '@/components/features/editor/split-view';
+import { useRecentDocuments, useDocument } from '@/hooks/use-documents';
 import {
   createDocument,
   updateDocument,
@@ -25,16 +33,32 @@ import type { Editor as TipTapEditor } from '@tiptap/react';
 export default function Home() {
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const { actions } = useEditorStore();
+  const viewMode = useUIStore((s) => s.viewMode);
+  const focusMode = useUIStore((s) => s.focusMode);
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
+  const [quickOpenOpen, setQuickOpenOpen] = useState(false);
+
+  const activeDocument = useDocument(activeDocumentId);
+  // 페이지 로드 시 가장 최근 문서 자동 선택
+  const recentDocs = useRecentDocuments(1);
+  useEffect(() => {
+    if (!activeDocumentId && recentDocs && recentDocs.length > 0) {
+      actions.setActiveDocument(recentDocs[0].id);
+    }
+  }, [activeDocumentId, recentDocs, actions]);
 
   const { content, htmlContent, isLoading, onChange } =
     useEditorManager(activeDocumentId);
 
   const handleNewDocument = useCallback(async () => {
-    const id = await createDocument({ title: '제목 없음' });
-    actions.setActiveDocument(id);
+    try {
+      const id = await createDocument({ title: '제목 없음' });
+      actions.setActiveDocument(id);
+    } catch (error) {
+      console.error('Failed to create document:', error);
+    }
   }, [actions]);
 
   const handleSelectDocument = useCallback(
@@ -45,18 +69,26 @@ export default function Home() {
   );
 
   const handleToggleFavorite = useCallback(async (id: string) => {
-    const { db } = await import('@/db');
-    const doc = await db.documents.get(id);
-    if (doc) {
-      await updateDocument(id, { isFavorite: !doc.isFavorite });
+    try {
+      const { db } = await import('@/db');
+      const doc = await db.documents.get(id);
+      if (doc) {
+        await updateDocument(id, { isFavorite: !doc.isFavorite });
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
     }
   }, []);
 
   const handleDeleteDocument = useCallback(
     async (id: string) => {
-      await deleteDocument(id);
-      if (activeDocumentId === id) {
-        actions.setActiveDocument(null);
+      try {
+        await deleteDocument(id);
+        if (activeDocumentId === id) {
+          actions.setActiveDocument(null);
+        }
+      } catch (error) {
+        console.error('Failed to delete document:', error);
       }
     },
     [activeDocumentId, actions]
@@ -64,17 +96,21 @@ export default function Home() {
 
   const handleDuplicateDocument = useCallback(
     async (id: string) => {
-      const { db } = await import('@/db');
-      const doc = await db.documents.get(id);
-      if (doc) {
-        const newId = await createDocument({
-          title: `${doc.title} (복사본)`,
-          content: doc.content,
-          htmlContent: doc.htmlContent,
-          folderId: doc.folderId,
-          tags: [...doc.tags],
-        });
-        actions.setActiveDocument(newId);
+      try {
+        const { db } = await import('@/db');
+        const doc = await db.documents.get(id);
+        if (doc) {
+          const newId = await createDocument({
+            title: `${doc.title} (복사본)`,
+            content: doc.content,
+            htmlContent: doc.htmlContent,
+            folderId: doc.folderId,
+            tags: [...doc.tags],
+          });
+          actions.setActiveDocument(newId);
+        }
+      } catch (error) {
+        console.error('Failed to duplicate document:', error);
       }
     },
     [actions]
@@ -117,6 +153,7 @@ export default function Home() {
       ) as HTMLInputElement | null;
       searchInput?.focus();
     },
+    onQuickOpen: () => setQuickOpenOpen(true),
   });
 
   return (
@@ -132,48 +169,101 @@ export default function Home() {
           onImport={() => setHwpImportOpen(true)}
         />
       }
+      focusMode={focusMode}
     >
-      <div className="flex flex-col h-screen">
-        <div className="flex items-center">
-          <Toolbar editor={tiptapEditor} onExport={() => setHwpExportOpen(true)} />
-        </div>
+      <div className="flex h-full overflow-hidden">
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          {/* Toolbar - hidden in focus mode */}
+          <div
+            className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+            style={{
+              maxHeight: focusMode ? 0 : 44,
+              opacity: focusMode ? 0 : 1,
+            }}
+          >
+            <Toolbar
+              editor={tiptapEditor}
+              onExport={() => setHwpExportOpen(true)}
+              onToggleToc={() => useUIStore.getState().actions.toggleToc()}
+            />
+          </div>
 
-        <div className="flex-1 overflow-auto">
-          {activeDocumentId ? (
-            isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-sm text-[var(--color-text-muted)]">
-                  문서 로딩 중...
+          <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+            {activeDocumentId ? (
+              isLoading ? (
+                <div className="flex items-center justify-center h-full animate-pulse">
+                  <div className="text-sm text-[var(--color-text-muted)]">
+                    문서 로딩 중...
+                  </div>
                 </div>
-              </div>
+              ) : viewMode === 'wysiwyg' ? (
+                <div style={{ margin: '0 auto', padding: '40px 40px 96px 40px' }}>
+                  <DocumentTitle documentId={activeDocumentId} />
+                  <Editor
+                    content={htmlContent}
+                    onChange={onChange}
+                    onEditorReady={handleEditorReady}
+                  />
+                </div>
+              ) : viewMode === 'source' ? (
+                <div className="h-full flex flex-col">
+                  <div className="w-full mx-auto px-[60px] pt-6 shrink-0">
+                    <DocumentTitle documentId={activeDocumentId} />
+                  </div>
+                  <div className="flex-1 min-h-0 w-full mx-auto">
+                    <SourceEditor
+                      content={content}
+                      onChange={onChange}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full flex flex-col">
+                  <div className="px-4 pt-4 shrink-0">
+                    <DocumentTitle documentId={activeDocumentId} />
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <SplitView
+                      content={content}
+                      htmlContent={htmlContent}
+                      onChange={onChange}
+                      onEditorReady={handleEditorReady}
+                    />
+                  </div>
+                </div>
+              )
             ) : (
-              <div className="max-w-3xl mx-auto py-8 px-6">
-                <Editor
-                  content={htmlContent}
-                  onChange={onChange}
-                  onEditorReady={handleEditorReady}
+              <div className="flex items-center justify-center h-full">
+                <EmptyState
+                  icon={FilePlus2}
+                  title="새 문서를 만들어보세요"
+                  subtitle="마크다운 문서를 작성하고 관리할 수 있습니다. 왼쪽 상단의 + 버튼을 눌러 시작하세요."
+                  actions={[
+                    {
+                      label: '새 문서 만들기',
+                      onClick: handleNewDocument,
+                      variant: 'primary',
+                    },
+                  ]}
                 />
               </div>
-            )
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <EmptyState
-                icon={FilePlus2}
-                title="새 문서를 만들어보세요"
-                subtitle="마크다운 문서를 작성하고 관리할 수 있습니다. 왼쪽 상단의 + 버튼을 눌러 시작하세요."
-                actions={[
-                  {
-                    label: '새 문서 만들기',
-                    onClick: handleNewDocument,
-                    variant: 'primary',
-                  },
-                ]}
-              />
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* StatusBar - hidden in focus mode */}
+          <div
+            className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+            style={{
+              maxHeight: focusMode ? 0 : 32,
+              opacity: focusMode ? 0 : 1,
+            }}
+          >
+            <StatusBar />
+          </div>
         </div>
 
-        <StatusBar />
+        {/* TOC Panel - hidden in focus mode */}
+        {!focusMode && <TocPanel editor={tiptapEditor} />}
       </div>
 
       <HwpImport
@@ -187,9 +277,16 @@ export default function Home() {
         onClose={() => setHwpExportOpen(false)}
         markdown={content}
         documentTitle={
-          activeDocumentId ? '문서' : 'MDView'
+          activeDocument?.title ?? 'MDView'
         }
       />
+      <QuickOpen
+        open={quickOpenOpen}
+        onClose={() => setQuickOpenOpen(false)}
+        onSelectDocument={handleSelectDocument}
+      />
+
+      <ToastContainer />
     </AppShell>
   );
 }

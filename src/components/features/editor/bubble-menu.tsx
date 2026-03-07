@@ -126,7 +126,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
     >
       <div
         className="flex items-center gap-0.5 rounded-lg px-1 py-1 shadow-lg"
-        style={{ backgroundColor: '#292929' }}
+        style={{ backgroundColor: 'var(--color-bubble-menu-bg, #292929)' }}
       >
         {showLinkInput ? (
           <div className="flex items-center gap-1 px-1">
@@ -150,7 +150,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
             />
             <button
               onClick={submitLink}
-              className="text-white/80 hover:text-white text-xs px-1"
+              className="text-white/80 hover:text-white text-xs px-1 cursor-pointer"
             >
               확인
             </button>
@@ -163,7 +163,8 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
                 key={index}
                 onClick={btn.action}
                 title={btn.title}
-                className="flex items-center justify-center w-8 h-8 rounded-md transition-colors"
+                aria-label={btn.title}
+                className="flex items-center justify-center w-8 h-8 rounded-md transition-colors cursor-pointer"
                 style={{
                   backgroundColor: btn.isActive
                     ? 'var(--color-accent)'

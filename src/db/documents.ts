@@ -1,18 +1,8 @@
 import Dexie from 'dexie';
 import { nanoid } from 'nanoid';
 import { db } from '@/db';
+import { calculateWordCount, extractExcerpt } from '@/lib/utils';
 import type { Document } from '@/types';
-
-function computeExcerpt(content: string): string {
-  const plain = content.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-  return plain.length > 200 ? plain.slice(0, 200) + '...' : plain;
-}
-
-function computeWordCount(content: string): number {
-  const plain = content.replace(/<[^>]*>/g, '').trim();
-  if (!plain) return 0;
-  return plain.split(/\s+/).filter(Boolean).length;
-}
 
 function computeCharCount(content: string): number {
   return content.replace(/<[^>]*>/g, '').length;
@@ -26,7 +16,7 @@ export async function createDocument(partial?: Partial<Document>): Promise<strin
   const now = new Date();
   const id = partial?.id ?? nanoid();
   const content = partial?.content ?? '';
-  const wordCount = partial?.wordCount ?? computeWordCount(content);
+  const wordCount = partial?.wordCount ?? calculateWordCount(content);
   const charCount = partial?.charCount ?? computeCharCount(content);
 
   const doc: Document = {
@@ -34,7 +24,7 @@ export async function createDocument(partial?: Partial<Document>): Promise<strin
     title: partial?.title ?? '제목 없음',
     content,
     htmlContent: partial?.htmlContent ?? '',
-    excerpt: partial?.excerpt ?? computeExcerpt(content),
+    excerpt: partial?.excerpt ?? extractExcerpt(content),
     folderId: partial?.folderId ?? null,
     tags: partial?.tags ?? [],
     isFavorite: partial?.isFavorite ?? false,
@@ -81,10 +71,7 @@ export async function getDocumentsByFolder(folderId: string | null): Promise<Doc
 }
 
 export async function getFavorites(): Promise<Document[]> {
-  return db.documents
-    .where('isFavorite')
-    .equals(1)
-    .toArray();
+  return db.documents.filter((d) => !!d.isFavorite).toArray();
 }
 
 export async function getRecentDocuments(limit: number = 10): Promise<Document[]> {
@@ -108,10 +95,10 @@ export async function updateContent(
   content: string,
   htmlContent: string,
 ): Promise<void> {
-  const wordCount = computeWordCount(content);
+  const wordCount = calculateWordCount(content);
   const charCount = computeCharCount(content);
   const readingTime = computeReadingTime(wordCount);
-  const excerpt = computeExcerpt(content);
+  const excerpt = extractExcerpt(content);
 
   await db.documents.update(id, {
     content,

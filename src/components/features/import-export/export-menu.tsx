@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { FileDown, FileText, Code, FileType } from 'lucide-react';
+import React, { useCallback } from 'react';
+import { FileDown, FileText, Code, Printer } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { HwpExport } from './hwp-export';
+import { usePdfExport } from './pdf-export';
+import { markdownToHtml } from '@/lib/markdown';
 
 interface ExportMenuProps {
   markdown: string;
@@ -13,7 +14,7 @@ interface ExportMenuProps {
 }
 
 export function ExportMenu({ markdown, documentTitle }: ExportMenuProps) {
-  const [hwpExportOpen, setHwpExportOpen] = useState(false);
+  const { exportPdf } = usePdfExport({ documentTitle });
 
   const safeName = (documentTitle || '문서').replace(/[<>:"/\\|?*]/g, '_');
 
@@ -86,7 +87,7 @@ export function ExportMenu({ markdown, documentTitle }: ExportMenuProps) {
   </style>
 </head>
 <body>
-${markdownToBasicHtml(markdown)}
+${markdownToHtml(markdown)}
 </body>
 </html>`;
 
@@ -96,11 +97,11 @@ ${markdownToBasicHtml(markdown)}
 
   const menuItems: DropdownMenuItem[] = [
     {
-      label: 'HWP (.hwpx)',
-      icon: FileType,
-      onClick: () => setHwpExportOpen(true),
+      label: 'PDF (인쇄)',
+      icon: Printer,
+      onClick: exportPdf,
     },
-    {
+{
       label: '마크다운 (.md)',
       icon: FileText,
       onClick: handleExportMarkdown,
@@ -124,12 +125,6 @@ ${markdownToBasicHtml(markdown)}
         align="end"
       />
 
-      <HwpExport
-        open={hwpExportOpen}
-        onClose={() => setHwpExportOpen(false)}
-        markdown={markdown}
-        documentTitle={documentTitle}
-      />
     </>
   );
 }
@@ -144,77 +139,3 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/**
- * Very basic markdown-to-HTML conversion for HTML export.
- * Uses simple regex transforms; not a full parser.
- */
-function markdownToBasicHtml(md: string): string {
-  let html = md;
-
-  // Code blocks (fenced)
-  html = html.replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-
-  // Headings
-  html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
-  html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
-  html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
-  html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-
-  // Horizontal rule
-  html = html.replace(/^---+$/gm, '<hr>');
-
-  // Bold + italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
-
-  // Blockquotes
-  html = html.replace(/^>\s+(.+)$/gm, '<blockquote><p>$1</p></blockquote>');
-
-  // Unordered lists (simple)
-  html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
-
-  // Ordered lists
-  html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
-
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>\n$1</ul>');
-
-  // Paragraphs: wrap remaining lines that are not block elements
-  const lines = html.split('\n');
-  const result: string[] = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (
-      !trimmed ||
-      trimmed.startsWith('<h') ||
-      trimmed.startsWith('<p') ||
-      trimmed.startsWith('<ul') ||
-      trimmed.startsWith('<ol') ||
-      trimmed.startsWith('<li') ||
-      trimmed.startsWith('</') ||
-      trimmed.startsWith('<pre') ||
-      trimmed.startsWith('<blockquote') ||
-      trimmed.startsWith('<hr') ||
-      trimmed.startsWith('<img') ||
-      trimmed.startsWith('<table')
-    ) {
-      result.push(line);
-    } else {
-      result.push(`<p>${trimmed}</p>`);
-    }
-  }
-
-  return result.join('\n');
-}

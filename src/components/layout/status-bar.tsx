@@ -24,7 +24,7 @@ export function StatusBar() {
   const StatusIcon = status.icon;
 
   return (
-    <div className="flex items-center justify-between h-7 px-4 bg-[var(--color-surface)] border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)] shrink-0 select-none">
+    <div data-statusbar className="flex items-center justify-between h-7 px-4 bg-[var(--color-surface)] border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)] shrink-0 select-none">
       {/* Left: Stats */}
       <div className="flex items-center gap-3">
         <span>{charCount.toLocaleString()} 글자</span>

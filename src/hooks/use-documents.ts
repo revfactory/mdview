@@ -37,7 +37,7 @@ export function useDocumentsByFolder(folderId: string | null): Document[] | unde
 
 export function useFavorites(): Document[] | undefined {
   return useLiveQuery(
-    () => db.documents.where('isFavorite').equals(1).toArray(),
+    () => db.documents.filter((d) => !!d.isFavorite).toArray(),
   );
 }
 

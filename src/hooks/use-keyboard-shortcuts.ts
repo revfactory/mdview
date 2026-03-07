@@ -7,12 +7,14 @@ interface KeyboardShortcutsOptions {
   onNewDocument: () => void;
   onForceSave?: () => void;
   onSearchFocus?: () => void;
+  onQuickOpen?: () => void;
 }
 
 export function useKeyboardShortcuts({
   onNewDocument,
   onForceSave,
   onSearchFocus,
+  onQuickOpen,
 }: KeyboardShortcutsOptions) {
   const { actions } = useUIStore();
 
@@ -57,9 +59,32 @@ export function useKeyboardShortcuts({
         onSearchFocus?.();
         return;
       }
+
+      if (isMeta && e.key === 'p') {
+        e.preventDefault();
+        onQuickOpen?.();
+        return;
+      }
+
+      // Cmd+Shift+F: Toggle focus mode
+      if (isMeta && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        actions.toggleFocusMode();
+        return;
+      }
+
+      // ESC: Exit focus mode
+      if (e.key === 'Escape') {
+        const { focusMode } = useUIStore.getState();
+        if (focusMode) {
+          e.preventDefault();
+          actions.toggleFocusMode();
+          return;
+        }
+      }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [actions, onNewDocument, onForceSave, onSearchFocus]);
+  }, [actions, onNewDocument, onForceSave, onSearchFocus, onQuickOpen]);
 }

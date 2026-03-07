@@ -188,10 +188,10 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
 
             {/* Warnings */}
             {result.warnings.length > 0 && (
-              <div className="flex flex-col gap-2 p-3 rounded-xl bg-[#F59E0B]/5 border border-[#F59E0B]/20">
+              <div className="flex flex-col gap-2 p-3 rounded-xl bg-[var(--color-warning)]/5 border border-[var(--color-warning)]/20">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-[#F59E0B] shrink-0" />
-                  <p className="text-xs font-medium text-[#F59E0B]">
+                  <AlertTriangle className="w-4 h-4 text-[var(--color-warning)] shrink-0" />
+                  <p className="text-xs font-medium text-[var(--color-warning)]">
                     경고 ({result.warnings.length}건)
                   </p>
                 </div>
