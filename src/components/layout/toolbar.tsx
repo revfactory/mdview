@@ -147,19 +147,15 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
 
   return (
     <div data-toolbar className="flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
-      {/* Mobile hamburger */}
-      {isMobile && (
-        <>
-          <button
-            onClick={toggleSidebar}
-            aria-label="메뉴"
-            className="flex items-center justify-center w-8 h-8 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-          <Divider />
-        </>
-      )}
+      {/* Sidebar toggle */}
+      <button
+        onClick={toggleSidebar}
+        aria-label="사이드바 토글"
+        className="flex items-center justify-center w-8 h-8 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
+      >
+        <Menu className="w-4 h-4" />
+      </button>
+      <Divider />
 
       {/* Block Type Selector */}
       <div className="relative">
