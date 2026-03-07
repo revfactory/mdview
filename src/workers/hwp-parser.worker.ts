@@ -729,7 +729,7 @@ function renderAsMarkdownTable(tableNode: DocNode): string {
     const r = cell.cellRow ?? 0;
     const c = cell.cellCol ?? 0;
     if (r < rows && c < cols) {
-      grid[r][c] = cell.text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      grid[r][c] = cell.text.replace(/~/g, '\\~').replace(/\|/g, '\\|').replace(/\n/g, ' ');
     }
   }
 
@@ -761,15 +761,19 @@ function renderAsMarkdownTable(tableNode: DocNode): string {
 // Markdown converter
 // =============================================
 
+function escapeMarkdownTilde(text: string): string {
+  return text.replace(/~/g, '\\~');
+}
+
 function docTreeToMarkdown(nodes: DocNode[]): string {
   const lines: string[] = [];
 
   for (const node of nodes) {
     if (node.type === 'paragraph') {
-      lines.push(node.text);
+      lines.push(escapeMarkdownTilde(node.text));
       lines.push('');
     } else if (node.type === 'textbox') {
-      lines.push(node.text);
+      lines.push(escapeMarkdownTilde(node.text));
       lines.push('');
     } else if (node.type === 'image') {
       if (node.imageDataUrl) {
@@ -1157,7 +1161,7 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
           // Simple table: render as GFM markdown
           const maxCols = Math.max(...parsedRows.map((r) => r.length));
           const rows: string[][] = parsedRows.map(r =>
-            r.map(c => c.text.replace(/\|/g, '\\|').replace(/\n/g, ' '))
+            r.map(c => c.text.replace(/~/g, '\\~').replace(/\|/g, '\\|').replace(/\n/g, ' '))
           );
           // Normalize rows
           for (const row of rows) {
@@ -1246,9 +1250,9 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
         if (text.trim() === '') {
           lines.push('');
         } else if (headingLevel > 0) {
-          lines.push(`${'#'.repeat(headingLevel)} ${text}`);
+          lines.push(`${'#'.repeat(headingLevel)} ${escapeMarkdownTilde(text)}`);
         } else {
-          lines.push(text);
+          lines.push(escapeMarkdownTilde(text));
         }
       }
     }
