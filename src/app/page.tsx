@@ -51,8 +51,19 @@ export default function Home() {
     }
   }, [activeDocumentId, recentDocs, actions]);
 
-  const { content, htmlContent, isLoading, onChange } =
+  const { content, htmlContent, isLoading, isLargeDocument, onChange } =
     useEditorManager(activeDocumentId);
+
+  // Auto-switch to source view for large documents (TipTap can't handle them)
+  useEffect(() => {
+    if (isLargeDocument && viewMode !== 'source') {
+      useUIStore.getState().actions.setViewMode('source');
+      // Notify user
+      import('@/stores/toast-store').then(({ useToastStore }) => {
+        useToastStore.getState().actions.addToast('대용량 문서는 소스 뷰에서 편집됩니다.', 'info');
+      });
+    }
+  }, [isLargeDocument, viewMode]);
 
   const handleNewDocument = useCallback(async () => {
     try {
@@ -148,18 +159,19 @@ export default function Home() {
 
   const handleImportComplete = useCallback(
     async (importedContent: string, title: string) => {
-      // Pre-convert markdown to HTML so re-opening doesn't need markdownToHtml
-      const { markdownToHtmlAsync } = await import('@/lib/markdown');
       let htmlContent = '';
-      try {
-        // Use async worker to avoid blocking during import
-        const raw = importedContent.length > 500_000
-          ? importedContent.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지)')
-          : importedContent;
-        htmlContent = await markdownToHtmlAsync(raw);
-      } catch {
-        // Fallback: store without htmlContent (will convert on load)
+
+      // Only pre-convert HTML for small/medium documents
+      // Large documents will use source view directly
+      if (importedContent.length <= 300_000) {
+        try {
+          const { markdownToHtmlAsync } = await import('@/lib/markdown');
+          htmlContent = await markdownToHtmlAsync(importedContent);
+        } catch {
+          // Fallback: store without htmlContent
+        }
       }
+
       const id = await createDocument({ title, content: importedContent, htmlContent });
       actions.setActiveDocument(id);
       setHwpImportOpen(false);

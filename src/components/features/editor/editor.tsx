@@ -141,11 +141,20 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
   }, [editor, editable]);
 
   // Update content when it changes externally (e.g. switching documents)
+  // Safety: refuse to load content that would freeze the browser
   useEffect(() => {
     if (!editor) return;
     if (content !== initialContentRef.current) {
       initialContentRef.current = content;
-      editor.commands.setContent(content || '<p></p>', { emitUpdate: false });
+      if (content.length > 500_000) {
+        // Too large for TipTap — show placeholder instead
+        editor.commands.setContent(
+          '<p><em>이 문서는 너무 커서 WYSIWYG 에디터에서 표시할 수 없습니다. 소스 뷰를 사용해주세요.</em></p>',
+          { emitUpdate: false }
+        );
+      } else {
+        editor.commands.setContent(content || '<p></p>', { emitUpdate: false });
+      }
     }
   }, [content, editor]);
 

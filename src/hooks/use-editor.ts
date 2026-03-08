@@ -6,10 +6,14 @@ import { useEditorStore } from '@/stores/editor-store';
 import { useAutosave } from '@/hooks/use-autosave';
 import { markdownToHtml, markdownToHtmlAsync } from '@/lib/markdown';
 
+// Threshold: documents larger than this bypass WYSIWYG (TipTap can't handle it)
+const LARGE_DOC_THRESHOLD = 300_000; // 300KB markdown
+
 export function useEditorManager(documentId: string | null) {
   const [content, setContent] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLargeDocument, setIsLargeDocument] = useState(false);
   const { actions } = useEditorStore();
   const prevDocId = useRef<string | null>(null);
 
@@ -33,26 +37,30 @@ export function useEditorManager(documentId: string | null) {
         if (cancelled) return;
 
         if (doc) {
-          setContent(doc.content || '');
-          // Prefer stored htmlContent to skip expensive markdownToHtml
-          let html = doc.htmlContent || '';
-          if (!html && doc.content) {
-            const raw = doc.content;
-            if (raw.length > 500_000) {
-              // Strip base64 data URLs before conversion
-              const stripped = raw.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지)');
-              // Use async Worker to avoid main-thread freeze
-              html = await markdownToHtmlAsync(stripped);
-            } else if (raw.length > 100_000) {
-              // Medium docs: also use Worker
-              html = await markdownToHtmlAsync(raw);
-            } else {
-              // Small docs: sync is fine
-              html = markdownToHtml(raw);
+          const raw = doc.content || '';
+          setContent(raw);
+
+          // Detect large documents — skip WYSIWYG HTML generation entirely
+          const docIsLarge = raw.length > LARGE_DOC_THRESHOLD;
+          setIsLargeDocument(docIsLarge);
+
+          if (docIsLarge) {
+            // Large doc: don't generate HTML at all (TipTap will freeze)
+            // Source view will use the raw markdown directly
+            setHtmlContent('');
+          } else {
+            // Normal doc: prefer stored htmlContent
+            let html = doc.htmlContent || '';
+            if (!html && raw) {
+              if (raw.length > 100_000) {
+                html = await markdownToHtmlAsync(raw);
+              } else {
+                html = markdownToHtml(raw);
+              }
             }
+            if (cancelled) return;
+            setHtmlContent(html);
           }
-          if (cancelled) return;
-          setHtmlContent(html);
           actions.setActiveDocument(documentId);
           actions.setSaveStatus('saved');
         } else {
@@ -91,6 +99,7 @@ export function useEditorManager(documentId: string | null) {
     content,
     htmlContent,
     isLoading,
+    isLargeDocument,
     onChange,
   };
 }
