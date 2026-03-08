@@ -11,19 +11,33 @@ import { markdownToHtml } from '@/lib/markdown';
 interface ExportMenuProps {
   markdown: string;
   documentTitle: string;
+  documentId?: string | null;
+  isChunked?: boolean;
 }
 
-export function ExportMenu({ markdown, documentTitle }: ExportMenuProps) {
+export function ExportMenu({ markdown, documentTitle, documentId, isChunked }: ExportMenuProps) {
   const { exportPdf } = usePdfExport({ documentTitle });
 
   const safeName = (documentTitle || '문서').replace(/[<>:"/\\|?*]/g, '_');
 
-  const handleExportMarkdown = useCallback(() => {
-    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-    saveAs(blob, `${safeName}.md`);
-  }, [markdown, safeName]);
+  /** 청크 문서면 모든 청크를 병합, 아니면 현재 markdown 그대로 반환 */
+  const getFullMarkdown = useCallback(async (): Promise<string> => {
+    if (isChunked && documentId) {
+      const { getAllChunksMarkdown } = await import('@/db/chunks');
+      return getAllChunksMarkdown(documentId);
+    }
+    return markdown;
+  }, [markdown, documentId, isChunked]);
 
-  const handleExportHtml = useCallback(() => {
+  const handleExportMarkdown = useCallback(async () => {
+    const fullMd = await getFullMarkdown();
+    const blob = new Blob([fullMd], { type: 'text/markdown;charset=utf-8' });
+    saveAs(blob, `${safeName}.md`);
+  }, [getFullMarkdown, safeName]);
+
+  const handleExportHtml = useCallback(async () => {
+    const fullMd = await getFullMarkdown();
+    const htmlBody = markdownToHtml(fullMd);
     const htmlContent = `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -87,13 +101,13 @@ export function ExportMenu({ markdown, documentTitle }: ExportMenuProps) {
   </style>
 </head>
 <body>
-${markdownToHtml(markdown)}
+${htmlBody}
 </body>
 </html>`;
 
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
     saveAs(blob, `${safeName}.html`);
-  }, [markdown, documentTitle, safeName]);
+  }, [getFullMarkdown, documentTitle, safeName]);
 
   const menuItems: DropdownMenuItem[] = [
     {

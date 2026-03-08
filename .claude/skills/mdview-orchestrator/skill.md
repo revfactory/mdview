@@ -229,7 +229,35 @@ Phase 2 (순차):
 |------|-------|
 | `workers/hwp-parser.worker.ts` | 이미지 200KB/30개 제한, 2MB 콘텐츠 가드 |
 | `components/features/editor/editor.tsx` | onUpdate htmlToMarkdown 300ms 디바운스 |
-| `hooks/use-editor.ts` | 500KB+ 마크다운 base64 제거, htmlContent 우선 |
+| `hooks/use-editor.ts` | 300KB+ 자동 소스 뷰 전환, htmlContent 우선 |
+
+---
+
+## 대규모 문서 WYSIWYG 페이지네이션 모드
+
+300KB+ 문서도 WYSIWYG에서 편집 가능하게 하는 페이지네이션 방식.
+
+### 스킬
+
+`paginated-editor` — 청크 분할/저장/로드/네비게이션 전략
+
+### 워크플로우 (파이프라인)
+
+```
+Phase 1 (순차):
+  Agent(data-engineer)    → "Dexie chunks 테이블 + CRUD 구현"
+  Agent(editor-engineer)  → "chunkDocument() 분할 알고리즘 구현"
+
+Phase 2 (병렬):
+  Agent(editor-engineer)  → "PaginatedEditor 컴포넌트 + 페이지 전환"
+  Agent(ui-engineer)      → "PageNavigator UI (이전/다음/점프)"
+
+Phase 3 (순차):
+  Agent(editor-engineer)  → "useEditorManager 청크 모드 분기 + 임포트/내보내기 연동"
+
+Phase 4 (순차):
+  Agent(qa-engineer)      → "1000+페이지 HWP → 페이지네이션 편집 → 내보내기 검증"
+```
 
 ---
 

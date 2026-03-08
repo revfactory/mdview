@@ -12,6 +12,8 @@ export interface Document {
   charCount: number;
   readingTime: number;
   sortOrder: number;
+  isChunked?: boolean;
+  chunkCount?: number;
   createdAt: Date;
   updatedAt: Date;
   lastOpenedAt: Date;

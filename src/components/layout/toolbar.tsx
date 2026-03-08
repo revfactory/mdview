@@ -83,9 +83,11 @@ export interface ToolbarProps {
   onExport?: () => void;
   onToggleToc?: () => void;
   documentTitle?: string;
+  documentId?: string | null;
+  isChunked?: boolean;
 }
 
-export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }: ToolbarProps) {
+export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, documentId, isChunked }: ToolbarProps) {
   const viewMode = useUIStore((s) => s.viewMode);
   const isMobile = useUIStore((s) => s.isMobile);
   const { setViewMode, toggleSidebar } = useUIStore((s) => s.actions);
@@ -131,10 +133,20 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
     setBlockMenuOpen(false);
   }, []);
 
-  const handleExportMarkdown = useCallback(() => {
-    if (!editor) return;
-    const markdown = htmlToMarkdown(editor.getHTML());
+  const handleExportMarkdown = useCallback(async () => {
     const safeName = (documentTitle || '문서').replace(/[<>:"/\\|?*]/g, '_');
+    let markdown: string;
+
+    if (isChunked && documentId) {
+      // Merge all chunks for full document export
+      const { getAllChunksMarkdown } = await import('@/db/chunks');
+      markdown = await getAllChunksMarkdown(documentId);
+    } else if (editor) {
+      markdown = htmlToMarkdown(editor.getHTML());
+    } else {
+      return;
+    }
+
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -143,7 +155,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle }:
     a.click();
     URL.revokeObjectURL(url);
     analytics.exportMarkdown();
-  }, [editor, documentTitle]);
+  }, [editor, documentTitle, documentId, isChunked]);
 
   return (
     <div data-toolbar className="flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
