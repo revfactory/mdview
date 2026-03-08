@@ -204,6 +204,35 @@ Phase 4: Agent(image-engineer) → "HWP 내보내기에 이미지 임베딩"
 Phase 5: Agent(hwp-engineer)   → "통합 검증 + Worker 프로토콜 정합"
 ```
 
+## 대용량 HWP 성능 최적화 모드
+
+1000+ 페이지 HWP 파일 임포트 시 페이지 프리즈 방지.
+
+### 스킬
+
+`large-doc-perf` — 전략/상수/코드 패턴 참조
+
+### 워크플로우 (팬아웃 → 검증)
+
+```
+Phase 1 (병렬):
+  Agent(hwp-engineer)    → "Worker에서 이미지 크기/개수 제한 + 콘텐츠 가드 적용"
+  Agent(editor-engineer) → "에디터 htmlToMarkdown 디바운스 + 대용량 로딩 최적화"
+
+Phase 2 (순차):
+  Agent(qa-engineer)     → "1000+페이지 HWP 임포트 성능 검증"
+```
+
+### 핵심 파일
+
+| 파일 | 최적화 |
+|------|-------|
+| `workers/hwp-parser.worker.ts` | 이미지 200KB/30개 제한, 2MB 콘텐츠 가드 |
+| `components/features/editor/editor.tsx` | onUpdate htmlToMarkdown 300ms 디바운스 |
+| `hooks/use-editor.ts` | 500KB+ 마크다운 base64 제거, htmlContent 우선 |
+
+---
+
 ## 참조 문서
 - **MDVIEW_SPEC.md**: 프로젝트 스펙 (Single Source of Truth)
 - 각 에이전트 정의: `.claude/agents/`

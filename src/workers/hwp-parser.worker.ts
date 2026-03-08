@@ -96,7 +96,7 @@ function parseRecords(data: Uint8Array): HwpRecord[] {
       tagId,
       level,
       size,
-      data: data.slice(offset, offset + size),
+      data: data.subarray(offset, offset + size),
     });
 
     offset += size;
@@ -181,16 +181,19 @@ function getImageMimeType(filename: string, data?: Uint8Array): string | null {
   return null;
 }
 
+// Performance limits for large documents
+const MAX_IMAGE_BYTES = 200 * 1024; // 200KB raw — skip images larger than this
+const MAX_TOTAL_IMAGES = 30; // Max images to embed
+
 function uint8ArrayToBase64(bytes: Uint8Array): string {
-  let binary = '';
+  // Use chunked String.fromCharCode.apply for much faster conversion
+  const chunks: string[] = [];
   const chunkSize = 8192;
   for (let i = 0; i < bytes.length; i += chunkSize) {
     const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-    for (let j = 0; j < chunk.length; j++) {
-      binary += String.fromCharCode(chunk[j]);
-    }
+    chunks.push(String.fromCharCode.apply(null, chunk as unknown as number[]));
   }
-  return btoa(binary);
+  return btoa(chunks.join(''));
 }
 
 /**
@@ -203,6 +206,8 @@ function extractBinDataImages(
   warnings: string[]
 ): Map<string, string> {
   const imageMap = new Map<string, string>();
+  let embeddedCount = 0;
+  let skippedCount = 0;
 
   for (let i = 0; i < cfb.FullPaths.length; i++) {
     const fullPath = cfb.FullPaths[i];
@@ -211,6 +216,12 @@ function extractBinDataImages(
     if (!binMatch) continue;
 
     const binId = binMatch[1].toUpperCase(); // e.g., "BIN0001"
+
+    // Limit total embedded images for performance
+    if (embeddedCount >= MAX_TOTAL_IMAGES) {
+      skippedCount++;
+      continue;
+    }
 
     try {
       const entry = cfb.FileIndex[i];
@@ -240,11 +251,22 @@ function extractBinDataImages(
         continue;
       }
 
+      // Skip oversized images to prevent performance issues
+      if (rawData.length > MAX_IMAGE_BYTES) {
+        skippedCount++;
+        continue;
+      }
+
       const base64 = uint8ArrayToBase64(rawData);
       imageMap.set(binId, `data:${mime};base64,${base64}`);
+      embeddedCount++;
     } catch (err) {
       warnings.push(`BinData/${binId} 이미지 추출 실패: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  if (skippedCount > 0) {
+    warnings.push(`대용량 또는 초과 이미지 ${skippedCount}개가 성능을 위해 제외되었습니다.`);
   }
 
   return imageMap;
@@ -767,30 +789,46 @@ function escapeMarkdownTilde(text: string): string {
 
 function docTreeToMarkdown(nodes: DocNode[]): string {
   const lines: string[] = [];
+  let lastWasBlank = false;
 
   for (const node of nodes) {
     if (node.type === 'paragraph') {
-      lines.push(escapeMarkdownTilde(node.text));
-      lines.push('');
+      const text = escapeMarkdownTilde(node.text);
+      if (text) {
+        lines.push(text);
+        lines.push('');
+        lastWasBlank = true;
+      } else if (!lastWasBlank) {
+        lines.push('');
+        lastWasBlank = true;
+      }
     } else if (node.type === 'textbox') {
-      lines.push(escapeMarkdownTilde(node.text));
-      lines.push('');
+      const text = escapeMarkdownTilde(node.text);
+      if (text) {
+        lines.push(text);
+        lines.push('');
+        lastWasBlank = true;
+      }
     } else if (node.type === 'image') {
       if (node.imageDataUrl) {
         lines.push(`![이미지](${node.imageDataUrl})`);
         lines.push('');
+        lastWasBlank = true;
       }
     } else if (node.type === 'table') {
-      if (isComplexTable(node)) {
+      const totalCells = (node.tableRows || 0) * (node.tableCols || 0);
+      if (isComplexTable(node) || totalCells > 200) {
         lines.push(renderAsHtmlTable(node));
       } else {
         lines.push(renderAsMarkdownTable(node));
       }
       lines.push('');
+      lastWasBlank = true;
     }
   }
 
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  // No regex needed — blank lines already deduplicated above
+  return lines.join('\n').trim();
 }
 
 // =============================================
@@ -894,7 +932,15 @@ function parseHwpBinary(
     );
   }
 
-  const content = allMarkdown.join('\n\n---\n\n');
+  let content = allMarkdown.join('\n\n---\n\n');
+
+  // Guard: if content is excessively large, strip remaining base64 images
+  const MAX_CONTENT_LENGTH = 2 * 1024 * 1024; // 2MB text limit
+  if (content.length > MAX_CONTENT_LENGTH) {
+    // Remove all base64 data URLs to bring size down
+    content = content.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지 제외됨)');
+    warnings.push('문서가 매우 커서 일부 이미지가 제외되었습니다.');
+  }
 
   postProgress(100, '변환 완료');
   return { content, warnings };
@@ -924,7 +970,15 @@ async function parseHwpx(
     }
   });
 
+  let hwpxEmbeddedCount = 0;
+  let hwpxSkippedCount = 0;
+
   for (const binPath of binDataFiles) {
+    if (hwpxEmbeddedCount >= MAX_TOTAL_IMAGES) {
+      hwpxSkippedCount++;
+      continue;
+    }
+
     try {
       const binFile = zip.file(binPath);
       if (!binFile) continue;
@@ -933,24 +987,33 @@ async function parseHwpx(
       const mime = getImageMimeType(binPath, binData);
       if (!mime) continue;
 
+      // Skip oversized images for performance
+      if (binData.length > MAX_IMAGE_BYTES) {
+        hwpxSkippedCount++;
+        continue;
+      }
+
       const base64 = uint8ArrayToBase64(binData);
       const dataUrl = `data:${mime};base64,${base64}`;
 
       // Store with multiple key formats for flexible matching
-      // e.g., "BinData/image1.png" -> extract "image1.png" and "image1"
       const fileName = binPath.split('/').pop() || '';
       const fileNameNoExt = fileName.replace(/\.\w+$/, '');
       hwpxImageMap.set(fileName, dataUrl);
       hwpxImageMap.set(fileNameNoExt, dataUrl);
       hwpxImageMap.set(binPath, dataUrl);
-      // Also store by the relative path inside the HWPX (e.g., "BinData/image1.png")
       const relMatch = binPath.match(/(BinData\/.*)/i);
       if (relMatch) {
         hwpxImageMap.set(relMatch[1], dataUrl);
       }
+      hwpxEmbeddedCount++;
     } catch (err) {
       warnings.push(`HWPX 이미지 추출 실패 (${binPath}): ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  if (hwpxSkippedCount > 0) {
+    warnings.push(`대용량 또는 초과 이미지 ${hwpxSkippedCount}개가 성능을 위해 제외되었습니다.`);
   }
 
   if (hwpxImageMap.size > 0) {
@@ -1005,7 +1068,16 @@ async function parseHwpx(
     warnings.push('본문 텍스트를 추출하지 못했습니다.');
   }
 
-  return { content: allMarkdown.join('\n\n---\n\n'), warnings };
+  let hwpxContent = allMarkdown.join('\n\n---\n\n');
+
+  // Guard: strip base64 images if content is too large
+  const MAX_CONTENT_LENGTH = 2 * 1024 * 1024;
+  if (hwpxContent.length > MAX_CONTENT_LENGTH) {
+    hwpxContent = hwpxContent.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지 제외됨)');
+    warnings.push('문서가 매우 커서 일부 이미지가 제외되었습니다.');
+  }
+
+  return { content: hwpxContent, warnings };
 }
 
 /**

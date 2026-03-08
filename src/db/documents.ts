@@ -95,16 +95,20 @@ export async function updateContent(
   content: string,
   htmlContent: string,
 ): Promise<void> {
-  const wordCount = calculateWordCount(content);
-  const charCount = computeCharCount(content);
-  const readingTime = computeReadingTime(wordCount);
+  // For very large documents, skip expensive metadata computation
+  const isLarge = content.length > 500_000;
+  const sampleContent = isLarge ? content.slice(0, 100_000) : content;
+
+  const wordCount = calculateWordCount(sampleContent);
+  const charCount = isLarge ? content.length : computeCharCount(content);
+  const readingTime = computeReadingTime(isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount);
   const excerpt = extractExcerpt(content);
 
   await db.documents.update(id, {
     content,
     htmlContent,
     excerpt,
-    wordCount,
+    wordCount: isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount,
     charCount,
     readingTime,
     updatedAt: new Date(),

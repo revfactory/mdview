@@ -148,7 +148,19 @@ export default function Home() {
 
   const handleImportComplete = useCallback(
     async (importedContent: string, title: string) => {
-      const id = await createDocument({ title, content: importedContent });
+      // Pre-convert markdown to HTML so re-opening doesn't need markdownToHtml
+      const { markdownToHtmlAsync } = await import('@/lib/markdown');
+      let htmlContent = '';
+      try {
+        // Use async worker to avoid blocking during import
+        const raw = importedContent.length > 500_000
+          ? importedContent.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지)')
+          : importedContent;
+        htmlContent = await markdownToHtmlAsync(raw);
+      } catch {
+        // Fallback: store without htmlContent (will convert on load)
+      }
+      const id = await createDocument({ title, content: importedContent, htmlContent });
       actions.setActiveDocument(id);
       setHwpImportOpen(false);
       analytics.importHwp();
@@ -205,7 +217,8 @@ export default function Home() {
           <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {activeDocumentId ? (
               isLoading ? (
-                <div className="flex items-center justify-center h-full animate-pulse">
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
                   <div className="text-sm text-[var(--color-text-muted)]">
                     문서 로딩 중...
                   </div>

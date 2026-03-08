@@ -76,3 +76,56 @@ export function markdownToHtml(md: string): string {
 
   return result;
 }
+
+// =============================================
+// Worker-based async API (non-blocking)
+// =============================================
+
+let mdWorker: Worker | null = null;
+let msgIdCounter = 0;
+const pendingCallbacks = new Map<number, { resolve: (v: string) => void; reject: (e: Error) => void }>();
+
+function getMarkdownWorker(): Worker {
+  if (mdWorker) return mdWorker;
+
+  mdWorker = new Worker(
+    new URL('../workers/markdown.worker.ts', import.meta.url)
+  );
+
+  mdWorker.onmessage = (e: MessageEvent) => {
+    const { id, type, result, error } = e.data;
+    const cb = pendingCallbacks.get(id);
+    if (!cb) return;
+    pendingCallbacks.delete(id);
+
+    if (type === 'error') {
+      cb.reject(new Error(error));
+    } else {
+      cb.resolve(result);
+    }
+  };
+
+  return mdWorker;
+}
+
+/** Non-blocking markdown → HTML conversion via Web Worker */
+export function markdownToHtmlAsync(md: string): Promise<string> {
+  if (!md) return Promise.resolve('');
+
+  return new Promise((resolve, reject) => {
+    const id = ++msgIdCounter;
+    pendingCallbacks.set(id, { resolve, reject });
+    getMarkdownWorker().postMessage({ type: 'toHtml', id, markdown: md });
+  });
+}
+
+/** Non-blocking HTML → markdown conversion via Web Worker */
+export function htmlToMarkdownAsync(html: string): Promise<string> {
+  if (!html || html === '<p></p>') return Promise.resolve('');
+
+  return new Promise((resolve, reject) => {
+    const id = ++msgIdCounter;
+    pendingCallbacks.set(id, { resolve, reject });
+    getMarkdownWorker().postMessage({ type: 'toMarkdown', id, html });
+  });
+}

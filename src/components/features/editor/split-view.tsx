@@ -39,8 +39,11 @@ export function SplitView({
     async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       updatingFromSource.current = true;
       const markdown = e.target.value;
-      const { markdownToHtml } = await import('@/lib/markdown');
-      const html = markdownToHtml(markdown);
+      const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
+      // Use Worker for large content, sync for small
+      const html = markdown.length > 50_000
+        ? await markdownToHtmlAsync(markdown)
+        : markdownToHtml(markdown);
       onChangeRef.current?.(markdown, html);
     },
     []

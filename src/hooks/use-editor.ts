@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDocument } from '@/db/documents';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAutosave } from '@/hooks/use-autosave';
-import { markdownToHtml } from '@/lib/markdown';
+import { markdownToHtml, markdownToHtmlAsync } from '@/lib/markdown';
 
 export function useEditorManager(documentId: string | null) {
   const [content, setContent] = useState('');
@@ -34,8 +34,24 @@ export function useEditorManager(documentId: string | null) {
 
         if (doc) {
           setContent(doc.content || '');
-          // If htmlContent exists, use it; otherwise convert markdown to HTML
-          const html = doc.htmlContent || (doc.content ? markdownToHtml(doc.content) : '');
+          // Prefer stored htmlContent to skip expensive markdownToHtml
+          let html = doc.htmlContent || '';
+          if (!html && doc.content) {
+            const raw = doc.content;
+            if (raw.length > 500_000) {
+              // Strip base64 data URLs before conversion
+              const stripped = raw.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지)');
+              // Use async Worker to avoid main-thread freeze
+              html = await markdownToHtmlAsync(stripped);
+            } else if (raw.length > 100_000) {
+              // Medium docs: also use Worker
+              html = await markdownToHtmlAsync(raw);
+            } else {
+              // Small docs: sync is fine
+              html = markdownToHtml(raw);
+            }
+          }
+          if (cancelled) return;
           setHtmlContent(html);
           actions.setActiveDocument(documentId);
           actions.setSaveStatus('saved');

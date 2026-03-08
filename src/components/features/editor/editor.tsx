@@ -20,9 +20,9 @@ import { Underline } from '@tiptap/extension-underline';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Subscript } from '@tiptap/extension-subscript';
 import { Link } from '@tiptap/extension-link';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useMemo } from 'react';
 
-import { htmlToMarkdown } from '@/lib/markdown';
+import { htmlToMarkdown, htmlToMarkdownAsync } from '@/lib/markdown';
 import { TrailingNode } from '@/extensions/trailing-node';
 import { UniqueID } from '@/extensions/unique-id';
 import { EditorBubbleMenu } from '@/components/features/editor/bubble-menu';
@@ -41,6 +41,14 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
   const initialContentRef = useRef(content);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const markdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup debounce timer
+  useEffect(() => {
+    return () => {
+      if (markdownTimerRef.current) clearTimeout(markdownTimerRef.current);
+    };
+  }, []);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -92,17 +100,29 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
     content: initialContentRef.current || '<p></p>',
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML();
-      const markdown = htmlToMarkdown(html);
 
       // Keep ref in sync to prevent content effect from re-setting content
       initialContentRef.current = html;
 
-      // Update character/word counts
+      // Update character/word counts immediately (cheap)
       const charCount = ed.storage.characterCount?.characters?.() ?? 0;
       const wordCount = ed.storage.characterCount?.words?.() ?? 0;
       actions.updateCounts(wordCount, charCount);
 
-      onChangeRef.current?.(markdown, html);
+      // Debounce the expensive htmlToMarkdown conversion (300ms) via Worker
+      if (markdownTimerRef.current) clearTimeout(markdownTimerRef.current);
+      markdownTimerRef.current = setTimeout(() => {
+        if (html.length > 50_000) {
+          // Large docs: use Worker to avoid blocking main thread
+          htmlToMarkdownAsync(html).then((markdown) => {
+            onChangeRef.current?.(markdown, html);
+          });
+        } else {
+          // Small docs: sync is fine
+          const markdown = htmlToMarkdown(html);
+          onChangeRef.current?.(markdown, html);
+        }
+      }, 300);
     },
   });
 
