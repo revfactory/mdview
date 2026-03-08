@@ -119,13 +119,10 @@ export function markdownToHtmlAsync(md: string): Promise<string> {
   });
 }
 
-/** Non-blocking HTML → markdown conversion via Web Worker */
+/**
+ * HTML → markdown runs on main thread (Turndown requires DOM).
+ * Wrapped as async for API consistency.
+ */
 export function htmlToMarkdownAsync(html: string): Promise<string> {
-  if (!html || html === '<p></p>') return Promise.resolve('');
-
-  return new Promise((resolve, reject) => {
-    const id = ++msgIdCounter;
-    pendingCallbacks.set(id, { resolve, reject });
-    getMarkdownWorker().postMessage({ type: 'toMarkdown', id, html });
-  });
+  return Promise.resolve(htmlToMarkdown(html));
 }
