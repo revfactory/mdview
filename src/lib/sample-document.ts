@@ -126,7 +126,7 @@ print(fibonacci(10))
 ### 이미지
 마크다운에서는 이미지도 삽입할 수 있습니다:
 
-![샘플 이미지 설명](https://via.placeholder.com/600x200/4F46E5/ffffff?text=MDView+Sample+Image)
+![자연 풍경 배너](https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&h=400&fit=crop&crop=center)
 
 ---
 
