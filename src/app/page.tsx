@@ -56,6 +56,14 @@ export default function Home() {
     }
   }, [activeDocumentId, recentDocs, actions]);
 
+  // 활성 문서가 삭제된 경우 activeDocumentId 초기화
+  // recentDocs가 로드된 상태에서만 체크 (초기 로딩 중 오탐 방지)
+  useEffect(() => {
+    if (activeDocumentId && activeDocument === undefined && recentDocs !== undefined) {
+      actions.setActiveDocument(null);
+    }
+  }, [activeDocumentId, activeDocument, recentDocs, actions]);
+
   const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, onChange } =
     useEditorManager(activeDocumentId);
 
@@ -367,7 +375,7 @@ export default function Home() {
           </div>
 
           <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-            {activeDocumentId ? (
+            {activeDocumentId && activeDocument ? (
               isLoading ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3">
                   <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
