@@ -13,6 +13,7 @@ import { PaginatedSplitView } from '@/components/features/editor/paginated-split
 import { DocumentTitle } from '@/components/features/editor/document-title';
 import { TocPanel } from '@/components/features/editor/toc-panel';
 import { HwpImport } from '@/components/features/import-export/hwp-import';
+import { MarkdownImport } from '@/components/features/import-export/markdown-import';
 import { HwpExport } from '@/components/features/import-export/hwp-export';
 import { ExportMenu } from '@/components/features/import-export/export-menu';
 import { QuickOpen } from '@/components/features/quick-open/quick-open';
@@ -42,6 +43,7 @@ export default function Home() {
   const isMobile = useUIStore((s) => s.isMobile);
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
+  const [mdImportOpen, setMdImportOpen] = useState(false);
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
 
@@ -273,6 +275,48 @@ export default function Home() {
     [actions]
   );
 
+  const handleMdImportComplete = useCallback(
+    async (importedContent: string, title: string) => {
+      const CHUNK_THRESHOLD = 300_000;
+
+      if (importedContent.length > CHUNK_THRESHOLD) {
+        const { chunkDocument } = await import('@/lib/chunk-document');
+        const { saveChunks } = await import('@/db/chunks');
+
+        const chunks = chunkDocument(importedContent);
+        const id = await createDocument({
+          title,
+          content: importedContent,
+          isChunked: true,
+          chunkCount: chunks.length,
+        });
+        await saveChunks(id, chunks);
+        actions.setActiveDocument(id);
+
+        import('@/stores/toast-store').then(({ useToastStore }) => {
+          useToastStore.getState().actions.addToast(
+            `대용량 문서가 ${chunks.length}개 페이지로 분할되었습니다.`,
+            'success'
+          );
+        });
+      } else {
+        let htmlContent = '';
+        try {
+          const { markdownToHtmlAsync } = await import('@/lib/markdown');
+          htmlContent = await markdownToHtmlAsync(importedContent);
+        } catch {
+          // Fallback
+        }
+        const id = await createDocument({ title, content: importedContent, htmlContent });
+        actions.setActiveDocument(id);
+      }
+
+      setMdImportOpen(false);
+      analytics.importMarkdown();
+    },
+    [actions]
+  );
+
   useKeyboardShortcuts({
     onNewDocument: handleNewDocument,
     onForceSave: handleForceSave,
@@ -297,6 +341,7 @@ export default function Home() {
           onDeleteDocument={handleDeleteDocument}
           onDuplicateDocument={handleDuplicateDocument}
           onImport={() => setHwpImportOpen(true)}
+          onImportMarkdown={() => setMdImportOpen(true)}
         />
       }
       focusMode={focusMode}
@@ -432,6 +477,12 @@ export default function Home() {
         open={hwpImportOpen}
         onClose={() => setHwpImportOpen(false)}
         onImportComplete={handleImportComplete}
+      />
+
+      <MarkdownImport
+        open={mdImportOpen}
+        onClose={() => setMdImportOpen(false)}
+        onImportComplete={handleMdImportComplete}
       />
 
       <HwpExport

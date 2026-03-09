@@ -29,8 +29,7 @@ import {
 import { useFolderTree, type FolderTreeNode } from '@/hooks/use-folders';
 import { useUIStore } from '@/stores/ui-store';
 import { createFolder, updateFolder, deleteFolder } from '@/db/folders';
-import { updateDocument, createDocument } from '@/db/documents';
-import { markdownToHtml } from '@/lib/markdown';
+import { updateDocument } from '@/db/documents';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { PromptDialog, ConfirmDialog, AlertDialog } from '@/components/ui/dialog';
 import { analytics } from '@/lib/analytics';
@@ -45,6 +44,7 @@ export interface SidebarProps {
   onDeleteDocument?: (id: string) => void;
   onDuplicateDocument?: (id: string) => void;
   onImport?: () => void;
+  onImportMarkdown?: () => void;
   onSettings?: () => void;
 }
 
@@ -213,6 +213,7 @@ export function Sidebar({
   onDeleteDocument,
   onDuplicateDocument,
   onImport,
+  onImportMarkdown,
   onSettings,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -245,21 +246,8 @@ export function Sidebar({
   }, [isDark, setTheme]);
 
   const handleImportMarkdown = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.md,.markdown,.txt';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      const title = file.name.replace(/\.(md|markdown|txt)$/i, '');
-      const htmlContent = markdownToHtml(text);
-      const id = await createDocument({ title, content: text, htmlContent });
-      onSelectDocument?.(id);
-      analytics.importMarkdown();
-    };
-    input.click();
-  }, [onSelectDocument]);
+    onImportMarkdown?.();
+  }, [onImportMarkdown]);
 
   const handleAddFolder = useCallback(() => {
     setFolderPromptOpen(true);
