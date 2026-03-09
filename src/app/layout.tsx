@@ -8,12 +8,29 @@ import '@/styles/editor.css';
 const GA_ID = 'G-DC9P5XSZXR';
 
 export const metadata: Metadata = {
-  title: 'MDView - Markdown Editor',
-  description: '마크다운 에디터. 문서는 서버에 전송되지 않으며 브라우저에만 저장됩니다.',
+  title: 'MDView - 무료 온라인 마크다운 에디터 | HWP 변환 지원',
+  description:
+    '무료 온라인 마크다운 에디터. HWP/HWPX 변환, WYSIWYG 편집, 실시간 미리보기를 지원합니다. 문서는 서버에 전송되지 않으며 브라우저에만 안전하게 저장됩니다.',
   metadataBase: new URL('https://www.mdview.kr'),
+  keywords: [
+    '마크다운 에디터',
+    'markdown editor',
+    '온라인 에디터',
+    'HWP 변환',
+    'HWPX',
+    '한글 변환',
+    '문서 편집기',
+    'WYSIWYG',
+    '무료 에디터',
+    '마크다운 뷰어',
+  ],
+  alternates: {
+    canonical: 'https://www.mdview.kr',
+  },
   openGraph: {
-    title: 'MDView - Markdown Editor',
-    description: '마크다운 에디터. 문서는 서버에 전송되지 않으며 브라우저에만 저장됩니다.',
+    title: 'MDView - 무료 온라인 마크다운 에디터',
+    description:
+      'HWP 변환 지원 마크다운 에디터. WYSIWYG 편집, 실시간 미리보기. 브라우저에서 안전하게 문서를 작성하세요.',
     url: 'https://www.mdview.kr',
     siteName: 'MDView',
     images: [
@@ -21,7 +38,7 @@ export const metadata: Metadata = {
         url: '/banner.png',
         width: 1200,
         height: 670,
-        alt: 'MDView - Markdown Editor',
+        alt: 'MDView - 무료 온라인 마크다운 에디터',
       },
     ],
     locale: 'ko_KR',
@@ -29,14 +46,45 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MDView - Markdown Editor',
-    description: '마크다운 에디터. 문서는 서버에 전송되지 않으며 브라우저에만 저장됩니다.',
+    title: 'MDView - 무료 온라인 마크다운 에디터',
+    description:
+      'HWP 변환 지원 마크다운 에디터. WYSIWYG 편집, 실시간 미리보기. 브라우저에서 안전하게 문서를 작성하세요.',
     images: ['/banner.png'],
   },
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',
   },
+  applicationName: 'MDView',
+  category: 'productivity',
+  classification: 'Markdown Editor',
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'MDView',
+  url: 'https://www.mdview.kr',
+  description:
+    '무료 온라인 마크다운 에디터. HWP/HWPX 변환, WYSIWYG 편집, 실시간 미리보기를 지원합니다.',
+  applicationCategory: 'ProductivityApplication',
+  operatingSystem: 'Web',
+  browserRequirements: 'Requires JavaScript. Requires HTML5.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'KRW',
+  },
+  featureList: [
+    '마크다운 WYSIWYG 편집',
+    'HWP/HWPX 파일 변환',
+    '실시간 미리보기',
+    '오프라인 저장 (브라우저)',
+    '다크 모드',
+    '문서 내보내기',
+  ],
+  inLanguage: 'ko',
+  isAccessibleForFree: true,
 };
 
 export default function RootLayout({
@@ -50,6 +98,10 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <meta name="google-adsense-account" content="ca-pub-5006269656255106" />
         <link rel="manifest" href="/manifest.json" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <link
           rel="stylesheet"
           as="style"
