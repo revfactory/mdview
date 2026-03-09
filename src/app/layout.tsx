@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import './globals.css';
 import '@/styles/editor.css';
+import 'katex/dist/katex.min.css';
 
 const GA_ID = 'G-DC9P5XSZXR';
 

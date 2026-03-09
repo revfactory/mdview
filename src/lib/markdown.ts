@@ -1,6 +1,7 @@
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 import { marked } from 'marked';
+import { markedMathExtension, markedFootnoteExtension } from './marked-extensions';
 
 let turndownInstance: TurndownService | null = null;
 
@@ -26,9 +27,11 @@ function getTurndownService(): TurndownService {
     replacement: (content) => `<u>${content}</u>`,
   });
 
-  // Superscript
+  // Superscript (exclude footnote refs)
   service.addRule('superscript', {
-    filter: ['sup'],
+    filter: (node) => {
+      return node.nodeName === 'SUP' && !node.classList.contains('footnote-ref');
+    },
     replacement: (content) => `<sup>${content}</sup>`,
   });
 
@@ -42,6 +45,64 @@ function getTurndownService(): TurndownService {
   service.addRule('highlight', {
     filter: ['mark'],
     replacement: (content) => `==${content}==`,
+  });
+
+  // Math inline: <span class="math-inline" data-math="...">
+  service.addRule('mathInline', {
+    filter: (node) => {
+      return node.nodeName === 'SPAN' && node.classList.contains('math-inline');
+    },
+    replacement: (_content, node) => {
+      const math = (node as HTMLElement).getAttribute('data-math') || '';
+      return `$${math}$`;
+    },
+  });
+
+  // Math block: <div class="math-block" data-math="...">
+  service.addRule('mathBlock', {
+    filter: (node) => {
+      return node.nodeName === 'DIV' && node.classList.contains('math-block');
+    },
+    replacement: (_content, node) => {
+      const math = (node as HTMLElement).getAttribute('data-math') || '';
+      return `\n\n$$\n${math}\n$$\n\n`;
+    },
+  });
+
+  // Footnote ref: <sup class="footnote-ref"><a ...>[n]</a></sup>
+  service.addRule('footnoteRef', {
+    filter: (node) => {
+      return node.nodeName === 'SUP' && node.classList.contains('footnote-ref');
+    },
+    replacement: (_content, node) => {
+      const link = (node as HTMLElement).querySelector('a');
+      const text = link?.textContent || '';
+      // Extract ID from [n] format
+      const id = text.replace(/[\[\]]/g, '');
+      return `[^${id}]`;
+    },
+  });
+
+  // Footnote section
+  service.addRule('footnoteSection', {
+    filter: (node) => {
+      return node.nodeName === 'SECTION' && node.classList.contains('footnotes');
+    },
+    replacement: (_content, node) => {
+      const items = (node as HTMLElement).querySelectorAll('li');
+      let result = '\n';
+      items.forEach((li) => {
+        const id = li.id.replace('fn-', '');
+        // Get text content without the backref link
+        const p = li.querySelector('p');
+        if (p) {
+          const backref = p.querySelector('.footnote-backref');
+          if (backref) backref.remove();
+          result += `[^${id}]: ${p.textContent?.trim() || ''}\n`;
+        }
+      });
+      return result;
+    },
   });
 
   turndownInstance = service;
@@ -64,6 +125,9 @@ function ensureMarkedConfigured(): void {
     gfm: true,
     breaks: true,
   });
+
+  marked.use(markedMathExtension());
+  marked.use(markedFootnoteExtension());
 
   markedConfigured = true;
 }

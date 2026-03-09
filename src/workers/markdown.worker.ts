@@ -3,6 +3,7 @@
 declare const self: DedicatedWorkerGlobalScope;
 
 import { marked } from 'marked';
+import { markedMathExtension, markedFootnoteExtension } from '@/lib/marked-extensions';
 
 // ============================================
 // Marked (Markdown → HTML) — one-time config
@@ -15,6 +16,8 @@ let markedConfigured = false;
 function ensureMarkedConfigured(): void {
   if (markedConfigured) return;
   marked.setOptions({ gfm: true, breaks: true });
+  marked.use(markedMathExtension());
+  marked.use(markedFootnoteExtension());
   markedConfigured = true;
 }
 

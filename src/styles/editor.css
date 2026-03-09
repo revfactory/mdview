@@ -308,3 +308,54 @@
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* Math - Inline */
+.tiptap .math-inline {
+  display: inline;
+  padding: 0 2px;
+}
+
+/* Math - Block */
+.tiptap .math-block {
+  display: block;
+  text-align: center;
+  margin: 1em 0;
+  padding: 0.75em 0;
+  overflow-x: auto;
+}
+
+/* Footnotes */
+.tiptap .footnote-ref a {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.8em;
+}
+
+.tiptap .footnote-ref a:hover {
+  text-decoration: underline;
+}
+
+.tiptap .footnotes {
+  margin-top: 2em;
+  font-size: 0.875em;
+  color: var(--color-text-secondary);
+}
+
+.tiptap .footnotes hr {
+  margin-bottom: 1em;
+}
+
+.tiptap .footnotes ol {
+  padding-left: 1.5em;
+}
+
+.tiptap .footnotes li {
+  margin-bottom: 0.5em;
+}
+
+.tiptap .footnote-backref {
+  color: var(--color-accent);
+  text-decoration: none;
+  margin-left: 0.25em;
+}
