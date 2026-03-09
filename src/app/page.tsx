@@ -32,6 +32,7 @@ import {
 } from '@/db/documents';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 import { analytics } from '@/lib/analytics';
+import { createSampleDocument } from '@/lib/sample-document';
 
 export default function Home() {
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
@@ -76,6 +77,19 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to create document:', error);
+    }
+  }, [actions]);
+
+  const handleSampleDocument = useCallback(async () => {
+    try {
+      const id = await createSampleDocument();
+      actions.setActiveDocument(id);
+      analytics.documentCreate();
+      if (useUIStore.getState().isMobile) {
+        useUIStore.getState().actions.closeSidebar();
+      }
+    } catch (error) {
+      console.error('Failed to create sample document:', error);
     }
   }, [actions]);
 
@@ -386,6 +400,11 @@ export default function Home() {
                       label: '새 문서 만들기',
                       onClick: handleNewDocument,
                       variant: 'primary',
+                    },
+                    {
+                      label: '샘플 문서 보기',
+                      onClick: handleSampleDocument,
+                      variant: 'secondary',
                     },
                   ]}
                 />
