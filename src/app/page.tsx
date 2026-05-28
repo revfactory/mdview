@@ -14,6 +14,7 @@ import { DocumentTitle } from '@/components/features/editor/document-title';
 import { TocPanel } from '@/components/features/editor/toc-panel';
 import { HwpImport } from '@/components/features/import-export/hwp-import';
 import { MarkdownImport } from '@/components/features/import-export/markdown-import';
+import { PdfImport } from '@/components/features/import-export/pdf-import';
 import { HwpExport } from '@/components/features/import-export/hwp-export';
 import { ExportMenu } from '@/components/features/import-export/export-menu';
 import { QuickOpen } from '@/components/features/quick-open/quick-open';
@@ -44,6 +45,7 @@ export default function Home() {
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
   const [mdImportOpen, setMdImportOpen] = useState(false);
+  const [pdfImportOpen, setPdfImportOpen] = useState(false);
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
 
@@ -321,6 +323,58 @@ export default function Home() {
     [actions]
   );
 
+  const handlePdfImportComplete = useCallback(
+    async (importedContent: string, title: string) => {
+      const CHUNK_THRESHOLD = 300_000;
+
+      if (importedContent.length > CHUNK_THRESHOLD) {
+        const { chunkDocument } = await import('@/lib/chunk-document');
+        const { saveChunks } = await import('@/db/chunks');
+
+        const chunks = chunkDocument(importedContent);
+        const id = await createDocument({
+          title,
+          content: importedContent,
+          isChunked: true,
+          chunkCount: chunks.length,
+        });
+        await saveChunks(id, chunks);
+        actions.setActiveDocument(id);
+
+        import('@/stores/toast-store').then(({ useToastStore }) => {
+          useToastStore.getState().actions.addToast(
+            `대용량 문서가 ${chunks.length}개 페이지로 분할되었습니다.`,
+            'success'
+          );
+        });
+      } else {
+        let htmlContent = '';
+        try {
+          const { markdownToHtmlAsync } = await import('@/lib/markdown');
+          htmlContent = await markdownToHtmlAsync(importedContent);
+        } catch {
+          // Fallback
+        }
+        const id = await createDocument({ title, content: importedContent, htmlContent });
+        actions.setActiveDocument(id);
+      }
+
+      setPdfImportOpen(false);
+      analytics.importPdf();
+
+      // Phase 2 (Branch B) — 텍스트만 추출됨을 사용자에게 안내
+      import('@/stores/toast-store').then(({ useToastStore }) => {
+        useToastStore
+          .getState()
+          .actions.addToast(
+            '텍스트만 추출되었습니다. 표 · 이미지 · OCR은 지원하지 않습니다.',
+            'info'
+          );
+      });
+    },
+    [actions]
+  );
+
   useKeyboardShortcuts({
     onNewDocument: handleNewDocument,
     onForceSave: handleForceSave,
@@ -346,6 +400,7 @@ export default function Home() {
           onDuplicateDocument={handleDuplicateDocument}
           onImport={() => setHwpImportOpen(true)}
           onImportMarkdown={() => setMdImportOpen(true)}
+          onImportPdf={() => setPdfImportOpen(true)}
         />
       }
       focusMode={focusMode}
@@ -487,6 +542,12 @@ export default function Home() {
         open={mdImportOpen}
         onClose={() => setMdImportOpen(false)}
         onImportComplete={handleMdImportComplete}
+      />
+
+      <PdfImport
+        open={pdfImportOpen}
+        onClose={() => setPdfImportOpen(false)}
+        onImportComplete={handlePdfImportComplete}
       />
 
       <HwpExport

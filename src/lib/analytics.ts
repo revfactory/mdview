@@ -40,6 +40,9 @@ export const analytics = {
   importHwp: () =>
     trackEvent({ action: 'import', category: 'file', label: 'hwp' }),
 
+  importPdf: () =>
+    trackEvent({ action: 'import', category: 'file', label: 'pdf' }),
+
   exportMarkdown: () =>
     trackEvent({ action: 'export', category: 'file', label: 'markdown' }),
 
