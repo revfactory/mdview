@@ -18,6 +18,7 @@ import {
   Pencil,
   Trash2,
   FileCode,
+  FileType,
 } from 'lucide-react';
 import { SearchInput } from '../ui/search-input';
 import { Tooltip } from '../ui/tooltip';
@@ -45,6 +46,7 @@ export interface SidebarProps {
   onDuplicateDocument?: (id: string) => void;
   onImport?: () => void;
   onImportMarkdown?: () => void;
+  onImportPdf?: () => void;
   onSettings?: () => void;
 }
 
@@ -214,6 +216,7 @@ export function Sidebar({
   onDuplicateDocument,
   onImport,
   onImportMarkdown,
+  onImportPdf,
   onSettings,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -365,7 +368,7 @@ export function Sidebar({
           className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
         >
           <FileCode className="w-3.5 h-3.5" />
-          <span>Markdown</span>
+          <span>MD</span>
         </button>
         <button
           onClick={onImport}
@@ -373,6 +376,14 @@ export function Sidebar({
         >
           <Import className="w-3.5 h-3.5" />
           <span>HWP</span>
+        </button>
+        <button
+          onClick={onImportPdf}
+          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+          aria-label="PDF 불러오기"
+        >
+          <FileType className="w-3.5 h-3.5" />
+          <span>PDF</span>
         </button>
       </div>
 
