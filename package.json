@@ -64,7 +64,7 @@
     "cfb": "^1.2.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "dexie": "^4.3.0",
+    "dexie": "^4.4.3",
     "dexie-react-hooks": "^4.2.0",
     "file-saver": "^2.0.5",
     "flexsearch": "^0.8.212",
