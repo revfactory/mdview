@@ -10,7 +10,7 @@
 ## [Unreleased]
 
 ### Added
-- _아직 항목 없음_
+- PDF 임포트 (Phase 2, Branch B) — `pdfjs-dist` 기반 Web Worker 로 텍스트 + 기본 구조(제목 · 문단 · 목록)만 추출. 표 · 이미지 · OCR 은 미지원 (후속). 사이드바에 PDF 버튼 추가. ([#5](https://github.com/revfactory/mdview/issues/5))
 
 ### Changed
 - _아직 항목 없음_
