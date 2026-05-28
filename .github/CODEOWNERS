@@ -1,0 +1,4 @@
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# 기본 소유자 — 모든 변경에 대해 리뷰 요청
+* @revfactory

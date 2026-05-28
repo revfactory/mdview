@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 보안 취약점 신고
+    url: https://github.com/revfactory/mdview/security/advisories/new
+    about: 보안 취약점은 비공개 채널로 신고해 주세요. 공개 이슈 금지.
+  - name: 📖 문서 (README)
+    url: https://github.com/revfactory/mdview#readme
+    about: 설치·사용법은 먼저 README 를 확인해 주세요.

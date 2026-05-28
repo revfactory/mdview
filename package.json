@@ -1,13 +1,37 @@
 {
-  "name": "mdview-temp",
+  "name": "mdview",
   "version": "0.1.0",
   "private": true,
+  "description": "한글 친화 블록 기반 마크다운 에디터 — HWP/HWPX 임포트·내보내기 지원",
   "license": "Apache-2.0",
+  "author": "revfactory",
+  "homepage": "https://github.com/revfactory/mdview#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/revfactory/mdview.git"
+  },
+  "bugs": {
+    "url": "https://github.com/revfactory/mdview/issues"
+  },
+  "keywords": [
+    "markdown",
+    "markdown-editor",
+    "wysiwyg",
+    "tiptap",
+    "hwp",
+    "hwpx",
+    "korean",
+    "한글",
+    "nextjs",
+    "react",
+    "block-editor"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
