@@ -65,7 +65,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.3.0",
-    "dexie-react-hooks": "^4.2.0",
+    "dexie-react-hooks": "^4.4.0",
     "file-saver": "^2.0.5",
     "flexsearch": "^0.8.212",
     "jszip": "^3.10.1",
