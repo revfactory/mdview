@@ -495,6 +495,7 @@ export function Sidebar({
             <Info className="w-4 h-4" />
           </button>
         </Tooltip>
+        <a href="/guides" target="_blank" rel="noopener noreferrer" className="rounded-lg px-2 py-2 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]" aria-label="사용 가이드 (새 탭)">사용 가이드 ↗</a>
         <div className="flex-1" />
         <Tooltip content={isDark ? '라이트 모드' : '다크 모드'} side="top">
           <button

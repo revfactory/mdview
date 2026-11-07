@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core';
+import { Extension, type Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import type { SlashCommandItem } from '@/types/editor';
@@ -11,6 +11,12 @@ export interface SlashCommandStorage {
   decorationPosition: { top: number; left: number } | null;
   filteredItems: SlashCommandItem[];
   selectedIndex: number;
+}
+
+declare module '@tiptap/core' {
+  interface Storage {
+    slashCommand?: SlashCommandStorage;
+  }
 }
 
 const slashCommandPluginKey = new PluginKey('slashCommand');
@@ -40,13 +46,11 @@ function getCaretPosition(view: EditorView, from: number) {
 }
 
 export function executeSlashCommand(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  editor: any,
+  editor: Editor,
   command: string,
   range: { from: number; to: number }
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chain = (editor as any).chain().focus().deleteRange(range);
+  const chain = editor.chain().focus().deleteRange(range);
 
   switch (command) {
     case 'heading1':
@@ -112,15 +116,13 @@ export const SlashCommand = Extension.create<object, SlashCommandStorage>({
   },
 
   addProseMirrorPlugins() {
-    const extensionThis = this;
+    const { storage, editor } = this;
 
     return [
       new Plugin({
         key: slashCommandPluginKey,
         props: {
           handleKeyDown(view, event) {
-            const storage = extensionThis.storage as SlashCommandStorage;
-
             if (!storage.active) {
               return false;
             }
@@ -149,7 +151,7 @@ export const SlashCommand = Extension.create<object, SlashCommandStorage>({
               const item = storage.filteredItems[storage.selectedIndex];
               if (item && storage.range) {
                 executeSlashCommand(
-                  extensionThis.editor as Parameters<typeof executeSlashCommand>[0],
+                  editor,
                   item.command,
                   storage.range
                 );
@@ -181,7 +183,6 @@ export const SlashCommand = Extension.create<object, SlashCommandStorage>({
         view() {
           return {
             update(view) {
-              const storage = extensionThis.storage as SlashCommandStorage;
               const { state } = view;
               const { $from } = state.selection;
               const textBefore = $from.parent.textContent.slice(
