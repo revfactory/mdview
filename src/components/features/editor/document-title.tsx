@@ -14,14 +14,13 @@ export function DocumentTitle({ documentId }: DocumentTitleProps) {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
-    if (!documentId) {
-      setTitle('');
-      return;
-    }
+    if (!documentId) return;
+    let cancelled = false;
     (async () => {
       const doc = await getDocument(documentId);
-      if (doc) setTitle(doc.title || '');
+      if (!cancelled) setTitle(doc?.title || '');
     })();
+    return () => { cancelled = true; };
   }, [documentId]);
 
   useEffect(() => {

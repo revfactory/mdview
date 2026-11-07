@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { FilePlus2 } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Toolbar } from '@/components/layout/toolbar';
 import { StatusBar } from '@/components/layout/status-bar';
-import { EmptyState } from '@/components/ui/empty-state';
+import { WelcomePanel } from '@/components/growth/welcome-panel';
+import { readEntryAction, type EntryAction, type EntrySource } from '@/lib/entry-actions';
 import { Editor } from '@/components/features/editor/editor';
 import { PaginatedEditor } from '@/components/features/editor/paginated-editor';
 import { PaginatedSplitView } from '@/components/features/editor/paginated-split-view';
@@ -15,7 +15,6 @@ import { TocPanel } from '@/components/features/editor/toc-panel';
 import { HwpImport } from '@/components/features/import-export/hwp-import';
 import { MarkdownImport } from '@/components/features/import-export/markdown-import';
 import { HwpExport } from '@/components/features/import-export/hwp-export';
-import { ExportMenu } from '@/components/features/import-export/export-menu';
 import { QuickOpen } from '@/components/features/quick-open/quick-open';
 import { ToastContainer } from '@/components/ui/toast';
 import { useEditorStore } from '@/stores/editor-store';
@@ -45,6 +44,8 @@ export default function Home() {
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
   const [mdImportOpen, setMdImportOpen] = useState(false);
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
+  const [preparingExport, setPreparingExport] = useState(false);
+  const preparingExportRef = useRef(false);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
 
   const activeDocument = useDocument(activeDocumentId);
@@ -95,6 +96,34 @@ export default function Home() {
       console.error('Failed to create sample document:', error);
     }
   }, [actions]);
+
+  const handleStart = useCallback((action: EntryAction, source: EntrySource) => {
+    analytics.startAction(action, source);
+    if (action === 'import-hwp') setHwpImportOpen(true);
+    if (action === 'import-markdown') setMdImportOpen(true);
+    if (action === 'new' || action === 'sample') {
+      useUIStore.getState().actions.setViewMode('wysiwyg');
+      void (action === 'new' ? handleNewDocument() : handleSampleDocument());
+    }
+  }, [handleNewDocument, handleSampleDocument]);
+
+  const entryHandled = useRef(false);
+  useEffect(() => {
+    // Defer until mounted; cancel the first Strict Mode effect before performing an action.
+    const timer = window.setTimeout(() => {
+      if (entryHandled.current) return;
+      entryHandled.current = true;
+      const url = new URL(window.location.href);
+      const entry = readEntryAction(url.searchParams);
+      if (!entry) return;
+      // Consume once so refresh, dismissal and Back do not duplicate the action.
+      url.searchParams.delete('action');
+      url.searchParams.delete('source');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      handleStart(entry.action, entry.source);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [handleStart]);
 
   const handleSelectDocument = useCallback(
     (id: string) => {
@@ -165,18 +194,43 @@ export default function Home() {
 
   // For chunked documents: merged content for export and source view
   const [exportContent, setExportContent] = useState('');
+  const [exportDocumentTitle, setExportDocumentTitle] = useState('MDView');
   const [mergedSourceContent, setMergedSourceContent] = useState('');
   const [mergedSourceLoading, setMergedSourceLoading] = useState(false);
 
   const prepareExportContent = useCallback(async () => {
-    if (isChunked && activeDocumentId) {
+    if (isChunked && viewMode === 'source') {
+      setExportContent(mergedSourceContent);
+    } else if (isChunked && activeDocumentId) {
       const { getAllChunksMarkdown } = await import('@/db/chunks');
       const merged = await getAllChunksMarkdown(activeDocumentId);
       setExportContent(merged);
     } else {
-      setExportContent(content);
+      const { htmlToMarkdown } = await import('@/lib/markdown');
+      setExportContent(viewMode !== 'source' && tiptapEditor ? htmlToMarkdown(tiptapEditor.getHTML()) : content);
     }
-  }, [isChunked, activeDocumentId, content]);
+  }, [isChunked, activeDocumentId, content, viewMode, tiptapEditor, mergedSourceContent]);
+
+  const handleOpenExport = useCallback(async () => {
+    if (preparingExportRef.current || !activeDocumentId) return;
+    const exportDocumentId = activeDocumentId;
+    const title = activeDocument?.title ?? 'MDView';
+    preparingExportRef.current = true;
+    setPreparingExport(true);
+    try {
+      await prepareExportContent();
+      // The user may navigate while a large document is being merged.
+      if (useEditorStore.getState().activeDocumentId !== exportDocumentId) return;
+      setExportDocumentTitle(title);
+      setHwpExportOpen(true);
+    } catch {
+      const { useToastStore } = await import('@/stores/toast-store');
+      useToastStore.getState().actions.addToast('문서를 내보낼 준비를 하지 못했습니다. 다시 시도해주세요.', 'error');
+    } finally {
+      preparingExportRef.current = false;
+      setPreparingExport(false);
+    }
+  }, [prepareExportContent, activeDocumentId, activeDocument?.title]);
 
   // Load merged chunks when switching to source view for chunked docs
   useEffect(() => {
@@ -362,11 +416,13 @@ export default function Home() {
           >
             <Toolbar
               editor={tiptapEditor}
-              onExport={() => { prepareExportContent().then(() => setHwpExportOpen(true)); }}
+              onExport={handleOpenExport}
               onToggleToc={() => useUIStore.getState().actions.toggleToc()}
               documentTitle={activeDocument?.title}
               documentId={activeDocumentId}
               isChunked={isChunked}
+              markdown={isChunked ? mergedSourceContent : content}
+              disabled={!activeDocumentId || isLoading || (isChunked && viewMode === 'source' && mergedSourceLoading) || preparingExport}
             />
           </div>
 
@@ -439,25 +495,7 @@ export default function Home() {
                 )
               )
             ) : (
-              <div className="flex items-center justify-center h-full">
-                <EmptyState
-                  icon={FilePlus2}
-                  title="새 문서를 만들어보세요"
-                  subtitle="마크다운 문서를 작성하고 관리할 수 있습니다. 왼쪽 상단의 + 버튼을 눌러 시작하세요."
-                  actions={[
-                    {
-                      label: '새 문서 만들기',
-                      onClick: handleNewDocument,
-                      variant: 'primary',
-                    },
-                    {
-                      label: '샘플 문서 보기',
-                      onClick: handleSampleDocument,
-                      variant: 'secondary',
-                    },
-                  ]}
-                />
-              </div>
+              <WelcomePanel onStart={(action) => handleStart(action, 'home')} />
             )}
           </div>
 
@@ -492,10 +530,8 @@ export default function Home() {
       <HwpExport
         open={hwpExportOpen}
         onClose={() => setHwpExportOpen(false)}
-        markdown={exportContent || content}
-        documentTitle={
-          activeDocument?.title ?? 'MDView'
-        }
+        markdown={exportContent}
+        documentTitle={exportDocumentTitle}
       />
       <QuickOpen
         open={quickOpenOpen}

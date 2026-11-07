@@ -50,9 +50,14 @@
 - **PWA 지원** — 오프라인에서도 사용 가능
 - **반응형 디자인** — 데스크톱·태블릿·모바일
 
-## 🖼 데모
+## 🖼 온라인에서 바로 사용하기
 
-> 곧 추가됩니다. `docs/screenshots/` 디렉토리에 스크린샷과 GIF가 추가될 예정입니다.
+설치 없이 [MDView 에디터](https://mdview.kr/)를 열 수 있습니다.
+
+- [HWP·HWPX를 마크다운으로 변환](https://mdview.kr/guides/hwp-to-markdown)
+- [마크다운을 한글 HWPX로 내보내기](https://mdview.kr/guides/markdown-to-hwpx)
+- [마크다운을 PDF로 저장하기](https://mdview.kr/guides/markdown-to-pdf)
+- [에디터 사용법과 로컬 저장 안내](https://mdview.kr/guides/markdown-editor)
 
 ## 🚀 빠른 시작
 

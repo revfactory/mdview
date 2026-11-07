@@ -20,7 +20,7 @@ import { Underline } from '@tiptap/extension-underline';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Subscript } from '@tiptap/extension-subscript';
 import { Link } from '@tiptap/extension-link';
-import { useCallback, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { htmlToMarkdown, htmlToMarkdownAsync } from '@/lib/markdown';
 import { TrailingNode } from '@/extensions/trailing-node';
@@ -38,9 +38,12 @@ interface EditorProps {
 
 export function Editor({ content, onChange, editable = true, onEditorReady }: EditorProps) {
   const { actions } = useEditorStore();
+  const [initialContent] = useState(content);
   const initialContentRef = useRef(content);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
   const markdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup debounce timer
@@ -97,7 +100,7 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
       TrailingNode,
       UniqueID,
     ],
-    content: initialContentRef.current || '<p></p>',
+    content: initialContent || '<p></p>',
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML();
 

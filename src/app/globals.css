@@ -259,6 +259,15 @@
     padding: 0;
   }
 
+  /* Expand the nested viewport-height scrollers for full-document printing. */
+  [data-app-shell], [data-app-shell] main, [data-app-shell] main div {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  [data-app-shell] { display: block !important; width: 100% !important; }
+  [data-app-shell] input, [data-export-menu] { display: none !important; }
+
   #print-document-title {
     display: block !important;
   }
