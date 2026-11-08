@@ -11,86 +11,90 @@ export function useHwpImport() {
   const [progressMessage, setProgressMessage] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const workerRef = useRef<Worker | null>(null);
+  const cancelImportRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    return () => {
-      workerRef.current?.terminate();
-    };
-  }, []);
+  useEffect(() => () => cancelImportRef.current?.(), []);
 
   const importFile = useCallback(
     async (file: File): Promise<{ content: string; warnings: string[] }> => {
-      // Terminate any existing worker
-      workerRef.current?.terminate();
-
+      cancelImportRef.current?.();
       setIsImporting(true);
       setProgress(0);
       setProgressMessage('');
       setError(null);
 
       return new Promise((resolve, reject) => {
-        const worker = new Worker(
-          new URL('../workers/hwp-parser.worker.ts', import.meta.url)
-        );
-        workerRef.current = worker;
-
-        worker.onmessage = (e: MessageEvent) => {
-          const msg = e.data;
-
-          switch (msg.type) {
-            case 'progress':
-              setProgress(msg.percent);
-              setProgressMessage(msg.message);
-              break;
-            case 'complete':
-              setProgress(100);
-              setProgressMessage('변환 완료');
-              setIsImporting(false);
-              worker.terminate();
-              workerRef.current = null;
-              resolve({
-                content: msg.content || '',
-                warnings: msg.warnings || [],
-              });
-              break;
-            case 'error':
-              setError(msg.error);
-              setIsImporting(false);
-              worker.terminate();
-              workerRef.current = null;
-              reject(new Error(msg.error));
-              break;
-          }
+        let worker: Worker | null = null;
+        let settled = false;
+        const cleanup = () => {
+          worker?.terminate();
+          if (cancelImportRef.current === cancel) cancelImportRef.current = null;
         };
-
-        worker.onerror = (err) => {
-          const message = err.message || 'Worker 실행 중 오류가 발생했습니다.';
+        const fail = (reason: unknown) => {
+          if (settled) return;
+          settled = true;
+          const message = reason instanceof Error ? reason.message : '파일을 읽거나 변환하지 못했습니다.';
+          cleanup();
           setError(message);
           setIsImporting(false);
-          worker.terminate();
-          workerRef.current = null;
           reject(new Error(message));
         };
+        const cancel = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          // Settle callers without updating an unmounted or replacement UI.
+          reject(new Error('가져오기가 취소되었습니다.'));
+        };
+        cancelImportRef.current = cancel;
 
-        file.arrayBuffer().then((buffer) => {
-          worker.postMessage({
-            type: 'parse',
-            file: buffer,
-            options: {
-              preserveStyles: true,
-              convertTables: true,
-              extractImages: false,
-              imageFormat: 'base64' as const,
-            },
-          });
-        });
+        try {
+          worker = new Worker(new URL('../workers/hwp-parser.worker.ts', import.meta.url));
+          worker.onmessage = (e: MessageEvent) => {
+            if (settled) return;
+            const msg = e.data;
+            switch (msg.type) {
+              case 'progress':
+                setProgress(msg.percent);
+                setProgressMessage(msg.message);
+                break;
+              case 'complete':
+                settled = true;
+                cleanup();
+                setProgress(100);
+                setProgressMessage('변환 완료');
+                setIsImporting(false);
+                resolve({ content: msg.content || '', warnings: msg.warnings || [] });
+                break;
+              case 'error':
+                fail(new Error(msg.error));
+                break;
+            }
+          };
+          worker.onerror = (event) => fail(new Error(event.message || 'Worker 실행 중 오류가 발생했습니다.'));
+          file.arrayBuffer().then((buffer) => {
+            if (settled) return;
+            worker?.postMessage({
+              type: 'parse',
+              file: buffer,
+              options: {
+                preserveStyles: true,
+                convertTables: true,
+                extractImages: false,
+                imageFormat: 'base64' as const,
+              },
+            });
+          }).catch(fail);
+        } catch (error) {
+          fail(error);
+        }
       });
     },
     []
   );
 
   const reset = useCallback(() => {
+    cancelImportRef.current?.();
     setProgress(0);
     setProgressMessage('');
     setIsImporting(false);

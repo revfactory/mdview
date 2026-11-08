@@ -179,7 +179,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
   }, [editor, documentTitle, documentId, isChunked, sourceMarkdown, viewMode, exportDisabled]);
 
   return (
-    <div data-toolbar className="flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
+    <div data-toolbar className="mdview-toolbar flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
       {/* Sidebar toggle */}
       <button
         onClick={toggleSidebar}
@@ -348,7 +348,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
         <Divider />
 
         {/* View Mode - segment control */}
-        <div className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
+        <div data-view-modes className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
           {([
             { mode: 'wysiwyg' as const, icon: PenLine, label: 'WYSIWYG 모드' },
             ...(!isMobile ? [{ mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' }] : []),

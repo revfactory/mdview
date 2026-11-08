@@ -207,6 +207,30 @@
    Mobile Responsive
    ======================================== */
 @media (max-width: 768px) {
+  /* Keep document actions reachable instead of clipping a desktop-width row. */
+  .mdview-toolbar {
+    height: auto;
+    min-height: 44px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    row-gap: 4px;
+  }
+
+  .mdview-toolbar > * {
+    flex-shrink: 0;
+  }
+
+  .mdview-toolbar button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* The mode buttons grow with their touch targets, not outside their tray. */
+  .mdview-toolbar [data-view-modes] {
+    height: auto;
+  }
+
   /* Tighter scrollbar on mobile */
   ::-webkit-scrollbar {
     width: 3px;
