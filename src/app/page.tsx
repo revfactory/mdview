@@ -406,11 +406,13 @@ export default function Home() {
     >
       <div className="flex h-full overflow-hidden">
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          {/* Toolbar - hidden in focus mode */}
+          {/* Toolbar - allow mobile rows to size naturally outside focus mode. */}
           <div
-            className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+            className="shrink-0 transition-opacity duration-300 ease-in-out overflow-hidden"
+            inert={focusMode}
+            aria-hidden={focusMode}
             style={{
-              maxHeight: focusMode ? 0 : 44,
+              maxHeight: focusMode ? 0 : 'none',
               opacity: focusMode ? 0 : 1,
             }}
           >
