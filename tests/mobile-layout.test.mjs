@@ -36,3 +36,42 @@ test('mobile toolbar can wrap and its mode tray grows with 44px touch targets', 
   assert.match(mobile, /\.mdview-toolbar button\s*\{[^}]*min-width: 44px;[^}]*min-height: 44px;/);
   assert.match(mobile, /\.mdview-toolbar \[data-view-modes\]\s*\{[^}]*height: auto;/);
 });
+
+// Exercise the actual integration wrapper, not just Toolbar's own CSS rules.
+function renderToolbarFrame(focusMode) {
+  const page = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8');
+  const ast = ts.createSourceFile('page.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let frame;
+  function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'div'
+      && node.children.some((child) => ts.isJsxSelfClosingElement(child) && child.tagName.getText(ast) === 'Toolbar')) {
+      frame = node;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.ok(frame, 'HomePage must expose the real Toolbar wrapper to this integration check');
+  const fixture = `export function Frame({ focusMode }) { return (${frame.openingElement.getText(ast)}<div style={{ height: 132 }}>wrapped toolbar</div></div>); }`;
+  const compiled = ts.transpileModule(fixture, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const scope = { exports: {}, require };
+  vm.runInNewContext(compiled, scope);
+  return renderToStaticMarkup(React.createElement(scope.exports.Frame, { focusMode }));
+}
+
+test('HomePage does not clip a multi-row toolbar to a single-row height', () => {
+  const html = renderToolbarFrame(false);
+  assert.match(html, /max-height:none/);
+  assert.match(html, /height:132px/);
+  assert.doesNotMatch(html, /max-height:44px/);
+});
+
+test('focus mode collapses the Toolbar wrapper and excludes its controls from focus', () => {
+  const hidden = renderToolbarFrame(true);
+  assert.match(hidden, /max-height:0/);
+  assert.match(hidden, /opacity:0/);
+  assert.match(hidden, /inert=""/);
+  assert.match(hidden, /aria-hidden="true"/);
+  const visible = renderToolbarFrame(false);
+  assert.doesNotMatch(visible, /inert=""/);
+  assert.match(visible, /opacity:1/);
+});
