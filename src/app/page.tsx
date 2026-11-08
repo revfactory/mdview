@@ -236,6 +236,7 @@ export default function Home() {
   useEffect(() => {
     if (!isChunked || !activeDocumentId || viewMode !== 'source') return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- The loading flag synchronizes the async IndexedDB chunk read with the current document.
     setMergedSourceLoading(true);
 
     (async () => {

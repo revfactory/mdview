@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 
 interface SourceEditorProps {
   content: string;
@@ -10,7 +10,9 @@ interface SourceEditorProps {
 export function SourceEditor({ content, onChange }: SourceEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   // Sync content from external changes (e.g. document switch)
   useEffect(() => {
