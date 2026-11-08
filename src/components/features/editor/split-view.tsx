@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
@@ -19,7 +19,9 @@ export function SplitView({
 }: SplitViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
   const updatingFromSource = useRef(false);
   const [dividerX, setDividerX] = useState(50); // percentage
 

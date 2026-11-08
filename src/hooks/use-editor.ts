@@ -27,6 +27,7 @@ export function useEditorManager(documentId: string | null) {
     prevDocId.current = documentId;
 
     if (!documentId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Clearing the external document selection must reset the editor before another document loads.
       setContent('');
       setHtmlContent('');
       setIsChunked(false);

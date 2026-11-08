@@ -88,6 +88,7 @@ export function SlashCommandMenu({ editor }: SlashCommandMenuProps) {
       );
 
       // Reset storage
+      // eslint-disable-next-line react-hooks/immutability -- TipTap extension storage is a mutable external API, not React-owned state.
       storage.active = false;
       storage.query = '';
       storage.range = null;
