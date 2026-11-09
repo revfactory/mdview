@@ -11,6 +11,16 @@
 
 아직 기록된 변경 없음.
 
+## [0.2.8] - 2026-11-09
+
+### Fixed
+- 제목 입력 직후 문서나 보기 모드를 전환하면 저장 대기 타이머가 취소되어 제목이 사라지는 문제 수정
+- 문서 제목을 읽기 전 편집을 잠그고, 빠른 문서 재선택과 늦은 읽기 결과로 이전 제목이 덮어쓰이지 않도록 보호
+- 제목 읽기·저장 실패를 안내하고 제목 저장 결과가 본문 저장 오류를 가리지 않도록 유지
+
+### Notes
+- 이미 저장되지 않고 사라진 제목은 자동 복원되지 않습니다. 브라우저 강제 종료나 저장소 실패까지 저장을 보장하지는 않습니다.
+
 ## [0.2.7] - 2026-11-09
 
 ### Fixed
@@ -187,6 +197,7 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/revfactory/mdview/releases/tag/v0.2.8
 [0.2.0]: https://github.com/revfactory/mdview/releases/tag/v0.2.0
 [0.1.0]: https://github.com/revfactory/mdview/tree/5718680
