@@ -488,6 +488,7 @@ export default function Home() {
                     </div>
                     <div className="flex-1 min-h-0">
                       <SplitView
+                        key={activeDocumentId}
                         content={content}
                         htmlContent={htmlContent}
                         onChange={onChange}

@@ -1,6 +1,6 @@
 {
   "name": "mdview",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "한글 친화 블록 기반 마크다운 에디터 — HWP/HWPX 임포트·내보내기 지원",
   "license": "Apache-2.0",
@@ -27,8 +27,8 @@
     "block-editor"
   ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack && node scripts/check-worker-build.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
