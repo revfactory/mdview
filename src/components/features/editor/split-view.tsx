@@ -22,6 +22,8 @@ export function SplitView({
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+  const conversionId = useRef(0);
+  useEffect(() => () => { conversionId.current++; }, []);
   const updatingFromSource = useRef(false);
   const [dividerX, setDividerX] = useState(50); // percentage
 
@@ -39,6 +41,7 @@ export function SplitView({
   // Handle source textarea change
   const handleSourceChange = useCallback(
     async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const requestId = ++conversionId.current;
       updatingFromSource.current = true;
       const markdown = e.target.value;
       const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
@@ -46,7 +49,7 @@ export function SplitView({
       const html = markdown.length > 50_000
         ? await markdownToHtmlAsync(markdown)
         : markdownToHtml(markdown);
-      onChangeRef.current?.(markdown, html);
+      if (requestId === conversionId.current) onChangeRef.current?.(markdown, html);
     },
     []
   );
@@ -54,6 +57,7 @@ export function SplitView({
   // Handle WYSIWYG editor change
   const handleWysiwygChange = useCallback(
     (markdown: string, html: string) => {
+      conversionId.current++;
       if (textareaRef.current) {
         textareaRef.current.value = markdown;
       }
