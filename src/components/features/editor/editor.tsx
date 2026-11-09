@@ -1,6 +1,6 @@
 'use client';
 
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type EditorEvents } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -123,11 +123,6 @@ export function Editor({ content, onChange, editable = true, onEditorReady, sour
       // Keep ref in sync to prevent content effect from re-setting content
       initialContentRef.current = html;
 
-      // Update character/word counts immediately (cheap)
-      const charCount = ed.storage.characterCount?.characters?.() ?? 0;
-      const wordCount = ed.storage.characterCount?.words?.() ?? 0;
-      actions.updateCounts(wordCount, charCount);
-
       // Debounce the expensive htmlToMarkdown conversion (300ms) via Worker
       if (markdownTimerRef.current) clearTimeout(markdownTimerRef.current);
       markdownTimerRef.current = setTimeout(() => {
@@ -147,6 +142,24 @@ export function Editor({ content, onChange, editable = true, onEditorReady, sour
       }, 300);
     },
   });
+
+  // Loading a document is intentionally silent for autosave, but its counts
+  // still belong to the newly visible document, even when it is empty.
+  useEffect(() => {
+    if (!editor) return;
+    const syncCounts = () => {
+      actions.updateCounts(
+        editor.storage.characterCount?.words?.() ?? 0,
+        editor.storage.characterCount?.characters?.() ?? 0,
+      );
+    };
+    const onTransaction = ({ transaction }: EditorEvents['transaction']) => {
+      if (transaction.docChanged) syncCounts();
+    };
+    editor.on('transaction', onTransaction);
+    syncCounts();
+    return () => { editor.off('transaction', onTransaction); };
+  }, [editor, actions]);
 
   // Notify parent when editor is ready
   useEffect(() => {
