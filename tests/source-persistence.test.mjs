@@ -76,3 +76,13 @@ test('loading and document-selection renders do not autosave stale state', () =>
   const h = harness(); h.render('A'); h.render('B'); h.render(null);
   assert.equal(h.writes.length, 0);
 });
+
+test('force save is unavailable before a selected document finishes loading', async () => {
+  const h = harness(); const old = h.render('A');
+  old.onSourceChange('raw');
+  const selected = h.render('B');
+  assert.equal(selected.canSave, false);
+  await selected.saveCurrent();
+  assert.equal(h.writes.length, 1);
+  await settle();
+});

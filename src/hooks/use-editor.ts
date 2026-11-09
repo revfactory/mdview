@@ -16,6 +16,7 @@ export function useEditorManager(documentId: string | null) {
   const [content, setContent] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
   const [isLargeDocument, setIsLargeDocument] = useState(false);
   const [isChunked, setIsChunked] = useState(false);
   const [chunkCount, setChunkCount] = useState(0);
@@ -23,7 +24,9 @@ export function useEditorManager(documentId: string | null) {
   const [sourcePending, setSourcePending] = useState(false);
   const sourceRevision = useRef(0);
   const currentDocument = useRef(documentId);
+  const loadedDocumentId = useRef(documentId);
   useLayoutEffect(() => {
+    if (currentDocument.current !== documentId) loadedDocumentId.current = null;
     currentDocument.current = documentId;
     sourceRevision.current++;
     return () => { sourceRevision.current++; };
@@ -46,6 +49,7 @@ export function useEditorManager(documentId: string | null) {
     }
 
     let cancelled = false;
+    loadedDocumentId.current = null;
     setIsLoading(true);
     setSourcePending(false);
 
@@ -64,6 +68,7 @@ export function useEditorManager(documentId: string | null) {
         const doc = await getDocument(documentId);
         if (cancelled) return;
 
+        setLoadedId(documentId);
         if (doc) {
           const raw = doc.content || '';
           setContent(raw);
@@ -146,6 +151,7 @@ export function useEditorManager(documentId: string | null) {
           setIsChunked(false);
           setChunkCount(0);
         }
+        loadedDocumentId.current = documentId;
       } catch (error) {
         if (cancelled) return;
         console.error('Failed to load document:', error);
@@ -167,7 +173,7 @@ export function useEditorManager(documentId: string | null) {
 
   // Source text is authoritative: persist before any asynchronous preview work.
   const onSourceChange = useCallback((markdown: string) => {
-    if (!documentId || currentDocument.current !== documentId || isChunked) return;
+    if (!documentId || currentDocument.current !== documentId || loadedDocumentId.current !== documentId || isChunked) return;
     const revision = ++sourceRevision.current;
     setContent(markdown);
     setSourcePending(true);
@@ -192,7 +198,7 @@ export function useEditorManager(documentId: string | null) {
   }, [documentId, isChunked, save]);
 
   const onChange = useCallback((markdown: string, html: string) => {
-    if (!documentId || currentDocument.current !== documentId || isChunked || sourcePending) return;
+    if (!documentId || currentDocument.current !== documentId || loadedDocumentId.current !== documentId || isChunked || sourcePending) return;
     sourceRevision.current++;
     setContent(markdown);
     setHtmlContent(html);
@@ -209,6 +215,7 @@ export function useEditorManager(documentId: string | null) {
     onChange,
     onSourceChange,
     sourcePending,
-    saveCurrent: () => save(content, sourcePending ? '' : htmlContent),
+    canSave: loadedId === documentId && !isLoading,
+    saveCurrent: () => loadedDocumentId.current === documentId ? save(content, sourcePending ? '' : htmlContent) : Promise.resolve(),
   };
 }

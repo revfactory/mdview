@@ -60,7 +60,7 @@ export default function Home() {
   }, [activeDocumentId, recentDocs, actions]);
 
 
-  const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, onChange, onSourceChange, sourcePending, saveCurrent } =
+  const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, onChange, onSourceChange, sourcePending, saveCurrent, canSave } =
     useEditorManager(activeDocumentId);
 
   // Auto-switch to source view for large non-chunked documents
@@ -275,7 +275,7 @@ export default function Home() {
   );
 
   const handleForceSave = useCallback(async () => {
-    if (!activeDocumentId) return;
+    if (!activeDocumentId || isLoading || !canSave) return;
     if (!isChunked && (viewMode === 'source' || sourcePending || !tiptapEditor)) { await saveCurrent(); return; }
     if (!tiptapEditor) return;
     actions.setSaveStatus('saving');
@@ -288,7 +288,7 @@ export default function Home() {
     } catch {
       if (useEditorStore.getState().activeDocumentId === activeDocumentId) actions.setSaveStatus('error');
     }
-  }, [activeDocumentId, tiptapEditor, actions, isChunked, saveCurrent, viewMode, sourcePending]);
+  }, [activeDocumentId, tiptapEditor, actions, isChunked, saveCurrent, viewMode, sourcePending, isLoading, canSave]);
 
   const handleEditorReady = useCallback((editor: TipTapEditor | null) => {
     setTiptapEditor(editor ?? null);
