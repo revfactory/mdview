@@ -23,6 +23,7 @@ import { Link } from '@tiptap/extension-link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { htmlToMarkdown, htmlToMarkdownAsync } from '@/lib/markdown';
+import { InlineMath, BlockMath } from '@/extensions/math';
 import { TrailingNode } from '@/extensions/trailing-node';
 import { UniqueID } from '@/extensions/unique-id';
 import { EditorBubbleMenu } from '@/components/features/editor/bubble-menu';
@@ -97,6 +98,8 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
       Link.configure({
         openOnClick: false,
       }),
+      InlineMath,
+      BlockMath,
       TrailingNode,
       UniqueID,
     ],
