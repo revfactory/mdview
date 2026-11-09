@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { getDocument, updateDocument } from '@/db/documents';
 import { getChunkCount, saveChunks } from '@/db/chunks';
 import { chunkDocument } from '@/lib/chunk-document';
 import { useEditorStore } from '@/stores/editor-store';
+import { awaitDocumentSaves } from '@/lib/document-save-queue';
 import { useAutosave } from '@/hooks/use-autosave';
 import { markdownToHtml, markdownToHtmlAsync } from '@/lib/markdown';
 
@@ -19,6 +20,15 @@ export function useEditorManager(documentId: string | null) {
   const [isChunked, setIsChunked] = useState(false);
   const [chunkCount, setChunkCount] = useState(0);
   const { actions } = useEditorStore();
+  const [sourcePending, setSourcePending] = useState(false);
+  const sourceRevision = useRef(0);
+  const currentDocument = useRef(documentId);
+  useLayoutEffect(() => {
+    currentDocument.current = documentId;
+    sourceRevision.current++;
+    return () => { sourceRevision.current++; };
+  }, [documentId]);
+  const save = useAutosave(documentId);
   const prevDocId = useRef<string | null>(null);
 
   // Load document when ID changes
@@ -37,9 +47,20 @@ export function useEditorManager(documentId: string | null) {
 
     let cancelled = false;
     setIsLoading(true);
+    setSourcePending(false);
 
     (async () => {
       try {
+        try {
+          await awaitDocumentSaves(documentId);
+        } catch (error) {
+          console.error('Previous save failed; loading last stored document:', error);
+          if (!cancelled) {
+            const { useToastStore } = await import('@/stores/toast-store');
+            useToastStore.getState().actions.addToast('이전 변경을 저장하지 못했습니다. 마지막 저장된 문서를 불러옵니다.', 'error');
+          }
+        }
+        if (cancelled) return;
         const doc = await getDocument(documentId);
         if (cancelled) return;
 
@@ -126,6 +147,7 @@ export function useEditorManager(documentId: string | null) {
           setChunkCount(0);
         }
       } catch (error) {
+        if (cancelled) return;
         console.error('Failed to load document:', error);
         setContent('');
         setHtmlContent('');
@@ -143,17 +165,39 @@ export function useEditorManager(documentId: string | null) {
     };
   }, [documentId, actions]);
 
-  // onChange handler for the editor
-  const onChange = useCallback(
-    (markdown: string, html: string) => {
-      setContent(markdown);
+  // Source text is authoritative: persist before any asynchronous preview work.
+  const onSourceChange = useCallback((markdown: string) => {
+    if (!documentId || currentDocument.current !== documentId || isChunked) return;
+    const revision = ++sourceRevision.current;
+    setContent(markdown);
+    setSourcePending(true);
+    // Empty HTML invalidates the derived cache; reopening reconstructs it from Markdown.
+    void save(markdown, '');
+    const conversion = markdown.length > 50_000
+      ? markdownToHtmlAsync(markdown)
+      : Promise.resolve().then(() => markdownToHtml(markdown));
+    void conversion.then(html => {
+      if (currentDocument.current !== documentId || revision !== sourceRevision.current) return;
       setHtmlContent(html);
-    },
-    []
-  );
+      setSourcePending(false);
+      void save(markdown, html);
+    }).catch(error => {
+      if (currentDocument.current !== documentId || revision !== sourceRevision.current) return;
+      console.error('Preview conversion failed; source is preserved:', error);
+      // Keep the stale visual editor read-only rather than letting it overwrite the source.
+      import('@/stores/toast-store').then(({ useToastStore }) => {
+        useToastStore.getState().actions.addToast('미리보기 변환에 실패했습니다. 저장 상태를 확인하고 소스 보기에서 계속 편집하세요.', 'error');
+      });
+    });
+  }, [documentId, isChunked, save]);
 
-  // Autosave (only for non-chunked documents; chunked docs save per-chunk)
-  useAutosave(documentId, isChunked ? '' : content, isChunked ? '' : htmlContent);
+  const onChange = useCallback((markdown: string, html: string) => {
+    if (!documentId || currentDocument.current !== documentId || isChunked || sourcePending) return;
+    sourceRevision.current++;
+    setContent(markdown);
+    setHtmlContent(html);
+    void save(markdown, html);
+  }, [documentId, isChunked, sourcePending, save]);
 
   return {
     content,
@@ -163,5 +207,8 @@ export function useEditorManager(documentId: string | null) {
     isChunked,
     chunkCount,
     onChange,
+    onSourceChange,
+    sourcePending,
+    saveCurrent: () => save(content, sourcePending ? '' : htmlContent),
   };
 }

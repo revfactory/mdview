@@ -31,7 +31,7 @@ function harness(file, component, convertAsync) {
     return textarea(node.props?.children);
   }
   return {
-    render(onChange) { cursor = 0; layoutEffects = []; return textarea(exports[component]({ content: '', htmlContent: '', onChange })); },
+    render(onChange, onSourceChange) { cursor = 0; layoutEffects = []; return textarea(exports[component]({ content: '', htmlContent: '', onChange, onSourceChange })); },
     commit() { layoutEffects.forEach(fn => fn()); },
   };
 }
@@ -66,3 +66,16 @@ test('SplitView ignores older conversions that complete after a newer edit', asy
   assert.equal(calls.length, 1);
   assert.equal(calls[0].md, 'b'.repeat(50001));
 });
+
+for (const [file, component] of [['source-editor', 'SourceEditor'], ['split-view', 'SplitView']]) {
+  test(`${component} forwards raw edits synchronously without waiting for preview`, async () => {
+    const h = harness(file, component, () => new Promise(() => {}));
+    const raw = [], derived = [];
+    const textarea = h.render(value => derived.push(value), value => raw.push(value)); h.commit();
+    const md = 'z'.repeat(50001);
+    const pending = textarea.props.onChange({target: {value: md}});
+    assert.deepEqual(raw, [md]);
+    assert.deepEqual(derived, []);
+    await pending;
+  });
+}
