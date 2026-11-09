@@ -50,6 +50,7 @@ export function useEditorManager(documentId: string | null) {
 
     let cancelled = false;
     loadedDocumentId.current = null;
+    setLoadedId(null);
     setIsLoading(true);
     setSourcePending(false);
 
@@ -68,7 +69,6 @@ export function useEditorManager(documentId: string | null) {
         const doc = await getDocument(documentId);
         if (cancelled) return;
 
-        setLoadedId(documentId);
         if (doc) {
           const raw = doc.content || '';
           setContent(raw);
@@ -86,6 +86,7 @@ export function useEditorManager(documentId: string | null) {
               setHtmlContent('');
               actions.setActiveDocument(documentId);
               actions.setSaveStatus('saved');
+              setLoadedId(documentId);
               setIsLoading(false);
               return;
             }
@@ -115,6 +116,7 @@ export function useEditorManager(documentId: string | null) {
               setHtmlContent('');
               actions.setActiveDocument(documentId);
               actions.setSaveStatus('saved');
+              setLoadedId(documentId);
               setIsLoading(false);
 
               // Notify user
@@ -152,6 +154,7 @@ export function useEditorManager(documentId: string | null) {
           setChunkCount(0);
         }
         loadedDocumentId.current = documentId;
+        setLoadedId(documentId);
       } catch (error) {
         if (cancelled) return;
         console.error('Failed to load document:', error);
