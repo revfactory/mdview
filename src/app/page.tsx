@@ -526,7 +526,7 @@ export default function Home() {
               opacity: focusMode ? 0 : 1,
             }}
           >
-            <StatusBar />
+            <StatusBar sourceContent={viewMode === 'source' ? (isChunked ? mergedSourceContent : content) : viewMode === 'split' && !isChunked ? content : undefined} />
           </div>
         </div>
 
