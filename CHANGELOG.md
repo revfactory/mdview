@@ -9,6 +9,21 @@
 
 ## [Unreleased]
 
+아직 기록된 변경 없음.
+
+## [0.2.1] - 2026-11-09
+
+### Security
+- 수식 렌더링 라이브러리를 KaTeX 0.18.2 수정판으로 업데이트
+- 에디터 확장 및 ProseMirror를 호환 수정판으로 갱신하고 더 이상 사용되지 않는 Markdown 전이 의존성 제거
+- 문서 ID 생성 및 소스맵 처리 의존성의 보안 수정판 반영
+
+### Notes
+- 프로덕션 의존성 감사 0건은 검사 시점 기준이며 개발 도구 및 모든 보안 위험의 해소를 뜻하지 않습니다.
+- PDF 가져오기는 이 버전에 포함되지 않습니다.
+
+## [0.2.0] - 2026-11-09
+
 ### Added
 - HWP·HWPX → 마크다운, 마크다운 → HWPX/PDF 및 에디터 사용 가이드 4개와 가이드 모음
 - 첫 방문 화면에 파일 가져오기, 새 문서, 샘플 체험과 작업별 가이드 진입점
@@ -36,17 +51,23 @@
 - PDF 인쇄 종료 후 제목·임시 요소 정리와 반복 실행 처리
 - 기존 React 상태·ref 처리 및 슬래시 명령 타입의 lint 오류
 
+### Maintenance
+- 릴리즈 전 lint·타입 검사·회귀 테스트·빌드 검증 필수화
+- 기여 문서와 공개 신고·PR 양식에 검증 범위 및 개인정보 보호 안내 추가
+
+### Notes
+- PDF 가져오기와 추가 의존성 보안 수정은 아직 포함하지 않음 (#29, #30 미병합)
+- 자동 검사와 운영 HTTP 검증은 통과했으나 실제 모바일 기기·한글 앱·PDF 인쇄 결과는 미검증
+- 알려진 의존성 감사 항목이 남아 있으며 보안 업데이트를 계속 검토 중
+
 ### Security
-- 수식 렌더링 라이브러리를 KaTeX 0.18.2 수정판으로 업데이트
-- 에디터 확장 및 ProseMirror를 호환 수정판으로 갱신하고 더 이상 사용되지 않는 Markdown 전이 의존성 제거
-- 문서 ID 생성 및 소스맵 처리 의존성의 보안 수정판 반영
 - Next.js 및 해당 ESLint 설정을 16.4.5 수정판으로 업데이트하고 관련 전이 의존성 보안 패치 반영
 
 ---
 
 ## [0.1.0] - 2026-05-28
 
-첫 공개 릴리즈. 한글 친화 마크다운 에디터의 핵심 기능을 모두 포함합니다.
+초기 공개 코드의 당시 변경 기록입니다. v0.1.0 Git 태그와 GitHub Release는 게시되지 않았습니다. 아래 기능 목록은 당시 기록이며 현재 검증 범위와는 구분합니다.
 
 ### Added
 
@@ -111,5 +132,6 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/revfactory/mdview/releases/tag/v0.1.0
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/revfactory/mdview/releases/tag/v0.2.0
+[0.1.0]: https://github.com/revfactory/mdview/tree/5718680

@@ -1,6 +1,6 @@
 {
   "name": "mdview",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "description": "한글 친화 블록 기반 마크다운 에디터 — HWP/HWPX 임포트·내보내기 지원",
   "license": "Apache-2.0",
