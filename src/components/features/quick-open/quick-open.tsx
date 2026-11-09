@@ -51,6 +51,7 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();

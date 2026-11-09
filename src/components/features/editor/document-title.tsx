@@ -57,6 +57,8 @@ export function DocumentTitle({ documentId }: DocumentTitleProps) {
   );
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // IME confirmation is text input, including Safari's final keyCode 229 event.
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       // Move focus to editor

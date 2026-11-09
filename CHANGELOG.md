@@ -11,6 +11,16 @@
 
 아직 기록된 변경 없음.
 
+## [0.2.9] - 2026-11-10
+
+### Fixed
+- 한글·일본어·중국어 조합 중 Enter를 누를 때 문서 제목에서 포커스가 이동하거나 폴더 이름·링크가 미리 확정되는 문제 수정
+- 빠른 문서 열기에서 조합 중 방향키·Enter·Escape가 문서 선택·닫기를 실행하지 않도록 보호
+- 대화상자와 전역 단축키도 조합 중 Escape를 가로채지 않도록 처리하고, 조합 종료 키의 keyCode 229 호환 처리 추가
+
+### Notes
+- 표준 조합 플래그와 229 이벤트, 다음 정상 키 동작은 자동 회귀검사로 확인했습니다. 실제 OS·브라우저별 IME 조합 입력은 별도 검증이 필요합니다.
+
 ## [0.2.8] - 2026-11-09
 
 ### Fixed
@@ -197,7 +207,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.8...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/revfactory/mdview/releases/tag/v0.2.9
 [0.2.8]: https://github.com/revfactory/mdview/releases/tag/v0.2.8
 [0.2.0]: https://github.com/revfactory/mdview/releases/tag/v0.2.0
 [0.1.0]: https://github.com/revfactory/mdview/tree/5718680
