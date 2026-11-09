@@ -7,7 +7,8 @@ import ts from 'typescript';
 function harness() {
   const source = readFileSync(new URL('../src/components/features/editor/editor.tsx', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  const slots = [], timers = new Map(), calls = [], conversions = [], editableCalls = [];
+  const slots = [], timers = new Map(), calls = [], conversions = [], editableCalls = [], counts = [];
+  const listeners = new Map();
   let cursor = 0, effects = [], options, nextTimer = 0, html = '<p>old</p>';
   const effect = (fn, deps) => {
     const index = cursor++, old = slots[index];
@@ -15,11 +16,18 @@ function harness() {
       effects.push(() => { old?.cleanup?.(); slots[index] = { deps, cleanup: fn() }; });
     }
   };
-  const editor = { isEditable: true, getHTML: () => html, storage: {}, commands: { setContent() {} },
+  const transaction = (docChanged) => listeners.get('transaction')?.({ editor, transaction: { docChanged } });
+  const text = () => html.replace(/<[^>]+>/g, '');
+  const editor = { isEditable: true, getHTML: () => html,
+    // Match CharacterCount's default UTF-16 character and space-separated word counters.
+    storage: { characterCount: { characters: () => text().length, words: () => text().split(' ').filter(word => word !== '').length } },
+    on(name, handler) { listeners.set(name, handler); },
+    off(name, handler) { if (listeners.get(name) === handler) listeners.delete(name); },
+    commands: { setContent(value) { html = value; transaction(true); } },
     setEditable(value, emitUpdate = true) { editableCalls.push([value, emitUpdate]); editor.isEditable = value; if (emitUpdate) options.onUpdate({ editor }); },
   };
   const extension = { configure: () => ({}) };
-  const actions = { updateCounts() {} };
+  const actions = { updateCounts(words, characters) { counts.push({ words, characters }); } };
   const exports = {};
   vm.runInNewContext(js, { exports, setTimeout(fn) { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout(id) { timers.delete(id); }, require(name) {
     if (name === 'react') return { useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial }; }, useState: x => [x, () => {}], useEffect: effect, useLayoutEffect: effect };
@@ -31,9 +39,10 @@ function harness() {
     return new Proxy({ default: extension }, { get: (obj, key) => key === '__esModule' ? true : obj[key] ?? extension });
   } });
   return {
-    calls, timers, conversions, editableCalls,
+    calls, timers, conversions, editableCalls, counts, listeners,
     render(content = '<p>old</p>', editable = true) { cursor = 0; effects = []; exports.Editor({ content, editable, onChange: (...args) => calls.push(args) }); effects.forEach(fn => fn()); },
-    edit(value) { html = value; options.onUpdate({ editor }); },
+    edit(value) { html = value; transaction(true); options.onUpdate({ editor }); },
+    select() { transaction(false); },
     flush() { const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn()); },
     unmount() { slots.forEach(slot => slot?.cleanup?.()); },
   };
@@ -65,4 +74,30 @@ test('already-started conversion cannot publish after external content or unmoun
 test('latest ordinary visual edit still publishes', () => {
   const h = harness(); h.render(); h.edit('<p>one</p>'); h.edit('<p>two</p>'); h.flush();
   assert.deepEqual(h.calls, [['<p>two</p>', '<p>two</p>']]);
+});
+
+test('visual counts initialize before an edit and follow silent document replacements including empty content', () => {
+  const h = harness(); h.render();
+  assert.deepEqual(h.counts.at(-1), { words: 1, characters: 3 });
+  h.render('<p>안녕 world 😀</p>');
+  assert.deepEqual(h.counts.at(-1), { words: 3, characters: 11 });
+  h.render('');
+  assert.deepEqual(h.counts.at(-1), { words: 0, characters: 0 });
+  h.render('<p>restored</p>', false);
+  assert.deepEqual(h.counts.at(-1), { words: 1, characters: 8 });
+  h.flush();
+  assert.deepEqual(h.calls, [], 'count synchronization must not manufacture edits or saves');
+});
+
+test('visual counts update on edits, skip selection-only transactions and unsubscribe on unmount', () => {
+  const h = harness(); h.render();
+  h.edit('<p>two words</p>');
+  assert.deepEqual(h.counts.at(-1), { words: 2, characters: 9 });
+  const length = h.counts.length;
+  h.select();
+  assert.equal(h.counts.length, length);
+  h.unmount();
+  assert.equal(h.listeners.size, 0);
+  h.edit('<p>detached</p>');
+  assert.equal(h.counts.length, length);
 });
