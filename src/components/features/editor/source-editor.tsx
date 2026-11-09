@@ -1,5 +1,7 @@
 'use client';
 
+import { indentSourceTextarea } from '@/lib/source-indentation';
+
 import React, { useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 
 interface SourceEditorProps {
@@ -41,33 +43,8 @@ export function SourceEditor({ content, onChange, onSourceChange }: SourceEditor
       if (e.key === 'Tab') {
         e.preventDefault();
         const textarea = e.currentTarget;
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
+        if (!indentSourceTextarea(textarea, e.shiftKey)) return;
 
-        if (e.shiftKey) {
-          // Outdent: remove leading 2 spaces from selected lines
-          const value = textarea.value;
-          const beforeSelection = value.substring(0, start);
-          const lineStart = beforeSelection.lastIndexOf('\n') + 1;
-          const selected = value.substring(lineStart, end);
-          const outdented = selected.replace(/^  /gm, '');
-          const diff = selected.length - outdented.length;
-
-          textarea.value =
-            value.substring(0, lineStart) + outdented + value.substring(end);
-          textarea.selectionStart = Math.max(lineStart, start - (value.substring(lineStart, start).match(/^  /) ? 2 : 0));
-          textarea.selectionEnd = end - diff;
-        } else {
-          // Indent: insert 2 spaces
-          textarea.value =
-            textarea.value.substring(0, start) +
-            '  ' +
-            textarea.value.substring(end);
-          textarea.selectionStart = textarea.selectionEnd = start + 2;
-        }
-
-        // Fire change event
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
         const syntheticEvent = {
           target: textarea,
         } as React.ChangeEvent<HTMLTextAreaElement>;
