@@ -67,7 +67,7 @@ Three core differentiators:
 
 ### Prerequisites
 
-- Node.js 20 LTS or newer
+- Node.js 24 LTS (24.x)
 - npm (or pnpm/yarn)
 
 ### Install & Run
