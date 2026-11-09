@@ -4,11 +4,14 @@ import React, { useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 
 interface SourceEditorProps {
   content: string;
+  onSourceChange?: (markdown: string) => void;
   onChange?: (markdown: string, html: string) => void;
 }
 
-export function SourceEditor({ content, onChange }: SourceEditorProps) {
+export function SourceEditor({ content, onChange, onSourceChange }: SourceEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const onSourceChangeRef = useRef(onSourceChange);
+  useLayoutEffect(() => { onSourceChangeRef.current = onSourceChange; }, [onSourceChange]);
   const onChangeRef = useRef(onChange);
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
@@ -24,6 +27,7 @@ export function SourceEditor({ content, onChange }: SourceEditorProps) {
   const handleChange = useCallback(
     async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const markdown = e.target.value;
+      if (onSourceChangeRef.current) { onSourceChangeRef.current(markdown); return; }
       const { markdownToHtml } = await import('@/lib/markdown');
       const html = markdownToHtml(markdown);
       onChangeRef.current?.(markdown, html);

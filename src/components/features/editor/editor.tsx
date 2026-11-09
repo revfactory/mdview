@@ -34,10 +34,11 @@ interface EditorProps {
   content: string;
   onChange?: (markdown: string, html: string) => void;
   editable?: boolean;
+  sourceContent?: string;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
 }
 
-export function Editor({ content, onChange, editable = true, onEditorReady }: EditorProps) {
+export function Editor({ content, onChange, editable = true, onEditorReady, sourceContent }: EditorProps) {
   const { actions } = useEditorStore();
   const [initialContent] = useState(content);
   const initialContentRef = useRef(content);
@@ -47,12 +48,22 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
   }, [onChange]);
   const markdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup debounce timer
-  useEffect(() => {
+  const editRevision = useRef(0);
+
+  // A source edit, document replacement or read-only transition supersedes any
+  // debounced visual-editor snapshot. Invalidate before timers can run.
+  useLayoutEffect(() => {
+    editRevision.current++;
+    if (markdownTimerRef.current) clearTimeout(markdownTimerRef.current);
+    markdownTimerRef.current = null;
     return () => {
+      // Invalidate the live counter, not a captured revision (this is not a DOM ref).
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      editRevision.current++;
       if (markdownTimerRef.current) clearTimeout(markdownTimerRef.current);
+      markdownTimerRef.current = null;
     };
-  }, []);
+  }, [content, editable, sourceContent]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -105,6 +116,8 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
     ],
     content: initialContent || '<p></p>',
     onUpdate: ({ editor: ed }) => {
+      if (!ed.isEditable) return;
+      const revision = ++editRevision.current;
       const html = ed.getHTML();
 
       // Keep ref in sync to prevent content effect from re-setting content
@@ -118,9 +131,12 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
       // Debounce the expensive htmlToMarkdown conversion (300ms) via Worker
       if (markdownTimerRef.current) clearTimeout(markdownTimerRef.current);
       markdownTimerRef.current = setTimeout(() => {
+        markdownTimerRef.current = null;
+        if (revision !== editRevision.current) return;
         if (html.length > 50_000) {
           // Large docs: use Worker to avoid blocking main thread
           htmlToMarkdownAsync(html).then((markdown) => {
+            if (revision !== editRevision.current) return;
             onChangeRef.current?.(markdown, html);
           });
         } else {
@@ -142,7 +158,7 @@ export function Editor({ content, onChange, editable = true, onEditorReady }: Ed
   // Update editable state
   useEffect(() => {
     if (editor) {
-      editor.setEditable(editable);
+      editor.setEditable(editable, false);
     }
   }, [editor, editable]);
 

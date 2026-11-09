@@ -7,6 +7,8 @@ import type { Editor as TipTapEditor } from '@tiptap/react';
 interface SplitViewProps {
   content: string;
   htmlContent: string;
+  onSourceChange?: (markdown: string) => void;
+  previewPending?: boolean;
   onChange?: (markdown: string, html: string) => void;
   onEditorReady?: (editor: TipTapEditor | null) => void;
 }
@@ -15,9 +17,13 @@ export function SplitView({
   content,
   htmlContent,
   onChange,
+  onSourceChange,
+  previewPending = false,
   onEditorReady,
 }: SplitViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const onSourceChangeRef = useRef(onSourceChange);
+  useLayoutEffect(() => { onSourceChangeRef.current = onSourceChange; }, [onSourceChange]);
   const onChangeRef = useRef(onChange);
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
@@ -44,6 +50,10 @@ export function SplitView({
       const requestId = ++conversionId.current;
       updatingFromSource.current = true;
       const markdown = e.target.value;
+      if (onSourceChangeRef.current) {
+        onSourceChangeRef.current(markdown);
+        return;
+      }
       const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
       // Use Worker for large content, sync for small
       const html = markdown.length > 50_000
@@ -148,6 +158,8 @@ export function SplitView({
         </div>
         <div className="px-8 py-5">
           <Editor
+            sourceContent={content}
+            editable={!previewPending}
             content={htmlContent}
             onChange={handleWysiwygChange}
             onEditorReady={onEditorReady}
