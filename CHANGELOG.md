@@ -11,6 +11,17 @@
 
 아직 기록된 변경 없음.
 
+## [0.2.9] - 2026-11-10
+
+### Security
+- 개발·CI 도구의 전이 의존성을 호환 범위 내에서 갱신하여 npm audit high 7건을 해소하고 전체 결과를 26건에서 moderate 7건으로 축소
+- 파일 패턴·설정·캐시 처리에 쓰이는 brace-expansion, flatted, js-yaml, picomatch, humanfs의 알려진 취약점 패치 반영
+
+### Notes
+- 애플리케이션 소스와 production 의존성은 변경하지 않았으며 production audit 결과는 0건입니다.
+- TypeScript ESLint가 사용하는 minimatch의 moderate 경고 7건은 남아 있습니다. 상위 도구의 호환 업데이트가 필요하며 강제 major override는 적용하지 않았습니다.
+- IME 입력 보호(#49)와 PDF 가져오기(#30)는 이번 릴리즈에 포함되지 않습니다.
+
 ## [0.2.8] - 2026-11-09
 
 ### Fixed
@@ -197,7 +208,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.8...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/revfactory/mdview/releases/tag/v0.2.9
 [0.2.8]: https://github.com/revfactory/mdview/releases/tag/v0.2.8
 [0.2.0]: https://github.com/revfactory/mdview/releases/tag/v0.2.0
 [0.1.0]: https://github.com/revfactory/mdview/tree/5718680
