@@ -23,6 +23,8 @@ import { useUIStore } from '@/stores/ui-store';
 import { useEditorManager } from '@/hooks/use-editor';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { SourceEditor } from '@/components/features/editor/source-editor';
+import { htmlToMarkdown as savedHtmlToMarkdown } from '@/lib/markdown';
+import { enqueueDocumentSave } from '@/lib/document-save-queue';
 import { SplitView } from '@/components/features/editor/split-view';
 import { useRecentDocuments, useDocument } from '@/hooks/use-documents';
 import {
@@ -60,7 +62,7 @@ export default function Home() {
   }, [activeDocumentId, recentDocs, actions]);
 
 
-  const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, onChange } =
+  const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, onChange, onSourceChange, sourcePending, saveCurrent, canSave } =
     useEditorManager(activeDocumentId);
 
   // Auto-switch to source view for large non-chunked documents
@@ -214,7 +216,7 @@ export default function Home() {
   }, [isChunked, activeDocumentId, content, viewMode, tiptapEditor, mergedSourceContent]);
 
   const handleOpenExport = useCallback(async () => {
-    if (preparingExportRef.current || !activeDocumentId) return;
+    if (preparingExportRef.current || !activeDocumentId || sourcePending) return;
     const exportDocumentId = activeDocumentId;
     const title = activeDocument?.title ?? 'MDView';
     preparingExportRef.current = true;
@@ -232,7 +234,7 @@ export default function Home() {
       preparingExportRef.current = false;
       setPreparingExport(false);
     }
-  }, [prepareExportContent, activeDocumentId, activeDocument?.title]);
+  }, [prepareExportContent, activeDocumentId, activeDocument?.title, sourcePending]);
 
   // Load merged chunks when switching to source view for chunked docs
   useEffect(() => {
@@ -275,18 +277,20 @@ export default function Home() {
   );
 
   const handleForceSave = useCallback(async () => {
-    if (!activeDocumentId || !tiptapEditor) return;
+    if (!activeDocumentId || isLoading || !canSave) return;
+    if (!isChunked && (viewMode === 'source' || sourcePending || !tiptapEditor)) { await saveCurrent(); return; }
+    if (!tiptapEditor) return;
     actions.setSaveStatus('saving');
     try {
       const html = tiptapEditor.getHTML();
-      const { htmlToMarkdown } = await import('@/lib/markdown');
-      const md = htmlToMarkdown(html);
-      await updateContent(activeDocumentId, md, html);
-      actions.setSaveStatus('saved');
+      const md = savedHtmlToMarkdown(html);
+      if (isChunked) await updateContent(activeDocumentId, md, html);
+      else await enqueueDocumentSave(activeDocumentId, md, html);
+      if (useEditorStore.getState().activeDocumentId === activeDocumentId) actions.setSaveStatus('saved');
     } catch {
-      actions.setSaveStatus('error');
+      if (useEditorStore.getState().activeDocumentId === activeDocumentId) actions.setSaveStatus('error');
     }
-  }, [activeDocumentId, tiptapEditor, actions]);
+  }, [activeDocumentId, tiptapEditor, actions, isChunked, saveCurrent, viewMode, sourcePending, isLoading, canSave]);
 
   const handleEditorReady = useCallback((editor: TipTapEditor | null) => {
     setTiptapEditor(editor ?? null);
@@ -479,10 +483,15 @@ export default function Home() {
               documentId={activeDocumentId}
               isChunked={isChunked}
               markdown={isChunked ? mergedSourceContent : content}
-              disabled={!activeDocumentId || isLoading || (isChunked && viewMode === 'source' && mergedSourceLoading) || preparingExport}
+              disabled={!activeDocumentId || isLoading || sourcePending || (isChunked && viewMode === 'source' && mergedSourceLoading) || preparingExport}
             />
           </div>
 
+          {sourcePending && !isLoading && (
+            <div role="status" className="px-4 py-2 text-sm text-[var(--color-text-muted)]">
+              미리보기를 갱신하는 동안 시각 편집이 잠겨 있습니다. 소스 보기에서 원문을 계속 편집할 수 있습니다.
+            </div>
+          )}
           <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {activeDocumentId ? (
               isLoading ? (
@@ -503,6 +512,9 @@ export default function Home() {
                   <div style={{ margin: '0 auto', padding: isMobile ? '20px 16px 64px 16px' : '40px 40px 96px 40px' }}>
                     <DocumentTitle documentId={activeDocumentId} />
                     <Editor
+                      key={activeDocumentId}
+                      sourceContent={content}
+                      editable={!sourcePending}
                       content={htmlContent}
                       onChange={onChange}
                       onEditorReady={handleEditorReady}
@@ -522,6 +534,7 @@ export default function Home() {
                   ) : (
                     <div className="flex-1 min-h-0 w-full mx-auto">
                       <SourceEditor
+                        onSourceChange={isChunked ? undefined : onSourceChange}
                         content={isChunked ? mergedSourceContent : content}
                         onChange={isChunked ? handleChunkedSourceChange : onChange}
                       />
@@ -542,8 +555,11 @@ export default function Home() {
                     </div>
                     <div className="flex-1 min-h-0">
                       <SplitView
+                        key={activeDocumentId}
                         content={content}
                         htmlContent={htmlContent}
+                        onSourceChange={onSourceChange}
+                        previewPending={sourcePending}
                         onChange={onChange}
                         onEditorReady={handleEditorReady}
                       />
@@ -564,7 +580,7 @@ export default function Home() {
               opacity: focusMode ? 0 : 1,
             }}
           >
-            <StatusBar />
+            <StatusBar sourceContent={viewMode === 'source' ? (isChunked ? mergedSourceContent : content) : viewMode === 'split' && !isChunked ? content : undefined} />
           </div>
         </div>
 

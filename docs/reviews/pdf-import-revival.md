@@ -33,3 +33,13 @@ Browser QA, audit and aggregate build/lint/typecheck results for the final integ
 ## Security integration (2026-11-09)
 
 Merged security commit `620e3abdadc6c54def08f912cc9295ae3bd80bc2` with its history intact: TipTap 3.33, nanoid 5.1.16, KaTeX 0.18.2. PDF.js remains 6.2.108 and Node remains 24.x. A fresh `npm ci` accepted the merged lockfile. Production audit reports **0 vulnerabilities**. Full audit reports **13 development-tool findings (4 high, 9 moderate)**, primarily the ESLint dependency tree; this is not an all-dependencies clean audit. Do not use the suggested eslint-config-next downgrade to 15.x against Next16 merely to silence audit. Full tests after integration: **62 passed**; typecheck and lint passed (10 existing warnings). Browser bundle execution remains a preview release gate because the cloud browser cannot reach the executor's localhost server.
+
+## Main synchronization (2026-11-10)
+
+Merged main `c7b4fe426db9fdd401bfe847d135a6b5b0b2f9da` into the existing PDF branch without rewriting the original contributor history. Resolved the changelog/version conflicts while retaining the planned 0.3.0 PDF release and the published 0.2.3–0.2.8 notes. The current source-save queue, title persistence, editor statistics, indentation and Markdown Worker recovery fixes remain intact.
+
+The Worker build check now enforces both main's JavaScript entry-point/raw-TypeScript checks and the PDF-specific compiled marker. Five isolated regression cases exercise successful split chunks, missing entry points, missing PDF code and raw `.ts`/`.tsx` Worker assets.
+
+Fresh `npm ci`, 124 tests, typecheck, lint (0 errors, 11 existing warnings), webpack production build, combined Worker-output check, release-note extraction and `git diff --check` passed. The synthetic PDF parser test again used the actual PDF.js handler and made no external fetches. Production audit remains at 0 findings; the full dependency audit currently reports 26 development-tool findings (7 high, 19 moderate), up from the historical 13 listed above. Independent merge/test review found no blocking issue.
+
+This does not close the release gate. The final browser import → cancel/retry → save → reload flow remains unverified. Protected preview access and local browser execution were unavailable, so this PR remains a draft. No protection settings were changed and no v0.3.0 release was published. Recheck the release date and synchronize any later main commits before release.
