@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import { indentSourceTextarea } from '@/lib/source-indentation';
+
+import React, { useCallback, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
 interface SplitViewProps {
   content: string;
   htmlContent: string;
+  onSourceChange?: (markdown: string) => void;
+  previewPending?: boolean;
   onChange?: (markdown: string, html: string) => void;
   onEditorReady?: (editor: TipTapEditor | null) => void;
 }
@@ -15,11 +19,19 @@ export function SplitView({
   content,
   htmlContent,
   onChange,
+  onSourceChange,
+  previewPending = false,
   onEditorReady,
 }: SplitViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const onSourceChangeRef = useRef(onSourceChange);
+  useLayoutEffect(() => { onSourceChangeRef.current = onSourceChange; }, [onSourceChange]);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+  const conversionId = useRef(0);
+  useEffect(() => () => { conversionId.current++; }, []);
   const updatingFromSource = useRef(false);
   const [dividerX, setDividerX] = useState(50); // percentage
 
@@ -37,14 +49,19 @@ export function SplitView({
   // Handle source textarea change
   const handleSourceChange = useCallback(
     async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const requestId = ++conversionId.current;
       updatingFromSource.current = true;
       const markdown = e.target.value;
+      if (onSourceChangeRef.current) {
+        onSourceChangeRef.current(markdown);
+        return;
+      }
       const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
       // Use Worker for large content, sync for small
       const html = markdown.length > 50_000
         ? await markdownToHtmlAsync(markdown)
         : markdownToHtml(markdown);
-      onChangeRef.current?.(markdown, html);
+      if (requestId === conversionId.current) onChangeRef.current?.(markdown, html);
     },
     []
   );
@@ -52,6 +69,7 @@ export function SplitView({
   // Handle WYSIWYG editor change
   const handleWysiwygChange = useCallback(
     (markdown: string, html: string) => {
+      conversionId.current++;
       if (textareaRef.current) {
         textareaRef.current.value = markdown;
       }
@@ -94,30 +112,7 @@ export function SplitView({
       if (e.key === 'Tab') {
         e.preventDefault();
         const textarea = e.currentTarget;
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-
-        if (e.shiftKey) {
-          // Outdent: remove leading 2 spaces from selected lines
-          const value = textarea.value;
-          const beforeSelection = value.substring(0, start);
-          const lineStart = beforeSelection.lastIndexOf('\n') + 1;
-          const selected = value.substring(lineStart, end);
-          const outdented = selected.replace(/^  /gm, '');
-          const diff = selected.length - outdented.length;
-
-          textarea.value =
-            value.substring(0, lineStart) + outdented + value.substring(end);
-          textarea.selectionStart = Math.max(lineStart, start - (value.substring(lineStart, start).match(/^  /) ? 2 : 0));
-          textarea.selectionEnd = end - diff;
-        } else {
-          // Indent: insert 2 spaces
-          textarea.value =
-            textarea.value.substring(0, start) +
-            '  ' +
-            textarea.value.substring(end);
-          textarea.selectionStart = textarea.selectionEnd = start + 2;
-        }
+        if (!indentSourceTextarea(textarea, e.shiftKey)) return;
 
         const syntheticEvent = {
           target: textarea,
@@ -142,6 +137,8 @@ export function SplitView({
         </div>
         <div className="px-8 py-5">
           <Editor
+            sourceContent={content}
+            editable={!previewPending}
             content={htmlContent}
             onChange={handleWysiwygChange}
             onEditorReady={onEditorReady}

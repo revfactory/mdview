@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { FileDown, CheckCircle } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
+import { analytics } from '@/lib/analytics';
 import { useHwpExport } from '@/hooks/use-hwp';
 import type { HwpExportOptions } from '@/types/hwp';
 
@@ -68,13 +69,14 @@ export function HwpExport({ open, onClose, markdown, documentTitle }: HwpExportP
     try {
       await exportDocument(markdown, documentTitle || '문서', options);
       setDone(true);
+      analytics.exportHwp();
     } catch {
       // error is set in the hook
     }
   }, [exportDocument, markdown, documentTitle, paperSize, fontFamily, marginPreset, reset]);
 
   return (
-    <Modal open={open} onClose={handleClose} title="HWP 내보내기" size="md">
+    <Modal open={open} onClose={handleClose} title="한글 HWPX 내보내기" size="md">
       <div className="flex flex-col gap-5">
         {/* Options */}
         {!isExporting && !done && (

@@ -1,5 +1,7 @@
 'use client';
 
+import { indentSourceTextarea } from '@/lib/source-indentation';
+
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
@@ -83,23 +85,7 @@ export function PaginatedSplitView({
       if (e.key === 'Tab') {
         e.preventDefault();
         const textarea = e.currentTarget;
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-
-        if (e.shiftKey) {
-          const value = textarea.value;
-          const lineStart = value.substring(0, start).lastIndexOf('\n') + 1;
-          const selected = value.substring(lineStart, end);
-          const outdented = selected.replace(/^  /gm, '');
-          const diff = selected.length - outdented.length;
-          textarea.value = value.substring(0, lineStart) + outdented + value.substring(end);
-          textarea.selectionStart = Math.max(lineStart, start - (value.substring(lineStart, start).match(/^  /) ? 2 : 0));
-          textarea.selectionEnd = end - diff;
-        } else {
-          textarea.value =
-            textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
-          textarea.selectionStart = textarea.selectionEnd = start + 2;
-        }
+        if (!indentSourceTextarea(textarea, e.shiftKey)) return;
 
         const syntheticEvent = { target: textarea } as React.ChangeEvent<HTMLTextAreaElement>;
         handleSourceChange(syntheticEvent);

@@ -64,16 +64,18 @@ export interface PromptDialogProps {
   confirmLabel?: string;
 }
 
-export function PromptDialog({ open, onClose, onConfirm, title, placeholder, defaultValue = '', confirmLabel = '확인' }: PromptDialogProps) {
+export function PromptDialog(props: PromptDialogProps) {
+  return props.open ? <PromptDialogContent key={props.defaultValue ?? ''} {...props} /> : null;
+}
+
+function PromptDialogContent({ open, onClose, onConfirm, title, placeholder, defaultValue = '', confirmLabel = '확인' }: PromptDialogProps) {
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
-      setValue(defaultValue);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [open, defaultValue]);
+    const timer = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSubmit = () => {
     if (value.trim()) {

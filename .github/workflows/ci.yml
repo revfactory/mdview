@@ -43,6 +43,8 @@ jobs:
         run: npm ci
       - name: TypeScript check
         run: npm run typecheck
+      - name: Product entry tests
+        run: npm test
 
   build:
     name: Build
