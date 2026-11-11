@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
@@ -7,6 +7,8 @@ import '@/styles/editor.css';
 import 'katex/dist/katex.min.css';
 
 const GA_ID = 'G-DC9P5XSZXR';
+
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
 export const metadata: Metadata = {
   title: 'MDView - 무료 온라인 마크다운 에디터 | HWP 변환 지원',
@@ -96,7 +98,6 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <meta name="google-adsense-account" content="ca-pub-5006269656255106" />
         <link rel="manifest" href="/manifest.json" />
         <script

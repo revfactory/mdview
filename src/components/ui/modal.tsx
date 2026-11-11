@@ -51,10 +51,10 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
       {/* Content */}
       <div
         className={`
-          relative w-full ${sizeMap[size]} mx-4
+          relative flex flex-col w-full ${sizeMap[size]} mx-4 max-h-[calc(100dvh-2rem)] overflow-hidden
           bg-[var(--color-bg)] rounded-2xl
           shadow-2xl border border-[var(--color-border)]
-          p-6
+          p-4 sm:p-6
           will-change-transform
           animate-[scale-in_200ms_cubic-bezier(0.16,1,0.3,1)]
         `}
@@ -64,12 +64,12 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
       >
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-[var(--color-text)]">{title}</h2>
+          <div className="flex shrink-0 items-center justify-between gap-3 mb-4">
+            <h2 className="min-w-0 text-lg font-semibold text-[var(--color-text)]">{title}</h2>
             <button
               onClick={onClose}
               aria-label="닫기"
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-all duration-150 cursor-pointer active:scale-90"
+              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-all duration-150 cursor-pointer active:scale-90"
             >
               <X className="w-4 h-4" />
             </button>
@@ -77,7 +77,7 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
         )}
 
         {/* Body */}
-        <div>{children}</div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>
   );

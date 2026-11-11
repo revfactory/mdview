@@ -26,7 +26,9 @@ export const useEditorStore = create<EditorStore>()((set) => ({
   charCount: 0,
   cursorPosition: { line: 1, col: 1 },
   actions: {
-    setActiveDocument: (id) => set({ activeDocumentId: id }),
+    setActiveDocument: (id) => set((state) => state.activeDocumentId === id
+      ? state
+      : { activeDocumentId: id, wordCount: 0, charCount: 0 }),
     setSaveStatus: (status) => set({ saveStatus: status }),
     updateCounts: (wordCount, charCount) => set({ wordCount, charCount }),
     setCursorPosition: (line, col) => set({ cursorPosition: { line, col } }),

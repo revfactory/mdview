@@ -32,6 +32,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
   // Load first chunk on mount / document switch
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- A new external document selection resets pagination before its async IndexedDB read.
     setCurrentPage(0);
     setIsPageLoading(true);
 
