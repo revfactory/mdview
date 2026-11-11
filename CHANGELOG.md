@@ -11,6 +11,18 @@
 
 아직 기록된 변경 없음.
 
+## [0.2.10] - 2026-11-12
+
+### Maintenance
+- CI·CodeQL·Release의 `actions/checkout`을 v7로 갱신 (#18)
+- CI·Release의 `actions/setup-node`를 v7로 갱신하고 프로젝트 Node.js 20 설정 유지 (#19)
+- CodeQL의 init/analyze 액션을 v4.37.3으로 함께 갱신하고 `security-extended` 분석, 권한 및 주간 일정 유지 (#20)
+
+### Notes
+- 애플리케이션 기능과 의존성은 변경하지 않은 자동화 유지보수 릴리즈입니다.
+- 한글 입력 보호(#49), PDF 가져오기(#30) 및 별도 검증 중인 문서 편집 개선은 포함하지 않습니다.
+- 기존 lint 경고 11개와 v0.2.9에서 기록한 개발 의존성의 moderate 경고 7개는 이 변경의 수정 범위에 포함되지 않습니다.
+
 ## [0.2.9] - 2026-11-10
 
 ### Security
