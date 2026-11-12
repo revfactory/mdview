@@ -35,6 +35,21 @@
 
 ---
 
+## 하네스: GitHub Issues 처리
+
+**목표:** `revfactory/mdview` 에 등록된 사용자 신고 이슈를 fetch → 분류 → 재현 → 패치 PR → 응답 코멘트까지 자동 처리한다.
+
+**트리거:** "#N 처리", "이슈 처리", "트리아지", "needs-triage 청소", "이슈 답글", "이슈 분류", "이슈 패치" 등 GitHub Issues 운영 작업 요청 시 `issue-handler-orchestrator` 스킬을 사용하라.
+
+**핵심 참조:**
+- 에이전트 정의: `.claude/agents/{issue-curator,issue-reproducer,issue-responder,issue-patcher}.md`
+- 스킬 정의: `.claude/skills/{issue-handler-orchestrator,github-issue-ops,issue-triage-policy,issue-response-templates}/`
+- 위임: 복잡한 코드 수정은 기존 `issue-fixer` / 도메인 엔지니어(`ui-engineer`/`editor-engineer`/`hwp-engineer`/`data-engineer`)에 위임
+
+**중간 산출물:** `_workspace/issues/{N}/{triage,repro,patch,response,summary}.md`
+
+---
+
 ## 프로젝트 컨벤션
 
 - **커밋 메시지:** 한국어 OK (사용자 기존 스타일 존중), Conventional Commits 권장
@@ -53,3 +68,4 @@
 | 2026-05-28 | package.json 메타데이터 정비 (name `mdview-temp`→`mdview`, description/keywords/repository/homepage/bugs/author 추가, typecheck 스크립트 추가) | `package.json` | OSS 공개 표준화 |
 | 2026-05-28 | CLAUDE.md 초기 작성 (MDView 개발 + OSS 공개 두 하네스 포인터 등록) | `CLAUDE.md` | 신규 세션에 하네스 가시화 |
 | 2026-05-28 | GitHub Discussions 미사용으로 정책 변경 (질문·신고 채널 Issues + Security Advisories로 통합) | README/CONTRIBUTING/CoC/.github/ISSUE_TEMPLATE + community-engineer 에이전트 + community-templates 스킬 | 사용자 피드백: "토론기능은 쓰지 않을 예정" |
+| 2026-05-28 | GitHub Issues 처리 하네스 신규 구축 (에이전트 4, 스킬 4, 오케스트레이터) | `.claude/agents/{issue-curator,issue-reproducer,issue-responder,issue-patcher}.md` + `.claude/skills/{issue-handler-orchestrator,github-issue-ops,issue-triage-policy,issue-response-templates}/` | 오픈소스 공개 후 사용자 신고 이슈 처리 자동화 필요 |

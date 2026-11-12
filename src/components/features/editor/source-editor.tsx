@@ -1,16 +1,23 @@
 'use client';
 
-import React, { useCallback, useRef, useEffect } from 'react';
+import { indentSourceTextarea } from '@/lib/source-indentation';
+
+import React, { useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 
 interface SourceEditorProps {
   content: string;
+  onSourceChange?: (markdown: string) => void;
   onChange?: (markdown: string, html: string) => void;
 }
 
-export function SourceEditor({ content, onChange }: SourceEditorProps) {
+export function SourceEditor({ content, onChange, onSourceChange }: SourceEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const onSourceChangeRef = useRef(onSourceChange);
+  useLayoutEffect(() => { onSourceChangeRef.current = onSourceChange; }, [onSourceChange]);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   // Sync content from external changes (e.g. document switch)
   useEffect(() => {
@@ -22,6 +29,7 @@ export function SourceEditor({ content, onChange }: SourceEditorProps) {
   const handleChange = useCallback(
     async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const markdown = e.target.value;
+      if (onSourceChangeRef.current) { onSourceChangeRef.current(markdown); return; }
       const { markdownToHtml } = await import('@/lib/markdown');
       const html = markdownToHtml(markdown);
       onChangeRef.current?.(markdown, html);
@@ -35,33 +43,8 @@ export function SourceEditor({ content, onChange }: SourceEditorProps) {
       if (e.key === 'Tab') {
         e.preventDefault();
         const textarea = e.currentTarget;
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
+        if (!indentSourceTextarea(textarea, e.shiftKey)) return;
 
-        if (e.shiftKey) {
-          // Outdent: remove leading 2 spaces from selected lines
-          const value = textarea.value;
-          const beforeSelection = value.substring(0, start);
-          const lineStart = beforeSelection.lastIndexOf('\n') + 1;
-          const selected = value.substring(lineStart, end);
-          const outdented = selected.replace(/^  /gm, '');
-          const diff = selected.length - outdented.length;
-
-          textarea.value =
-            value.substring(0, lineStart) + outdented + value.substring(end);
-          textarea.selectionStart = Math.max(lineStart, start - (value.substring(lineStart, start).match(/^  /) ? 2 : 0));
-          textarea.selectionEnd = end - diff;
-        } else {
-          // Indent: insert 2 spaces
-          textarea.value =
-            textarea.value.substring(0, start) +
-            '  ' +
-            textarea.value.substring(end);
-          textarea.selectionStart = textarea.selectionEnd = start + 2;
-        }
-
-        // Fire change event
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
         const syntheticEvent = {
           target: textarea,
         } as React.ChangeEvent<HTMLTextAreaElement>;

@@ -37,7 +37,7 @@ export function AppShell({ sidebar, children, focusMode = false }: AppShellProps
   // Mobile: overlay sidebar
   if (isMobile) {
     return (
-      <div className="h-[100dvh] w-screen overflow-hidden relative">
+      <div data-app-shell className="h-[100dvh] w-screen overflow-hidden relative">
         {/* Main content - always full width */}
         <main className="h-full w-full min-w-0 overflow-hidden bg-[var(--color-bg)]">
           {children}
@@ -64,6 +64,7 @@ export function AppShell({ sidebar, children, focusMode = false }: AppShellProps
   // Desktop: grid layout
   return (
     <div
+      data-app-shell
       className="h-screen w-screen overflow-hidden"
       style={{
         display: 'grid',
