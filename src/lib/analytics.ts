@@ -10,7 +10,11 @@ type GtagEvent = {
 function gtag(...args: unknown[]) {
   if (typeof window === 'undefined') return;
   const analyticsWindow = window as Window & { gtag?: (...values: unknown[]) => void };
-  analyticsWindow.gtag?.(...args);
+  try {
+    if (typeof analyticsWindow.gtag === 'function') analyticsWindow.gtag(...args);
+  } catch {
+    // Optional tracking must never interrupt a successful product operation.
+  }
 }
 
 export function trackEvent({ action, category, label, value }: GtagEvent) {
