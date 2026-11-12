@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
+import { ThemeSync } from '@/components/layout/theme-sync';
+import { THEME_BOOTSTRAP_SCRIPT } from '@/lib/theme';
 import './globals.css';
 import '@/styles/editor.css';
 import 'katex/dist/katex.min.css';
@@ -98,6 +100,7 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
         <meta name="google-adsense-account" content="ca-pub-5006269656255106" />
         <link rel="manifest" href="/manifest.json" />
         <script
@@ -126,7 +129,7 @@ export default function RootLayout({
             },
           }}
         />
-        <ThemeScript />
+        <ThemeSync />
         <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
         <Script id="gtag-init" strategy="afterInteractive">
           {`
@@ -139,18 +142,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
-
-function ThemeScript() {
-  const script = `
-    (function() {
-      try {
-        var theme = localStorage.getItem('mdview-theme');
-        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-        }
-      } catch(e) {}
-    })();
-  `;
-  return <script dangerouslySetInnerHTML={{ __html: script }} />;
 }

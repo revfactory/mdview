@@ -9,7 +9,8 @@ function loadUIStore() {
   const source = readFileSync(new URL('../src/stores/ui-store.ts', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
   const exports = {};
-  vm.runInNewContext(js, { exports, require: createRequire(import.meta.url) });
+  const require = createRequire(import.meta.url);
+  vm.runInNewContext(js, { exports, require: id => id === '@/lib/theme' ? { UI_STORAGE_KEY: 'mdview-ui' } : require(id) });
   return exports.useUIStore;
 }
 
