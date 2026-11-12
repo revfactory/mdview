@@ -1,14 +1,20 @@
 import { readdir, readFile } from 'node:fs/promises';
-import path from 'node:path';
+import { join } from 'node:path';
 
 async function files(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
-  return (await Promise.all(entries.map(e => e.isDirectory() ? files(path.join(dir, e.name)) : path.join(dir, e.name)))).flat();
+  return (await Promise.all(entries.map(entry => entry.isDirectory()
+    ? files(join(dir, entry.name)) : join(dir, entry.name)))).flat();
 }
-const output = await files('.next/static');
-const sources = output.filter(file => /worker[^/]*\.tsx?$/.test(file));
-if (sources.length) throw new Error(`Uncompiled Worker source emitted: ${sources.join(', ')}`);
-const chunks = output.filter(file => file.endsWith('.js'));
-const code = (await Promise.all(chunks.map(file => readFile(file, 'utf8')))).join('\n');
-if (!/new Worker\(/.test(code)) throw new Error('Expected bundled Worker entry points were not found');
-console.log('Worker output check passed: JavaScript entries, no emitted Worker TypeScript');
+
+const artifacts = await files('.next/static');
+const rawWorkers = artifacts.filter(path => /worker[^/]*\.tsx?$/.test(path));
+if (rawWorkers.length) throw new Error(`Uncompiled Worker source emitted: ${rawWorkers.join(', ')}`);
+const javascript = await Promise.all(artifacts.filter(path => path.endsWith('.js')).map(path => readFile(path, 'utf8')));
+if (!javascript.some(source => /new Worker\(/.test(source))) {
+  throw new Error('Expected bundled Worker entry points were not found');
+}
+if (!javascript.some(source => source.includes('PDF 라이브러리 로드 중'))) {
+  throw new Error('Compiled PDF Worker is missing from production JavaScript assets');
+}
+console.log('Worker build check passed: JavaScript entry points, compiled PDF Worker, no raw TypeScript Workers');

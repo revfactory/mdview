@@ -67,7 +67,7 @@
 
 ### 사전 요구사항
 
-- Node.js 20 LTS 이상
+- Node.js 24 LTS (24.x)
 - npm (또는 pnpm/yarn)
 
 ### 설치 및 실행

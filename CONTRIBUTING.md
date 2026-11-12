@@ -36,7 +36,7 @@ MDView 프로젝트에 관심을 가져주셔서 감사합니다! 모든 형태�
 
 ### 사전 요구사항
 
-- **Node.js 20 LTS** 이상 ([설치 가이드](https://nodejs.org))
+- **Node.js 24 LTS** (24.x) ([설치 가이드](https://nodejs.org))
 - **npm** (Node.js와 함께 설치됨)
 - **git**
 
