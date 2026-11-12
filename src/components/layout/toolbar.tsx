@@ -16,7 +16,6 @@ import {
   SplitSquareVertical,
   PenLine,
   PanelRight,
-  Download,
   ChevronDown,
   Heading,
   Heading1,
@@ -31,6 +30,9 @@ import { useUIStore } from '@/stores/ui-store';
 import { htmlToMarkdown } from '@/lib/markdown';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 import { analytics } from '@/lib/analytics';
+import { toast } from 'sonner';
+import { ToolbarExportMenu } from '@/components/features/import-export/toolbar-export-menu';
+import { usePdfExport } from '@/components/features/import-export/pdf-export';
 
 interface ToolbarButtonProps {
   icon: React.ElementType;
@@ -85,14 +87,23 @@ export interface ToolbarProps {
   documentTitle?: string;
   documentId?: string | null;
   isChunked?: boolean;
+  markdown?: string;
+  disabled?: boolean;
 }
 
-export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, documentId, isChunked }: ToolbarProps) {
+export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, documentId, isChunked, markdown: sourceMarkdown, disabled = false }: ToolbarProps) {
   const viewMode = useUIStore((s) => s.viewMode);
   const isMobile = useUIStore((s) => s.isMobile);
   const { setViewMode, toggleSidebar } = useUIStore((s) => s.actions);
   const blockLabel = getActiveBlockLabel(editor);
   const noEditor = !editor;
+  const { exportPdf } = usePdfExport({ documentTitle: documentTitle || '문서' });
+  const exportDisabled = disabled || (!editor && sourceMarkdown === undefined && !(isChunked && documentId));
+  const pdfDisabledReason = isChunked
+    ? '대용량 문서는 전체 인쇄를 지원하지 않습니다. 마크다운 또는 HWPX를 이용해 주세요.'
+    : viewMode !== 'wysiwyg' || !editor
+      ? 'PDF 저장은 WYSIWYG 모드에서 사용할 수 있습니다.'
+      : undefined;
 
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -134,31 +145,41 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
   }, []);
 
   const handleExportMarkdown = useCallback(async () => {
-    const safeName = (documentTitle || '문서').replace(/[<>:"/\\|?*]/g, '_');
-    let markdown: string;
+    if (exportDisabled) return;
+    try {
+      const safeName = (documentTitle || '문서').replace(/[<>:"/\\|?*]/g, '_');
+      let markdown: string;
 
-    if (isChunked && documentId) {
-      // Merge all chunks for full document export
-      const { getAllChunksMarkdown } = await import('@/db/chunks');
-      markdown = await getAllChunksMarkdown(documentId);
-    } else if (editor) {
-      markdown = htmlToMarkdown(editor.getHTML());
-    } else {
-      return;
+      if (isChunked && viewMode === 'source' && sourceMarkdown !== undefined) {
+        // Use full source including edits still saving to IndexedDB.
+        markdown = sourceMarkdown;
+      } else if (isChunked && documentId) {
+        // Merge all chunks for full document export
+        const { getAllChunksMarkdown } = await import('@/db/chunks');
+        markdown = await getAllChunksMarkdown(documentId);
+      } else if (sourceMarkdown !== undefined && (viewMode === 'source' || !editor)) {
+        markdown = sourceMarkdown;
+      } else if (editor) {
+        markdown = htmlToMarkdown(editor.getHTML());
+      } else {
+        return;
+      }
+
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeName}.md`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      analytics.exportMarkdown();
+    } catch {
+      toast.error('마크다운 내보내기에 실패했습니다. 다시 시도해 주세요.');
     }
-
-    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${safeName}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-    analytics.exportMarkdown();
-  }, [editor, documentTitle, documentId, isChunked]);
+  }, [editor, documentTitle, documentId, isChunked, sourceMarkdown, viewMode, exportDisabled]);
 
   return (
-    <div data-toolbar className="flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
+    <div data-toolbar className="mdview-toolbar flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
       {/* Sidebar toggle */}
       <button
         onClick={toggleSidebar}
@@ -315,12 +336,19 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
       <div className="flex-1" />
 
       <div className="flex items-center gap-0.5 shrink-0">
-        <ToolbarButton icon={Download} tooltip="마크다운 내보내기" disabled={noEditor} onClick={handleExportMarkdown} />
+        <ToolbarExportMenu
+          key={`${documentId ?? "none"}-${exportDisabled}`}
+          disabled={exportDisabled}
+          onMarkdown={handleExportMarkdown}
+          onHwpx={onExport}
+          onPdf={exportPdf}
+          pdfDisabledReason={pdfDisabledReason}
+        />
 
         <Divider />
 
         {/* View Mode - segment control */}
-        <div className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
+        <div data-view-modes className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
           {([
             { mode: 'wysiwyg' as const, icon: PenLine, label: 'WYSIWYG 모드' },
             ...(!isMobile ? [{ mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' }] : []),

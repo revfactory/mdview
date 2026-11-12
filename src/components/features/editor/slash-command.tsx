@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import type { SlashCommandItem } from '@/types/editor';
 import { executeSlashCommand } from '@/extensions/slash-command';
-import type { SlashCommandStorage } from '@/extensions/slash-command';
 
 const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
   Type,
@@ -52,7 +51,7 @@ export function SlashCommandMenu({ editor }: SlashCommandMenuProps) {
   const selectedItemRef = useRef<HTMLButtonElement>(null);
 
   const updateState = useCallback(() => {
-    const storage = (editor as any).extensionStorage.slashCommand as SlashCommandStorage | undefined;
+    const storage = editor.storage.slashCommand;
     if (!storage) return;
 
     setActive(storage.active);
@@ -79,16 +78,17 @@ export function SlashCommandMenu({ editor }: SlashCommandMenuProps) {
 
   const handleSelect = useCallback(
     (item: SlashCommandItem) => {
-      const storage = (editor as any).extensionStorage.slashCommand as SlashCommandStorage | undefined;
+      const storage = editor.storage.slashCommand;
       if (!storage?.range) return;
 
       executeSlashCommand(
-        editor as Parameters<typeof executeSlashCommand>[0],
+        editor,
         item.command,
         storage.range
       );
 
       // Reset storage
+      // eslint-disable-next-line react-hooks/immutability -- TipTap extension storage is a mutable external API, not React-owned state.
       storage.active = false;
       storage.query = '';
       storage.range = null;
@@ -152,7 +152,8 @@ export function SlashCommandMenu({ editor }: SlashCommandMenuProps) {
                       : 'transparent',
                   }}
                   onMouseEnter={() => {
-                    const storage = (editor as any).extensionStorage.slashCommand as SlashCommandStorage;
+                    const storage = editor.storage.slashCommand;
+                    if (!storage) return;
                     storage.selectedIndex = currentIndex;
                     setSelectedIndex(currentIndex);
                   }}

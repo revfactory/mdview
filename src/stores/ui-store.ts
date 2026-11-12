@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { UI_STORAGE_KEY, type Theme } from '@/lib/theme';
 
 interface UIState {
   sidebarOpen: boolean;
@@ -9,7 +10,7 @@ interface UIState {
   viewMode: 'wysiwyg' | 'split' | 'source';
   tocOpen: boolean;
   focusMode: boolean;
-  theme: 'light' | 'dark' | 'system';
+  theme: Theme;
   isMobile: boolean;
 }
 
@@ -20,7 +21,7 @@ interface UIActions {
   setViewMode: (mode: 'wysiwyg' | 'split' | 'source') => void;
   toggleToc: () => void;
   toggleFocusMode: () => void;
-  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setTheme: (theme: Theme) => void;
   setMobile: (isMobile: boolean) => void;
 }
 
@@ -48,7 +49,7 @@ export const useUIStore = create<UIStore>()(
       },
     }),
     {
-      name: 'mdview-ui',
+      name: UI_STORAGE_KEY,
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,

@@ -20,13 +20,12 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleClose = useCallback(() => {
-    if (isImporting) return;
     setSelectedFile(null);
     setResult(null);
     setIsDragOver(false);
     reset();
     onClose();
-  }, [isImporting, reset, onClose]);
+  }, [reset, onClose]);
 
   const processFile = useCallback(
     async (file: File) => {
@@ -47,6 +46,8 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
+      // Allow choosing the same file again after failure or cancellation.
+      e.target.value = '';
       if (file) processFile(file);
     },
     [processFile]
