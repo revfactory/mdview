@@ -32,6 +32,8 @@ The interface and these task guides are in Korean:
 
 Documents are stored in the current browser. Export important files as backups and check complex tables, images, and formatting after conversion. Export to the binary `.hwp` format is not supported.
 
+If saved documents are missing, check both [mdview.kr](https://mdview.kr/) and [www.mdview.kr](https://www.mdview.kr/) on the device and browser profile used to create them. The two addresses have separate storage and do not sync documents automatically. Do not clear site data while checking, and export important documents once you find them. See the [document storage and backup guide (Korean)](https://mdview.kr/guides/markdown-editor#document-storage).
+
 ## 📖 Overview
 
 **MDView** is a block-based WYSIWYG markdown editor that lets you write documents naturally — like a word processor — without knowing any markdown syntax. Internally, everything is stored as plain markdown (`.md`), so your content stays portable across any platform.
