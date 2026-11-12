@@ -97,6 +97,7 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
           <input
             ref={inputRef}
             type="text"
+            aria-label="문서 이름으로 검색"
             placeholder="문서 이름으로 검색..."
             value={query}
             onChange={(e) => {
