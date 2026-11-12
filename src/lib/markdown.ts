@@ -147,7 +147,17 @@ export function markdownToHtml(md: string): string {
 
 let mdWorker: Worker | null = null;
 let msgIdCounter = 0;
-const pendingCallbacks = new Map<number, { resolve: (v: string) => void; reject: (e: Error) => void }>();
+const pendingCallbacks = new Map<number, { resolve: (v: string) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+
+function resetMarkdownWorker(reason: Error): void {
+  mdWorker?.terminate();
+  mdWorker = null;
+  for (const callback of pendingCallbacks.values()) {
+    clearTimeout(callback.timer);
+    callback.reject(reason);
+  }
+  pendingCallbacks.clear();
+}
 
 function getMarkdownWorker(): Worker {
   if (mdWorker) return mdWorker;
@@ -161,6 +171,7 @@ function getMarkdownWorker(): Worker {
     const cb = pendingCallbacks.get(id);
     if (!cb) return;
     pendingCallbacks.delete(id);
+    clearTimeout(cb.timer);
 
     if (type === 'error') {
       cb.reject(new Error(error));
@@ -169,6 +180,8 @@ function getMarkdownWorker(): Worker {
     }
   };
 
+  mdWorker.onerror = () => resetMarkdownWorker(new Error('Markdown worker failed'));
+  mdWorker.onmessageerror = () => resetMarkdownWorker(new Error('Markdown worker response could not be read'));
   return mdWorker;
 }
 
@@ -176,11 +189,18 @@ function getMarkdownWorker(): Worker {
 export function markdownToHtmlAsync(md: string): Promise<string> {
   if (!md) return Promise.resolve('');
 
-  return new Promise((resolve, reject) => {
-    const id = ++msgIdCounter;
-    pendingCallbacks.set(id, { resolve, reject });
-    getMarkdownWorker().postMessage({ type: 'toHtml', id, markdown: md });
-  });
+  return new Promise<string>((resolve, reject) => {
+    try {
+      const worker = getMarkdownWorker();
+      const id = ++msgIdCounter;
+      const timer = setTimeout(() => resetMarkdownWorker(new Error('Markdown worker timed out')), 15_000);
+      pendingCallbacks.set(id, { resolve, reject, timer });
+      worker.postMessage({ type: 'toHtml', id, markdown: md });
+    } catch (error) {
+      resetMarkdownWorker(error instanceof Error ? error : new Error('Markdown worker unavailable'));
+      reject(error);
+    }
+  }).catch(() => markdownToHtml(md));
 }
 
 /**

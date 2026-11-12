@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { useUIStore } from '@/stores/ui-store';
-import type { Editor as TipTapEditor } from '@tiptap/react';
+import { useEditorState, type Editor as TipTapEditor } from '@tiptap/react';
 
 interface HeadingItem {
   level: number;
@@ -19,18 +19,18 @@ interface TocPanelProps {
 export function TocPanel({ editor }: TocPanelProps) {
   const tocOpen = useUIStore((s) => s.tocOpen);
   const { toggleToc } = useUIStore((s) => s.actions);
-  const [headings, setHeadings] = useState<HeadingItem[]>([]);
   const [activePos, setActivePos] = useState<number | null>(null);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
 
-  // Extract headings from editor
-  const extractHeadings = useCallback(() => {
-    if (!editor) {
-      setHeadings([]);
-      return;
-    }
+  // Subscribe to TipTap's external state, including silent setContent transactions.
+  const doc = useEditorState({
+    editor,
+    selector: ({ editor }) => editor?.state.doc ?? null,
+    equalityFn: Object.is,
+  });
+  const headings = useMemo(() => {
     const items: HeadingItem[] = [];
-    editor.state.doc.descendants((node, pos) => {
+    doc?.descendants((node, pos) => {
       if (node.type.name === 'heading') {
         items.push({
           level: node.attrs.level,
@@ -40,20 +40,8 @@ export function TocPanel({ editor }: TocPanelProps) {
         });
       }
     });
-    setHeadings(items);
-  }, [editor]);
-
-  // Re-extract on editor updates
-  useEffect(() => {
-    if (!editor) return;
-    extractHeadings();
-
-    const updateHandler = () => extractHeadings();
-    editor.on('update', updateHandler);
-    return () => {
-      editor.off('update', updateHandler);
-    };
-  }, [editor, extractHeadings]);
+    return items;
+  }, [doc]);
 
   // Track which heading is currently visible via IntersectionObserver on scroll position
   useEffect(() => {

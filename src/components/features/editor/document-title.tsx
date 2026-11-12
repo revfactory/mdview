@@ -1,47 +1,59 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { updateDocument } from '@/db/documents';
-import { getDocument } from '@/db/documents';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { getDocument, updateDocument } from '@/db/documents';
+import { useToastStore } from '@/stores/toast-store';
 
 interface DocumentTitleProps {
   documentId: string | null;
 }
 
 export function DocumentTitle({ documentId }: DocumentTitleProps) {
-  const [title, setTitle] = useState('');
+  const [loadedTitle, setLoadedTitle] = useState<{ id: string; title: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const currentDocumentId = useRef(documentId);
+  const saveRevision = useRef(0);
+  const ready = loadedTitle?.id === documentId;
 
-  useEffect(() => {
-    if (!documentId) {
-      setTitle('');
-      return;
-    }
-    (async () => {
-      const doc = await getDocument(documentId);
-      if (doc) setTitle(doc.title || '');
-    })();
+  useLayoutEffect(() => {
+    currentDocumentId.current = documentId;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset the externally selected title before paint, including A → B → A while B is still loading.
+    setLoadedTitle(null);
+    return () => { currentDocumentId.current = null; };
   }, [documentId]);
 
   useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, []);
+    if (!documentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = await getDocument(documentId);
+        if (!cancelled && doc) setLoadedTitle({ id: documentId, title: doc.title || '' });
+      } catch (error) {
+        console.error('Failed to load document title:', error);
+        if (!cancelled) useToastStore.getState().actions.addToast('문서 제목을 불러오지 못했습니다. 문서를 다시 선택해주세요.', 'error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [documentId]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!documentId || !ready || currentDocumentId.current !== documentId) return;
       const newTitle = e.target.value;
-      setTitle(newTitle);
-
-      if (!documentId) return;
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(async () => {
-        await updateDocument(documentId, { title: newTitle || '제목 없음' });
-      }, 400);
+      setLoadedTitle({ id: documentId, title: newTitle });
+      const revision = ++saveRevision.current;
+      // Start the IndexedDB transaction during input. A component-owned debounce
+      // loses the title when switching documents or editor views unmounts it.
+      // Title completion must not replace the independent body-save status.
+      void updateDocument(documentId, { title: newTitle || '제목 없음' }).catch(error => {
+        console.error('Failed to save document title:', error);
+        if (revision === saveRevision.current) {
+          useToastStore.getState().actions.addToast('문서 제목을 저장하지 못했습니다. 제목을 다시 입력해주세요.', 'error');
+        }
+      });
     },
-    [documentId]
+    [documentId, ready]
   );
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -59,7 +71,9 @@ export function DocumentTitle({ documentId }: DocumentTitleProps) {
     <input
       ref={inputRef}
       type="text"
-      value={title}
+      value={ready ? loadedTitle.title : ''}
+      disabled={!ready}
+      aria-label="문서 제목"
       onChange={handleChange}
       onKeyDown={handleKeyDown}
       placeholder="제목 없음"
