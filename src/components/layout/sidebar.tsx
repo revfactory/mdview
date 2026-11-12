@@ -552,6 +552,9 @@ export function Sidebar({
             <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
               🔒 모든 문서는 서버에 전송되지 않으며, 개인 브라우저(IndexedDB)에만 저장됩니다.
             </p>
+            <a href="/guides/markdown-editor#document-storage" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs text-[var(--color-accent)] hover:underline">
+              저장한 문서가 보이지 않나요? (새 탭)
+            </a>
           </div>
 
           {/* Author */}

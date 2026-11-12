@@ -1,6 +1,13 @@
 /** Task-specific guides checked against the import/export implementations. */
 export const GUIDE_SITE_URL = 'https://www.mdview.kr';
-export interface GuideSection { title: string; paragraphs?: string[]; bullets?: string[]; code?: string }
+export interface GuideSection {
+  id?: string;
+  title: string;
+  paragraphs?: string[];
+  bullets?: string[];
+  code?: string;
+  links?: { href: string; label: string }[];
+}
 export interface Guide {
   slug: string;
   title: string;
@@ -100,6 +107,23 @@ export const guides: Guide[] = [
       { title: '복사해서 써 보는 회의록 예제', code: '# 주간 회의록\n\n## 결정한 내용\n- 안내 페이지를 먼저 검토합니다.\n- **담당자와 마감일**을 정합니다.\n\n## 할 일\n- [ ] 초안 작성\n- [ ] 검토 후 공유\n\n| 작업 | 담당 |\n| --- | --- |\n| 초안 | 작성자 |\n| 검토 | 검토자 |\n\n[참고 링크](/guides)', paragraphs: ['제목은 # 뒤에 공백을 넣어 씁니다. ##는 하위 제목이고, - 뒤에 공백을 넣으면 목록이 됩니다. 문단 사이에는 빈 줄을 두세요. 표는 머리글 아래에 구분 행이 있어야 합니다.'] },
       { title: '어떤 형식으로 저장하면 좋을까요?', bullets: ['계속 수정하거나 다른 마크다운 도구로 옮길 때는 .md를 선택하세요.', '한글 프로그램에서 수정할 상대에게는 .hwpx가 적합한지 확인하고 내보내세요.', '문서를 읽기만 하면 되는 상대에게는 PDF가 편리합니다. 인쇄 미리보기에서 결과를 먼저 확인하세요.', '이미지 링크는 문서 파일과 별개일 수 있습니다. 다른 환경에서 열 때 그림이 유지되는지도 확인하세요.'] },
       { title: '자동저장은 백업이나 기기 간 동기화가 아닙니다', paragraphs: ['로컬 저장은 현재 기기의 현재 브라우저에 연결됩니다. 브라우저 데이터 삭제, 시크릿 모드 종료, 다른 브라우저로 이동할 때 문서가 그대로 유지된다고 가정하지 마세요.', '자동저장 상태를 확인하고 중요한 변경 뒤에는 .md를 내려받아 따로 보관하세요. 로컬 저장 방식은 별도의 계정 동기화나 클라우드 백업을 의미하지 않습니다.'] },
+      {
+        id: 'document-storage',
+        title: '저장한 문서가 보이지 않나요?',
+        paragraphs: [
+          '문서는 현재 기기·브라우저 프로필·사이트 주소별로 따로 저장됩니다. https://mdview.kr과 https://www.mdview.kr은 같은 에디터를 보여 주지만 저장소는 서로 다르며, 문서가 자동으로 동기화되지 않습니다.',
+          '목록이 비어 있다고 문서가 삭제되었다는 뜻은 아닙니다. 문서를 작성했던 기기와 브라우저 프로필에서 아래 두 주소를 각각 확인하세요. 새 탭에서 열리므로 지금 편집 중인 탭은 그대로 유지됩니다.',
+        ],
+        links: [
+          { href: 'https://mdview.kr/', label: 'mdview.kr의 문서 확인' },
+          { href: 'https://www.mdview.kr/', label: 'www.mdview.kr의 문서 확인' },
+        ],
+        bullets: [
+          '확인하기 전에 브라우저의 사이트 데이터를 지우거나 브라우저 프로필을 초기화하지 마세요. 시크릿 창에서 작성했다면 그 창도 닫지 마세요.',
+          '문서를 찾으면 저장 상태를 확인하고 중요한 문서를 마크다운 (.md) 파일로 내려받으세요. 문서를 새 주소로 옮겨야 한다면 파일을 가져온 뒤 본문과 이미지가 유지되는지 확인하고, 원래 문서도 그대로 보관하세요.',
+          '자주 쓰는 주소를 북마크해 같은 브라우저 프로필에서 다시 여세요. 이미 삭제된 브라우저 데이터는 이 안내로 복원되지 않습니다.',
+        ],
+      },
     ],
     questions: [
       { question: '마크다운 문법을 모두 알아야 하나요?', answer: '아니요. WYSIWYG 모드에서 도구 모음으로 제목, 굵게, 목록, 표 등을 편집할 수 있습니다. 소스 보기를 함께 사용하면 작성한 내용이 어떤 마크다운으로 표현되는지 익힐 수 있습니다.' },
