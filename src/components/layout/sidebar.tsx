@@ -28,6 +28,9 @@ import {
 } from '@/hooks/use-documents';
 import { useFolderTree, type FolderTreeNode } from '@/hooks/use-folders';
 import { useUIStore } from '@/stores/ui-store';
+import { useSystemTheme } from '@/hooks/use-system-theme';
+import { isDarkTheme } from '@/lib/theme';
+import packageInfo from '../../../package.json';
 import { createFolder, updateFolder, deleteFolder } from '@/db/folders';
 import { updateDocument } from '@/db/documents';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -230,18 +233,14 @@ export function Sidebar({
   const recentDocs = useRecentDocuments(20);
   const folderTree = useFolderTree();
 
-  const isDark = theme === 'dark';
+  const systemDark = useSystemTheme();
+  const isDark = isDarkTheme(theme, systemDark);
 
   const hasFolders = folderTree && folderTree.length > 0;
 
   const toggleTheme = useCallback(() => {
     const newTheme = isDark ? 'light' : 'dark';
     setTheme(newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
     analytics.themeToggle(newTheme);
   }, [isDark, setTheme]);
 
@@ -544,7 +543,7 @@ export function Sidebar({
             <img src="/logo.png" alt="MDView" className="w-10 h-10 rounded-xl shrink-0" />
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">마크다운 에디터</p>
-              <p className="text-xs text-[var(--color-text-muted)]">v0.1.0 (Beta)</p>
+              <p className="text-xs text-[var(--color-text-muted)]">v{packageInfo.version} (Beta)</p>
             </div>
           </div>
 

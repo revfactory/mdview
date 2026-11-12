@@ -11,6 +11,20 @@
 
 아직 기록된 변경 없음.
 
+## [0.2.13] - 2026-11-12
+
+### Fixed
+- 저장한 다크·라이트 모드가 새로고침 직후와 화면 복원 후에도 유지되도록 초기화와 UI 저장소의 테마 설정을 통일
+- 시스템 테마 사용 중 운영체제 색상 변경을 반영하고 테마 전환 버튼이 실제 화면과 같은 상태를 표시하도록 수정
+- 정보 대화상자가 고정된 이전 버전 대신 현재 패키지 버전을 표시하도록 수정
+
+### Tests
+- 명시적 테마와 시스템 설정의 우선순위, 반복 전환·새로고침, 저장소 오류·잘못된 JSON, 구독 정리 회귀검사 추가
+
+### Notes
+- 문서 내용과 데이터베이스 구조, 기존 UI 설정 저장 형식은 변경하지 않습니다.
+- 한글 입력 보호(#49), PDF 가져오기(#30) 및 별도 검증 중인 문서 편집 개선은 포함하지 않습니다.
+
 ## [0.2.12] - 2026-11-12
 
 ### Maintenance
@@ -242,7 +256,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.12...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.13...HEAD
+[0.2.13]: https://github.com/revfactory/mdview/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/revfactory/mdview/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/revfactory/mdview/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/revfactory/mdview/compare/v0.2.9...v0.2.10
