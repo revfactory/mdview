@@ -28,6 +28,9 @@ import {
 } from '@/hooks/use-documents';
 import { useFolderTree, type FolderTreeNode } from '@/hooks/use-folders';
 import { useUIStore } from '@/stores/ui-store';
+import { useSystemTheme } from '@/hooks/use-system-theme';
+import { isDarkTheme } from '@/lib/theme';
+import packageInfo from '../../../package.json';
 import { createFolder, updateFolder, deleteFolder } from '@/db/folders';
 import { updateDocument } from '@/db/documents';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -230,18 +233,14 @@ export function Sidebar({
   const recentDocs = useRecentDocuments(20);
   const folderTree = useFolderTree();
 
-  const isDark = theme === 'dark';
+  const systemDark = useSystemTheme();
+  const isDark = isDarkTheme(theme, systemDark);
 
   const hasFolders = folderTree && folderTree.length > 0;
 
   const toggleTheme = useCallback(() => {
     const newTheme = isDark ? 'light' : 'dark';
     setTheme(newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
     analytics.themeToggle(newTheme);
   }, [isDark, setTheme]);
 
@@ -495,6 +494,7 @@ export function Sidebar({
             <Info className="w-4 h-4" />
           </button>
         </Tooltip>
+        <a href="/guides" target="_blank" rel="noopener noreferrer" className="rounded-lg px-2 py-2 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]" aria-label="사용 가이드 (새 탭)">사용 가이드 ↗</a>
         <div className="flex-1" />
         <Tooltip content={isDark ? '라이트 모드' : '다크 모드'} side="top">
           <button
@@ -543,7 +543,7 @@ export function Sidebar({
             <img src="/logo.png" alt="MDView" className="w-10 h-10 rounded-xl shrink-0" />
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">마크다운 에디터</p>
-              <p className="text-xs text-[var(--color-text-muted)]">v0.1.0 (Beta)</p>
+              <p className="text-xs text-[var(--color-text-muted)]">v{packageInfo.version} (Beta)</p>
             </div>
           </div>
 

@@ -12,9 +12,13 @@ interface QuickOpenProps {
   onSelectDocument: (id: string) => void;
 }
 
-export function QuickOpen({ open, onClose, onSelectDocument }: QuickOpenProps) {
+export function QuickOpen(props: QuickOpenProps) {
+  return props.open ? <QuickOpenContent {...props} /> : null;
+}
+
+function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
   const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [requestedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const documents = useDocuments();
@@ -23,24 +27,12 @@ export function QuickOpen({ open, onClose, onSelectDocument }: QuickOpenProps) {
     doc.title.toLowerCase().includes(query.toLowerCase())
   );
 
-  // Reset state when opened
-  useEffect(() => {
-    if (open) {
-      setQuery('');
-      setSelectedIndex(0);
-      // Focus input after render
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
-    }
-  }, [open]);
+  const selectedIndex = Math.min(requestedIndex, Math.max(0, filtered.length - 1));
 
-  // Keep selected index in bounds
   useEffect(() => {
-    if (selectedIndex >= filtered.length) {
-      setSelectedIndex(Math.max(0, filtered.length - 1));
-    }
-  }, [filtered.length, selectedIndex]);
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -62,11 +54,11 @@ export function QuickOpen({ open, onClose, onSelectDocument }: QuickOpenProps) {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+          setSelectedIndex(Math.min(selectedIndex + 1, Math.max(0, filtered.length - 1)));
           break;
         case 'ArrowUp':
           e.preventDefault();
-          setSelectedIndex((i) => Math.max(i - 1, 0));
+          setSelectedIndex(Math.max(selectedIndex - 1, 0));
           break;
         case 'Enter':
           e.preventDefault();
@@ -82,8 +74,6 @@ export function QuickOpen({ open, onClose, onSelectDocument }: QuickOpenProps) {
     },
     [filtered, selectedIndex, handleSelect, onClose]
   );
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">

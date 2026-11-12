@@ -2,7 +2,7 @@
 
 # MDView
 
-> **Korean-first markdown editor** — HWP to Markdown, Markdown to HWP
+> **Korean-first markdown editor** — HWP/HWPX to Markdown, Markdown to HWPX
 
 [![CI](https://github.com/revfactory/mdview/actions/workflows/ci.yml/badge.svg)](https://github.com/revfactory/mdview/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/revfactory/mdview/actions/workflows/codeql.yml/badge.svg)](https://github.com/revfactory/mdview/actions/workflows/codeql.yml)
@@ -19,6 +19,19 @@
 
 </div>
 
+## 🖼 Use MDView online
+
+[Open the MDView editor](https://mdview.kr/) without installation or an account. Import HWP/HWPX files, then export Markdown or HWPX.
+
+The interface and these task guides are in Korean:
+
+- [Convert HWP/HWPX to Markdown](https://mdview.kr/guides/hwp-to-markdown)
+- [Export Markdown as HWPX](https://mdview.kr/guides/markdown-to-hwpx)
+- [Save Markdown as PDF](https://mdview.kr/guides/markdown-to-pdf)
+- [Editor and local storage guide](https://mdview.kr/guides/markdown-editor)
+
+Documents are stored in the current browser. Export important files as backups and check complex tables, images, and formatting after conversion. Export to the binary `.hwp` format is not supported.
+
 ## 📖 Overview
 
 **MDView** is a block-based WYSIWYG markdown editor that lets you write documents naturally — like a word processor — without knowing any markdown syntax. Internally, everything is stored as plain markdown (`.md`), so your content stays portable across any platform.
@@ -26,7 +39,7 @@
 Three core differentiators:
 
 1. **🇰🇷 HWP Bridge** — Import HWP/HWPX (Korean Hangul Word Processor) files into markdown, and export markdown back to HWPX.
-2. **⚡ Large Document Performance** — Web Worker parsing, virtual scrolling, and pagination handle 1000+ page documents without freezing.
+2. **⚡ Large Document Performance** — Web Worker parsing and pagination process long documents in chunks. Processing time and formatting fidelity depend on the file and device.
 3. **🧱 Block-Based Editing** — Notion-style slash commands and drag-and-drop block reordering.
 
 > ⚠️ Currently in 0.1.x pre-release. Minor version bumps may include breaking changes until 1.0.
@@ -36,9 +49,9 @@ Three core differentiators:
 - **Block-based WYSIWYG editing** — Headings, lists, code, blockquotes, checklists, tables, images
 - **Slash (/) commands** — Instant block type conversion and insertion
 - **Drag-and-drop** — Reorder blocks visually
-- **HWP/HWPX import & export** — Bridge between Korean Hangul Word format and markdown
+- **HWP/HWPX import, HWPX export** — Convert Korean Hangul Word documents to Markdown and export `.hwpx` files
 - **Markdown file I/O** — Open and save `.md` directly
-- **PDF export** — Clean, print-ready styling
+- **PDF export** — Browser print/Save as PDF for non-chunked WYSIWYG documents
 - **Source / Split view** — Toggle between WYSIWYG and raw markdown
 - **Large document pagination** — Auto chunking for documents over 300KB
 - **Full-text search** — FlexSearch in a Web Worker
@@ -47,12 +60,8 @@ Three core differentiators:
 - **Math rendering** — KaTeX
 - **Code syntax highlighting** — Shiki
 - **Auto-generated TOC**
-- **PWA support** — Works offline
+- **Web app manifest** — Offline reload is not guaranteed.
 - **Responsive design** — Desktop, tablet, mobile
-
-## 🖼 Demo
-
-> Coming soon. Screenshots and GIFs will be added under `docs/screenshots/`.
 
 ## 🚀 Quick Start
 
@@ -117,7 +126,7 @@ src/
 - [x] HWP/HWPX import & export
 - [x] Large document pagination
 - [x] PDF export
-- [x] PWA support
+- [x] Web app manifest
 
 ### v1.0 (Planned)
 - [ ] DOCX import & export
