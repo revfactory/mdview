@@ -11,6 +11,17 @@
 
 아직 기록된 변경 없음.
 
+## [0.2.12] - 2026-11-12
+
+### Maintenance
+- Zustand를 5.0.11에서 5.0.14로 갱신하고 기존 의존성 PR #12의 충돌을 현재 main 기준으로 정리
+- 실제 UI store의 설정 복원·저장·구독과 잘못된 저장 JSON 처리 회귀검사 추가
+
+### Notes
+- 화면 설정 저장 형식과 문서 데이터베이스 구조는 변경하지 않습니다. 보안 수정이나 새 편집 기능을 주장하지 않는 유지보수 릴리즈입니다.
+- 새로고침 시 다크 모드가 실제 화면에 반영되지 않는 기존 문제는 별도 수정 대상입니다.
+- 한글 입력 보호(#49), PDF 가져오기(#30) 및 별도 검증 중인 문서 편집 개선은 포함하지 않습니다.
+
 ## [0.2.11] - 2026-11-12
 
 ### Fixed
@@ -231,7 +242,10 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.9...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.12...HEAD
+[0.2.12]: https://github.com/revfactory/mdview/compare/v0.2.11...v0.2.12
+[0.2.11]: https://github.com/revfactory/mdview/compare/v0.2.10...v0.2.11
+[0.2.10]: https://github.com/revfactory/mdview/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/revfactory/mdview/releases/tag/v0.2.9
 [0.2.8]: https://github.com/revfactory/mdview/releases/tag/v0.2.8
 [0.2.0]: https://github.com/revfactory/mdview/releases/tag/v0.2.0
