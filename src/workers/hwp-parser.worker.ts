@@ -1049,7 +1049,7 @@ async function parseHwpx(
     throw new Error('HWPX 파일에서 본문 섹션을 찾을 수 없습니다.');
   }
 
-  sectionFiles.sort();
+  sectionFiles.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   postProgress(60, '텍스트 변환 중...');
 
   const allMarkdown: string[] = [];
@@ -1223,7 +1223,7 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
               if (cell.colspan > 1) attrs.push(`colspan="${cell.colspan}"`);
               if (cell.rowspan > 1) attrs.push(`rowspan="${cell.rowspan}"`);
               const attrStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
-              lines.push(`    <td${attrStr}>${escapeHtml(cell.text)}</td>`);
+              lines.push(`    <td${attrStr}>${escapeHtml(decodeXmlText(cell.text))}</td>`);
             }
             lines.push('  </tr>');
           }
@@ -1331,6 +1331,18 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
   }
 
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Decode one XML layer before escaping text into an HTML table. Do not interpret
+// nested entities or allow decoded angle brackets to become active HTML.
+function decodeXmlText(text: string): string {
+  const named: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+  return text.replace(/&(amp|lt|gt|quot|apos|#x[0-9a-fA-F]+|#[0-9]+);/g, (entity, value: string) => {
+    if (value[0] !== '#') return named[value];
+    const code = value[1] === 'x' ? parseInt(value.slice(2), 16) : parseInt(value.slice(1), 10);
+    if (code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || code === 0) return entity;
+    return String.fromCodePoint(code);
+  });
 }
 
 function extractHwpxText(xml: string): string {
