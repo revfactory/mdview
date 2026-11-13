@@ -20,6 +20,7 @@ export function useKeyboardShortcuts({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
       const isMeta = e.metaKey || e.ctrlKey;
 
       if (isMeta && e.key === 'n') {
