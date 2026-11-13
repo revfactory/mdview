@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // pdf.js 실행 파일을 빌드 전에 복사한 폴더(.gitignore 대상)
+    "public/pdfjs/**",
   ]),
 ]);
 

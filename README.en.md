@@ -53,6 +53,8 @@ Three core differentiators:
 - **Drag-and-drop** — Reorder blocks visually
 - **HWP/HWPX import, HWPX export** — Convert Korean Hangul Word documents to Markdown and export `.hwpx` files
 - **Markdown file I/O** — Open and save `.md` directly
+- **PDF viewer** — Open PDFs read-only with their original layout (page navigation, zoom, text selection/copy, original download), including Korean PDFs whose fonts are not embedded
+- **PDF → Markdown** — Infers headings, paragraphs and lists from font size and line spacing to create an editable document. Scanned image PDFs produce no text; tables and multi-column layouts need review
 - **PDF export** — Browser print/Save as PDF for non-chunked WYSIWYG documents
 - **Source / Split view** — Toggle between WYSIWYG and raw markdown
 - **Large document pagination** — Auto chunking for documents over 300KB
@@ -128,6 +130,7 @@ src/
 - [x] HWP/HWPX import & export
 - [x] Large document pagination
 - [x] PDF export
+- [x] PDF viewer & Markdown conversion
 - [x] Web app manifest
 
 ### v1.0 (Planned)

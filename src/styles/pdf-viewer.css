@@ -1,0 +1,111 @@
+/* ========================================
+   PDF Viewer
+   pdf.js TextLayer 가 요구하는 변수와 규칙만 pdfjs-dist/web/pdf_viewer.css 에서 옮겨 왔다.
+   텍스트 레이어는 투명한 글자를 캔버스 위에 겹쳐 선택·복사·브라우저 찾기를 가능하게 한다.
+   ======================================== */
+.mdview-pdf-page {
+  --scale-factor: 1;
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  position: absolute;
+  overflow: hidden;
+  direction: ltr;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 4px 14px rgb(0 0 0 / 0.06);
+}
+
+.mdview-pdf-page canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mdview-pdf-page .textLayer {
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+}
+
+.mdview-pdf-page .textLayer span,
+.mdview-pdf-page .textLayer br {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.mdview-pdf-page .textLayer > :not(.markedContent),
+.mdview-pdf-page .textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.mdview-pdf-page .textLayer .markedContent {
+  display: contents;
+}
+
+.mdview-pdf-page .textLayer span[role="img"] {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+.mdview-pdf-page .textLayer ::selection {
+  background: rgb(25 103 210 / 0.28);
+  color: transparent;
+}
+
+.mdview-pdf-page .textLayer br::selection {
+  background: transparent;
+}
+
+.mdview-pdf-page .textLayer .endOfContent {
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  display: block;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.mdview-pdf-page .textLayer.selecting .endOfContent {
+  top: 0;
+}
+
+.mdview-pdf-page .textLayer[data-main-rotation="90"] {
+  transform: rotate(90deg) translateY(-100%);
+}
+
+.mdview-pdf-page .textLayer[data-main-rotation="180"] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+
+.mdview-pdf-page .textLayer[data-main-rotation="270"] {
+  transform: rotate(270deg) translateX(-100%);
+}

@@ -32,7 +32,7 @@ const root = load('../src/app/layout.tsx', {
   '@/components/ui/error-boundary': { ErrorBoundary: 'div' },
   '@/components/layout/theme-sync': { ThemeSync: 'span' },
   '@/lib/theme': load('../src/lib/theme.ts'),
-  './globals.css': {}, '@/styles/editor.css': {}, 'katex/dist/katex.min.css': {},
+  './globals.css': {}, '@/styles/editor.css': {}, '@/styles/pdf-viewer.css': {}, 'katex/dist/katex.min.css': {},
 });
 const sitemap = load('../src/app/sitemap.ts', guideImports).default();
 const robots = load('../src/app/robots.ts').default();

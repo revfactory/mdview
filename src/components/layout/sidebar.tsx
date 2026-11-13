@@ -48,6 +48,7 @@ export interface SidebarProps {
   onDuplicateDocument?: (id: string) => void;
   onImport?: () => void;
   onImportMarkdown?: () => void;
+  onImportPdf?: () => void;
   onSettings?: () => void;
 }
 
@@ -217,6 +218,7 @@ export function Sidebar({
   onDuplicateDocument,
   onImport,
   onImportMarkdown,
+  onImportPdf,
   onSettings,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -358,20 +360,27 @@ export function Sidebar({
       </div>
 
       {/* Import Buttons */}
-      <div className="px-3 mb-2 flex gap-2">
+      <div className="px-3 mb-2 flex gap-1.5">
         <button
           onClick={handleImportMarkdown}
-          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
+          className="flex items-center justify-center gap-1.5 flex-[1.4] min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
         >
-          <FileCode className="w-3.5 h-3.5" />
-          <span>Markdown</span>
+          <FileCode className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Markdown</span>
         </button>
         <button
           onClick={onImport}
-          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+          className="flex items-center justify-center gap-1.5 flex-1 min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
         >
-          <Import className="w-3.5 h-3.5" />
-          <span>HWP</span>
+          <Import className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">HWP</span>
+        </button>
+        <button
+          onClick={onImportPdf}
+          className="flex items-center justify-center gap-1.5 flex-1 min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+        >
+          <FileText className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">PDF</span>
         </button>
       </div>
 
