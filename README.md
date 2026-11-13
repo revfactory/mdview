@@ -9,7 +9,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)](https://www.typescriptlang.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6)](https://www.typescriptlang.org)
 
 **한국어** | [English](README.en.md)
 
@@ -42,7 +42,7 @@
 2. **⚡ 대용량 처리** — Web Worker 파싱과 페이지네이션으로 긴 문서를 나눠 처리합니다. 처리 시간과 서식 보존은 파일 구조와 기기에 따라 다릅니다.
 3. **🧱 블록 기반 편집** — Notion 스타일의 슬래시 명령어, 드래그 앤 드롭으로 직관적으로 편집합니다.
 
-> ⚠️ 현재 0.1.x 사전 릴리즈 단계입니다. minor 업데이트에 breaking change가 포함될 수 있습니다.
+> ⚠️ 현재 0.x 사전 릴리즈 단계입니다. minor 업데이트에 breaking change가 포함될 수 있습니다.
 
 ## ✨ 주요 기능
 
@@ -93,7 +93,7 @@ npm run start
 | 영역 | 기술 |
 |------|------|
 | **Framework** | Next.js 16 + React 19 |
-| **언어** | TypeScript 5 (strict) |
+| **언어** | TypeScript 6 (strict) |
 | **에디터 코어** | TipTap 3 (ProseMirror 기반) |
 | **스타일** | Tailwind CSS 4 |
 | **로컬 데이터베이스** | Dexie.js 4 (IndexedDB) |
@@ -139,7 +139,7 @@ src/
 - [ ] 플러그인 시스템
 - [ ] 프레젠테이션 모드 (Marp 기반)
 
-상세 내용은 [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md) 의 `<future_considerations>` 참조.
+초기 구상은 [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md)의 `<future_considerations>`를 참고하세요. 이 설계안에는 미구현 기능과 성능 목표가 포함되어 있으며, 현재 지원 범위는 이 README와 [사용 가이드](https://mdview.kr/guides)를 기준으로 확인하세요.
 
 ## 🤝 기여하기
 

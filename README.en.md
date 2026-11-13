@@ -9,7 +9,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)](https://www.typescriptlang.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6)](https://www.typescriptlang.org)
 
 [한국어](README.md) | **English**
 
@@ -44,7 +44,7 @@ Three core differentiators:
 2. **⚡ Large Document Performance** — Web Worker parsing and pagination process long documents in chunks. Processing time and formatting fidelity depend on the file and device.
 3. **🧱 Block-Based Editing** — Notion-style slash commands and drag-and-drop block reordering.
 
-> ⚠️ Currently in 0.1.x pre-release. Minor version bumps may include breaking changes until 1.0.
+> ⚠️ Currently in 0.x pre-release. Minor version bumps may include breaking changes until 1.0.
 
 ## ✨ Features
 
@@ -95,7 +95,7 @@ npm run start
 | Area | Stack |
 |------|-------|
 | **Framework** | Next.js 16 + React 19 |
-| **Language** | TypeScript 5 (strict) |
+| **Language** | TypeScript 6 (strict) |
 | **Editor Core** | TipTap 3 (ProseMirror-based) |
 | **Styling** | Tailwind CSS 4 |
 | **Local DB** | Dexie.js 4 (IndexedDB) |
@@ -141,7 +141,7 @@ src/
 - [ ] Plugin system
 - [ ] Presentation mode (Marp-based)
 
-See [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md) `<future_considerations>` for details.
+See `<future_considerations>` in [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md) for the initial ideas. That design document includes unimplemented features and performance targets. Use this README and the [usage guides](https://mdview.kr/guides) for currently supported behavior.
 
 ## 🤝 Contributing
 
