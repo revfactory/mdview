@@ -1,3 +1,5 @@
+import type { EntryAction, EntrySource } from './entry-actions';
+
 type GtagEvent = {
   action: string;
   category: string;
@@ -6,8 +8,12 @@ type GtagEvent = {
 };
 
 function gtag(...args: unknown[]) {
-  if (typeof window !== 'undefined' && (window as any).gtag) {
-    (window as any).gtag(...args);
+  if (typeof window === 'undefined') return;
+  const analyticsWindow = window as Window & { gtag?: (...values: unknown[]) => void };
+  try {
+    if (typeof analyticsWindow.gtag === 'function') analyticsWindow.gtag(...args);
+  } catch {
+    // Optional tracking must never interrupt a successful product operation.
   }
 }
 
@@ -21,6 +27,10 @@ export function trackEvent({ action, category, label, value }: GtagEvent) {
 
 // Document
 export const analytics = {
+  // Fixed values only. Never include document names, contents, URLs, or raw search parameters.
+  startAction: (action: EntryAction, source: EntrySource) =>
+    gtag('event', 'editor_start', { entry_action: action, entry_source: source }),
+
   documentCreate: () =>
     trackEvent({ action: 'create', category: 'document' }),
 
