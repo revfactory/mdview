@@ -42,6 +42,56 @@ export async function createDocument(partial?: Partial<Document>): Promise<strin
   return id;
 }
 
+export interface PdfDocumentInput {
+  title: string;
+  file: Blob;
+  fileName: string;
+  pageCount: number;
+  excerpt?: string;
+  folderId?: string | null;
+  tags?: string[];
+}
+
+/** PDF 원본과 문서 메타데이터를 한 트랜잭션으로 저장한다. 어느 한쪽만 남는 일이 없게 한다. */
+export async function createPdfDocument(input: PdfDocumentInput): Promise<string> {
+  const now = new Date();
+  const id = nanoid();
+  const doc: Document = {
+    id,
+    kind: 'pdf',
+    pageCount: input.pageCount,
+    fileSize: input.file.size,
+    title: input.title || '제목 없음',
+    content: '',
+    htmlContent: '',
+    excerpt: input.excerpt ?? '',
+    folderId: input.folderId ?? null,
+    tags: input.tags ?? [],
+    isFavorite: false,
+    isPinned: false,
+    wordCount: 0,
+    charCount: 0,
+    readingTime: 0,
+    sortOrder: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+    lastOpenedAt: now,
+  };
+
+  await db.transaction('rw', db.documents, db.files, async () => {
+    await db.documents.add(doc);
+    await db.files.add({
+      id,
+      name: input.fileName,
+      mimeType: 'application/pdf',
+      size: input.file.size,
+      blob: input.file,
+      createdAt: now,
+    });
+  });
+  return id;
+}
+
 export async function getDocument(id: string): Promise<Document | undefined> {
   return db.documents.get(id);
 }
@@ -54,7 +104,10 @@ export async function updateDocument(id: string, changes: Partial<Document>): Pr
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-  await db.documents.delete(id);
+  await db.transaction('rw', db.documents, db.files, async () => {
+    await db.documents.delete(id);
+    await db.files.delete(id);
+  });
 }
 
 export async function getDocumentsByFolder(folderId: string | null): Promise<Document[]> {

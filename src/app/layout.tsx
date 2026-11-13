@@ -6,6 +6,7 @@ import { ThemeSync } from '@/components/layout/theme-sync';
 import { THEME_BOOTSTRAP_SCRIPT } from '@/lib/theme';
 import './globals.css';
 import '@/styles/editor.css';
+import '@/styles/pdf-viewer.css';
 import 'katex/dist/katex.min.css';
 
 const GA_ID = 'G-DC9P5XSZXR';

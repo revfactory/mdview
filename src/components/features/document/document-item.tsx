@@ -4,11 +4,13 @@ import React, { useCallback, useMemo } from 'react';
 import { Pin, Star, Copy, Trash2, MoreHorizontal } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import type { DocumentKind } from '@/types';
 
 export interface DocumentItemProps {
   id: string;
   title: string;
   excerpt: string;
+  kind?: DocumentKind;
   updatedAt: Date;
   isFavorite: boolean;
   isActive: boolean;
@@ -22,6 +24,7 @@ export function DocumentItem({
   id,
   title,
   excerpt,
+  kind,
   updatedAt,
   isFavorite,
   isActive,
@@ -98,6 +101,14 @@ export function DocumentItem({
         <div className="flex items-center gap-1">
           {isFavorite && (
             <Pin className="w-3 h-3 shrink-0 text-[var(--color-accent)] -rotate-45" fill="currentColor" />
+          )}
+          {kind === 'pdf' && (
+            <span
+              className="shrink-0 rounded px-1 py-px text-[9px] font-semibold leading-none tracking-wide bg-[var(--color-danger)]/10 text-[var(--color-danger)]"
+              aria-label="PDF 문서"
+            >
+              PDF
+            </span>
           )}
           <span
             className={`flex-1 truncate text-[13px] font-medium ${

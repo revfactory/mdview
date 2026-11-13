@@ -8,6 +8,7 @@ import { useEditorStore } from '@/stores/editor-store';
 import { awaitDocumentSaves } from '@/lib/document-save-queue';
 import { useAutosave } from '@/hooks/use-autosave';
 import { markdownToHtml, markdownToHtmlAsync } from '@/lib/markdown';
+import type { DocumentKind } from '@/types';
 
 // Threshold: documents larger than this bypass WYSIWYG (TipTap can't handle it)
 const LARGE_DOC_THRESHOLD = 300_000; // 300KB markdown
@@ -20,6 +21,7 @@ export function useEditorManager(documentId: string | null) {
   const [isLargeDocument, setIsLargeDocument] = useState(false);
   const [isChunked, setIsChunked] = useState(false);
   const [chunkCount, setChunkCount] = useState(0);
+  const [documentKind, setDocumentKind] = useState<DocumentKind>('markdown');
   const { actions } = useEditorStore();
   const [sourcePending, setSourcePending] = useState(false);
   const sourceRevision = useRef(0);
@@ -45,6 +47,7 @@ export function useEditorManager(documentId: string | null) {
       setHtmlContent('');
       setIsChunked(false);
       setChunkCount(0);
+      setDocumentKind('markdown');
       return;
     }
 
@@ -68,6 +71,22 @@ export function useEditorManager(documentId: string | null) {
         if (cancelled) return;
         const doc = await getDocument(documentId);
         if (cancelled) return;
+
+        if (doc?.kind === 'pdf') {
+          // PDF는 원본을 뷰어가 직접 읽는다. 편집기·자동저장이 마크다운으로 덮어쓰지 않게 내용은 비워 둔다.
+          setContent('');
+          setHtmlContent('');
+          setIsChunked(false);
+          setChunkCount(0);
+          setIsLargeDocument(false);
+          setDocumentKind('pdf');
+          actions.setActiveDocument(documentId);
+          actions.setSaveStatus('saved');
+          loadedDocumentId.current = documentId;
+          setLoadedId(documentId);
+          return;
+        }
+        setDocumentKind('markdown');
 
         if (doc) {
           const raw = doc.content || '';
@@ -176,7 +195,7 @@ export function useEditorManager(documentId: string | null) {
 
   // Source text is authoritative: persist before any asynchronous preview work.
   const onSourceChange = useCallback((markdown: string) => {
-    if (!documentId || currentDocument.current !== documentId || loadedDocumentId.current !== documentId || isChunked) return;
+    if (!documentId || currentDocument.current !== documentId || loadedDocumentId.current !== documentId || isChunked || documentKind === 'pdf') return;
     const revision = ++sourceRevision.current;
     setContent(markdown);
     setSourcePending(true);
@@ -198,15 +217,15 @@ export function useEditorManager(documentId: string | null) {
         useToastStore.getState().actions.addToast('미리보기 변환에 실패했습니다. 저장 상태를 확인하고 소스 보기에서 계속 편집하세요.', 'error');
       });
     });
-  }, [documentId, isChunked, save]);
+  }, [documentId, isChunked, documentKind, save]);
 
   const onChange = useCallback((markdown: string, html: string) => {
-    if (!documentId || currentDocument.current !== documentId || loadedDocumentId.current !== documentId || isChunked || sourcePending) return;
+    if (!documentId || currentDocument.current !== documentId || loadedDocumentId.current !== documentId || isChunked || sourcePending || documentKind === 'pdf') return;
     sourceRevision.current++;
     setContent(markdown);
     setHtmlContent(html);
     void save(markdown, html);
-  }, [documentId, isChunked, sourcePending, save]);
+  }, [documentId, isChunked, sourcePending, documentKind, save]);
 
   return {
     content,
@@ -215,10 +234,12 @@ export function useEditorManager(documentId: string | null) {
     isLargeDocument,
     isChunked,
     chunkCount,
+    // 문서를 바꾼 직후 한 번의 렌더에서는 이전 문서의 종류가 남아 있으므로, 불러오기를 마친 뒤에만 알려 준다.
+    documentKind: loadedId === documentId ? documentKind : null,
     onChange,
     onSourceChange,
     sourcePending,
-    canSave: loadedId === documentId && !isLoading,
-    saveCurrent: () => loadedDocumentId.current === documentId ? save(content, sourcePending ? '' : htmlContent) : Promise.resolve(),
+    canSave: loadedId === documentId && !isLoading && documentKind !== 'pdf',
+    saveCurrent: () => loadedDocumentId.current === documentId && documentKind !== 'pdf' ? save(content, sourcePending ? '' : htmlContent) : Promise.resolve(),
   };
 }

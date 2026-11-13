@@ -42,7 +42,7 @@ interface ToolbarButtonProps {
   disabled?: boolean;
 }
 
-function ToolbarButton({ icon: Icon, tooltip, active, onClick, disabled }: ToolbarButtonProps) {
+export function ToolbarButton({ icon: Icon, tooltip, active, onClick, disabled }: ToolbarButtonProps) {
   return (
     <Tooltip content={tooltip} side="bottom">
       <button
@@ -68,7 +68,7 @@ function ToolbarButton({ icon: Icon, tooltip, active, onClick, disabled }: Toolb
   );
 }
 
-function Divider() {
+export function Divider() {
   return <div className="w-px h-4 bg-[var(--color-border)] mx-1.5" />;
 }
 

@@ -14,6 +14,8 @@ import { DocumentTitle } from '@/components/features/editor/document-title';
 import { TocPanel } from '@/components/features/editor/toc-panel';
 import { HwpImport } from '@/components/features/import-export/hwp-import';
 import { MarkdownImport } from '@/components/features/import-export/markdown-import';
+import { PdfImport, type PdfImportResult } from '@/components/features/import-export/pdf-import';
+import { PdfViewer } from '@/components/features/pdf/pdf-viewer';
 import { HwpExport } from '@/components/features/import-export/hwp-export';
 import { QuickOpen } from '@/components/features/quick-open/quick-open';
 import { ToastContainer } from '@/components/ui/toast';
@@ -28,6 +30,7 @@ import { SplitView } from '@/components/features/editor/split-view';
 import { useRecentDocuments, useDocument } from '@/hooks/use-documents';
 import {
   createDocument,
+  createPdfDocument,
   updateDocument,
   deleteDocument,
   updateContent,
@@ -35,6 +38,7 @@ import {
 import type { Editor as TipTapEditor } from '@tiptap/react';
 import { analytics } from '@/lib/analytics';
 import { createSampleDocument } from '@/lib/sample-document';
+import { createImportedDocument } from '@/lib/import-document';
 
 export default function Home() {
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
@@ -45,6 +49,7 @@ export default function Home() {
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
   const [mdImportOpen, setMdImportOpen] = useState(false);
+  const [pdfImportOpen, setPdfImportOpen] = useState(false);
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
   const [preparingExport, setPreparingExport] = useState(false);
   const preparingExportRef = useRef(false);
@@ -60,8 +65,9 @@ export default function Home() {
   }, [activeDocumentId, recentDocs, actions]);
 
 
-  const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, onChange, onSourceChange, sourcePending, saveCurrent, canSave } =
+  const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, documentKind, onChange, onSourceChange, sourcePending, saveCurrent, canSave } =
     useEditorManager(activeDocumentId);
+  const isPdf = !!activeDocumentId && !isLoading && documentKind === 'pdf';
 
   // Auto-switch to source view for large non-chunked documents
   useEffect(() => {
@@ -103,6 +109,7 @@ export default function Home() {
     analytics.startAction(action, source);
     if (action === 'import-hwp') setHwpImportOpen(true);
     if (action === 'import-markdown') setMdImportOpen(true);
+    if (action === 'import-pdf') setPdfImportOpen(true);
     if (action === 'new' || action === 'sample') {
       useUIStore.getState().actions.setViewMode('wysiwyg');
       void (action === 'new' ? handleNewDocument() : handleSampleDocument());
@@ -176,7 +183,22 @@ export default function Home() {
       try {
         const { db } = await import('@/db');
         const doc = await db.documents.get(id);
-        if (doc) {
+        if (doc?.kind === 'pdf') {
+          const { getStoredFile } = await import('@/db/files');
+          const file = await getStoredFile(id);
+          if (!file) throw new Error('원본 PDF 파일이 없습니다.');
+          const newId = await createPdfDocument({
+            title: `${doc.title} (복사본)`,
+            file: file.blob,
+            fileName: file.name,
+            pageCount: doc.pageCount ?? 0,
+            excerpt: doc.excerpt,
+            folderId: doc.folderId,
+            tags: [...doc.tags],
+          });
+          actions.setActiveDocument(newId);
+          analytics.documentDuplicate();
+        } else if (doc) {
           const newId = await createDocument({
             title: `${doc.title} (복사본)`,
             content: doc.content,
@@ -294,90 +316,68 @@ export default function Home() {
     setTiptapEditor(editor ?? null);
   }, []);
 
-  const handleImportComplete = useCallback(
-    async (importedContent: string, title: string) => {
-      const CHUNK_THRESHOLD = 300_000; // 300KB
-
-      if (importedContent.length > CHUNK_THRESHOLD) {
-        // Large document: chunk and save
-        const { chunkDocument } = await import('@/lib/chunk-document');
-        const { saveChunks } = await import('@/db/chunks');
-
-        const chunks = chunkDocument(importedContent);
-        const id = await createDocument({
-          title,
-          content: importedContent,
-          isChunked: true,
-          chunkCount: chunks.length,
-        });
-        await saveChunks(id, chunks);
-        actions.setActiveDocument(id);
-
+  const openImportedDocument = useCallback(
+    async (importedContent: string, title: string, folderId?: string | null) => {
+      const { id, chunkCount: importedChunks } = await createImportedDocument(importedContent, title, { folderId });
+      actions.setActiveDocument(id);
+      if (importedChunks !== null) {
         import('@/stores/toast-store').then(({ useToastStore }) => {
           useToastStore.getState().actions.addToast(
-            `대용량 문서가 ${chunks.length}개 페이지로 분할되었습니다.`,
+            `대용량 문서가 ${importedChunks}개 페이지로 분할되었습니다.`,
             'success'
           );
         });
-      } else {
-        // Normal document
-        let htmlContent = '';
-        try {
-          const { markdownToHtmlAsync } = await import('@/lib/markdown');
-          htmlContent = await markdownToHtmlAsync(importedContent);
-        } catch {
-          // Fallback: store without htmlContent
-        }
-        const id = await createDocument({ title, content: importedContent, htmlContent });
-        actions.setActiveDocument(id);
       }
-
-      setHwpImportOpen(false);
-      analytics.importHwp();
+      return importedChunks;
     },
     [actions]
   );
 
+  const handleImportComplete = useCallback(
+    async (importedContent: string, title: string) => {
+      await openImportedDocument(importedContent, title);
+      setHwpImportOpen(false);
+      analytics.importHwp();
+    },
+    [openImportedDocument]
+  );
+
   const handleMdImportComplete = useCallback(
     async (importedContent: string, title: string) => {
-      const CHUNK_THRESHOLD = 300_000;
-
-      if (importedContent.length > CHUNK_THRESHOLD) {
-        const { chunkDocument } = await import('@/lib/chunk-document');
-        const { saveChunks } = await import('@/db/chunks');
-
-        const chunks = chunkDocument(importedContent);
-        const id = await createDocument({
-          title,
-          content: importedContent,
-          isChunked: true,
-          chunkCount: chunks.length,
-        });
-        await saveChunks(id, chunks);
-        actions.setActiveDocument(id);
-
-        import('@/stores/toast-store').then(({ useToastStore }) => {
-          useToastStore.getState().actions.addToast(
-            `대용량 문서가 ${chunks.length}개 페이지로 분할되었습니다.`,
-            'success'
-          );
-        });
-      } else {
-        let htmlContent = '';
-        try {
-          const { markdownToHtmlAsync } = await import('@/lib/markdown');
-          htmlContent = await markdownToHtmlAsync(importedContent);
-        } catch {
-          // Fallback
-        }
-        const id = await createDocument({ title, content: importedContent, htmlContent });
-        actions.setActiveDocument(id);
-      }
-
+      await openImportedDocument(importedContent, title);
       setMdImportOpen(false);
       analytics.importMarkdown();
     },
+    [openImportedDocument]
+  );
+
+  const handlePdfImportComplete = useCallback(
+    async ({ file, title, pageCount, excerpt }: PdfImportResult) => {
+      const id = await createPdfDocument({ title, file, fileName: file.name, pageCount, excerpt });
+      actions.setActiveDocument(id);
+      analytics.importPdf();
+      if (useUIStore.getState().isMobile) {
+        useUIStore.getState().actions.closeSidebar();
+      }
+    },
     [actions]
+  );
+
+  const activePdfTitle = activeDocument?.title ?? '';
+  const activePdfFolderId = activeDocument?.folderId ?? null;
+  const handlePdfConvert = useCallback(
+    async (markdown: string) => {
+      const importedChunks = await openImportedDocument(markdown, activePdfTitle || '제목 없음', activePdfFolderId);
+      analytics.convertPdf();
+      if (importedChunks === null) {
+        const { useToastStore } = await import('@/stores/toast-store');
+        useToastStore.getState().actions.addToast(
+          '마크다운 문서를 만들었습니다. 표와 여러 단으로 된 부분은 원본과 비교해 확인해 주세요.',
+          'success'
+        );
+      }
+    },
+    [openImportedDocument, activePdfTitle, activePdfFolderId]
   );
 
   useKeyboardShortcuts({
@@ -405,133 +405,143 @@ export default function Home() {
           onDuplicateDocument={handleDuplicateDocument}
           onImport={() => setHwpImportOpen(true)}
           onImportMarkdown={() => setMdImportOpen(true)}
+          onImportPdf={() => setPdfImportOpen(true)}
         />
       }
       focusMode={focusMode}
     >
       <div className="flex h-full overflow-hidden">
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          {/* Toolbar - allow mobile rows to size naturally outside focus mode. */}
-          <div
-            className="shrink-0 transition-opacity duration-300 ease-in-out overflow-hidden"
-            inert={focusMode}
-            aria-hidden={focusMode}
-            style={{
-              maxHeight: focusMode ? 0 : 'none',
-              opacity: focusMode ? 0 : 1,
-            }}
-          >
-            <Toolbar
-              editor={tiptapEditor}
-              onExport={handleOpenExport}
-              onToggleToc={() => useUIStore.getState().actions.toggleToc()}
-              documentTitle={activeDocument?.title}
-              documentId={activeDocumentId}
-              isChunked={isChunked}
-              markdown={isChunked ? mergedSourceContent : content}
-              disabled={!activeDocumentId || isLoading || sourcePending || (isChunked && viewMode === 'source' && mergedSourceLoading) || preparingExport}
-            />
-          </div>
-
-          {sourcePending && !isLoading && (
-            <div role="status" className="px-4 py-2 text-sm text-[var(--color-text-muted)]">
-              미리보기를 갱신하는 동안 시각 편집이 잠겨 있습니다. 소스 보기에서 원문을 계속 편집할 수 있습니다.
+        {isPdf && activeDocumentId ? (
+          <PdfViewer
+            key={activeDocumentId}
+            documentId={activeDocumentId}
+            title={activePdfTitle}
+            onConvert={handlePdfConvert}
+          />
+        ) : (
+          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+            {/* Toolbar - allow mobile rows to size naturally outside focus mode. */}
+            <div
+              className="shrink-0 transition-opacity duration-300 ease-in-out overflow-hidden"
+              inert={focusMode}
+              aria-hidden={focusMode}
+              style={{
+                maxHeight: focusMode ? 0 : 'none',
+                opacity: focusMode ? 0 : 1,
+              }}
+            >
+              <Toolbar
+                editor={tiptapEditor}
+                onExport={handleOpenExport}
+                onToggleToc={() => useUIStore.getState().actions.toggleToc()}
+                documentTitle={activeDocument?.title}
+                documentId={activeDocumentId}
+                isChunked={isChunked}
+                markdown={isChunked ? mergedSourceContent : content}
+                disabled={!activeDocumentId || isLoading || sourcePending || (isChunked && viewMode === 'source' && mergedSourceLoading) || preparingExport}
+              />
             </div>
-          )}
-          <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-            {activeDocumentId ? (
-              isLoading ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3">
-                  <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
-                  <div className="text-sm text-[var(--color-text-muted)]">
-                    문서 로딩 중...
+
+            {sourcePending && !isLoading && (
+              <div role="status" className="px-4 py-2 text-sm text-[var(--color-text-muted)]">
+                미리보기를 갱신하는 동안 시각 편집이 잠겨 있습니다. 소스 보기에서 원문을 계속 편집할 수 있습니다.
+              </div>
+            )}
+            <div className={`flex-1 min-h-0 ${viewMode === 'split' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+              {activeDocumentId ? (
+                isLoading ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-3">
+                    <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+                    <div className="text-sm text-[var(--color-text-muted)]">
+                      문서 로딩 중...
+                    </div>
                   </div>
-                </div>
-              ) : viewMode === 'wysiwyg' ? (
-                isChunked ? (
-                  <PaginatedEditor
-                    documentId={activeDocumentId}
-                    totalChunks={chunkCount}
-                    onEditorReady={handleEditorReady}
-                  />
-                ) : (
-                  <div style={{ margin: '0 auto', padding: isMobile ? '20px 16px 64px 16px' : '40px 40px 96px 40px' }}>
-                    <DocumentTitle documentId={activeDocumentId} />
-                    <Editor
-                      key={activeDocumentId}
-                      sourceContent={content}
-                      editable={!sourcePending}
-                      content={htmlContent}
-                      onChange={onChange}
+                ) : viewMode === 'wysiwyg' ? (
+                  isChunked ? (
+                    <PaginatedEditor
+                      documentId={activeDocumentId}
+                      totalChunks={chunkCount}
                       onEditorReady={handleEditorReady}
                     />
-                  </div>
-                )
-              ) : viewMode === 'source' ? (
-                <div className="h-full flex flex-col">
-                  <div className={`w-full mx-auto ${isMobile ? 'px-4 pt-4' : 'px-[60px] pt-6'} shrink-0`}>
-                    <DocumentTitle documentId={activeDocumentId} />
-                  </div>
-                  {isChunked && mergedSourceLoading ? (
-                    <div className="flex flex-col items-center justify-center flex-1 gap-3">
-                      <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
-                      <div className="text-sm text-[var(--color-text-muted)]">청크 병합 중...</div>
-                    </div>
                   ) : (
-                    <div className="flex-1 min-h-0 w-full mx-auto">
-                      <SourceEditor
-                        onSourceChange={isChunked ? undefined : onSourceChange}
-                        content={isChunked ? mergedSourceContent : content}
-                        onChange={isChunked ? handleChunkedSourceChange : onChange}
-                      />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                isChunked ? (
-                  <PaginatedSplitView
-                    documentId={activeDocumentId}
-                    totalChunks={chunkCount}
-                    onEditorReady={handleEditorReady}
-                  />
-                ) : (
-                  <div className="h-full flex flex-col">
-                    <div className="px-4 pt-4 shrink-0">
+                    <div style={{ margin: '0 auto', padding: isMobile ? '20px 16px 64px 16px' : '40px 40px 96px 40px' }}>
                       <DocumentTitle documentId={activeDocumentId} />
-                    </div>
-                    <div className="flex-1 min-h-0">
-                      <SplitView
+                      <Editor
                         key={activeDocumentId}
-                        content={content}
-                        htmlContent={htmlContent}
-                        onSourceChange={onSourceChange}
-                        previewPending={sourcePending}
+                        sourceContent={content}
+                        editable={!sourcePending}
+                        content={htmlContent}
                         onChange={onChange}
                         onEditorReady={handleEditorReady}
                       />
                     </div>
+                  )
+                ) : viewMode === 'source' ? (
+                  <div className="h-full flex flex-col">
+                    <div className={`w-full mx-auto ${isMobile ? 'px-4 pt-4' : 'px-[60px] pt-6'} shrink-0`}>
+                      <DocumentTitle documentId={activeDocumentId} />
+                    </div>
+                    {isChunked && mergedSourceLoading ? (
+                      <div className="flex flex-col items-center justify-center flex-1 gap-3">
+                        <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+                        <div className="text-sm text-[var(--color-text-muted)]">청크 병합 중...</div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 min-h-0 w-full mx-auto">
+                        <SourceEditor
+                          onSourceChange={isChunked ? undefined : onSourceChange}
+                          content={isChunked ? mergedSourceContent : content}
+                          onChange={isChunked ? handleChunkedSourceChange : onChange}
+                        />
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  isChunked ? (
+                    <PaginatedSplitView
+                      documentId={activeDocumentId}
+                      totalChunks={chunkCount}
+                      onEditorReady={handleEditorReady}
+                    />
+                  ) : (
+                    <div className="h-full flex flex-col">
+                      <div className="px-4 pt-4 shrink-0">
+                        <DocumentTitle documentId={activeDocumentId} />
+                      </div>
+                      <div className="flex-1 min-h-0">
+                        <SplitView
+                          key={activeDocumentId}
+                          content={content}
+                          htmlContent={htmlContent}
+                          onSourceChange={onSourceChange}
+                          previewPending={sourcePending}
+                          onChange={onChange}
+                          onEditorReady={handleEditorReady}
+                        />
+                      </div>
+                    </div>
+                  )
                 )
-              )
-            ) : (
-              <WelcomePanel onStart={(action) => handleStart(action, 'home')} />
-            )}
-          </div>
+              ) : (
+                <WelcomePanel onStart={(action) => handleStart(action, 'home')} />
+              )}
+            </div>
 
-          {/* StatusBar - hidden in focus mode */}
-          <div
-            className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
-            style={{
-              maxHeight: focusMode ? 0 : 32,
-              opacity: focusMode ? 0 : 1,
-            }}
-          >
-            <StatusBar sourceContent={viewMode === 'source' ? (isChunked ? mergedSourceContent : content) : viewMode === 'split' && !isChunked ? content : undefined} />
+            {/* StatusBar - hidden in focus mode */}
+            <div
+              className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+              style={{
+                maxHeight: focusMode ? 0 : 32,
+                opacity: focusMode ? 0 : 1,
+              }}
+            >
+              <StatusBar sourceContent={viewMode === 'source' ? (isChunked ? mergedSourceContent : content) : viewMode === 'split' && !isChunked ? content : undefined} />
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* TOC Panel - hidden in focus mode and mobile */}
-        {!focusMode && !isMobile && <TocPanel editor={tiptapEditor} />}
+        {/* TOC Panel - hidden in focus mode, mobile and PDF documents */}
+        {!focusMode && !isMobile && !isPdf && <TocPanel editor={tiptapEditor} />}
       </div>
 
       <HwpImport
@@ -544,6 +554,12 @@ export default function Home() {
         open={mdImportOpen}
         onClose={() => setMdImportOpen(false)}
         onImportComplete={handleMdImportComplete}
+      />
+
+      <PdfImport
+        open={pdfImportOpen}
+        onClose={() => setPdfImportOpen(false)}
+        onImportComplete={handlePdfImportComplete}
       />
 
       <HwpExport
