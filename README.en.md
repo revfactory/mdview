@@ -44,7 +44,7 @@ Three core differentiators:
 2. **⚡ Large Document Performance** — Web Worker parsing and pagination process long documents in chunks. Processing time and formatting fidelity depend on the file and device.
 3. **🧱 Block-Based Editing** — Notion-style slash commands and drag-and-drop block reordering.
 
-> ⚠️ Currently in 0.1.x pre-release. Minor version bumps may include breaking changes until 1.0.
+> ⚠️ Currently in 0.x pre-release. Minor version bumps may include breaking changes until 1.0.
 
 ## ✨ Features
 
@@ -141,7 +141,7 @@ src/
 - [ ] Plugin system
 - [ ] Presentation mode (Marp-based)
 
-See [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md) `<future_considerations>` for details.
+See `<future_considerations>` in [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md) for the initial ideas. That design document includes unimplemented features and performance targets. Use this README and the [usage guides](https://mdview.kr/guides) for currently supported behavior.
 
 ## 🤝 Contributing
 
