@@ -108,6 +108,7 @@ test('guide renders all eight examples verbatim as labelled keyboard-reachable c
   for (const [index, node] of examples.entries()) {
     assert.equal(node.textContent, guide.sections[index].code);
     assert.equal(node.getAttribute('tabindex'), '0');
+    assert.equal(node.getAttribute('role'), 'region');
     assert.equal(node.getAttribute('aria-label'), guide.sections[index].title);
     assert.equal(node.querySelectorAll('code').length, 1);
     assert.equal(node.querySelectorAll('a,table,input,script').length, 0);
@@ -119,6 +120,7 @@ test('getting-started guide links to the reference and retains a descriptive lab
   const doc = domino.createWindow(await renderGuide('markdown-editor')).document;
   assert.ok(doc.querySelector('a[href="/guides/markdown-cheatsheet"]'));
   assert.equal(doc.querySelector('pre').getAttribute('aria-label'), '복사해서 써 보는 회의록 예제');
+  assert.equal(doc.querySelector('pre').getAttribute('role'), 'region');
 });
 
 test('source newline behavior matches the documented MDView-specific caveat', () => {
@@ -129,4 +131,12 @@ test('source newline behavior matches the documented MDView-specific caveat', ()
   assert.equal(doc.querySelectorAll('p').length, 1);
   assert.equal(doc.querySelectorAll('br').length, 1);
   assert.ok(guide.sections[0].paragraphs.some(value => value.includes('다른 마크다운 도구')));
+});
+
+
+test('checklist guidance discloses the current editor conversion limit and source backup path', () => {
+  const notes = guide.sections.find(section => section.title === '목록과 체크리스트').paragraphs.join(' ');
+  for (const text of ['소스 → WYSIWYG', '일반 목록', '체크 상태', '소스 보기를 유지', '원문 .md']) assert.ok(notes.includes(text));
+  assert.ok(guide.steps.some(step => step.text.includes('체크리스트는 아래의 변환 제한부터')));
+  assert.ok(guide.steps.some(step => step.text.includes('넓은 화면의 분할 보기')));
 });
