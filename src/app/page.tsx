@@ -33,6 +33,7 @@ import {
   createPdfDocument,
   updateDocument,
   deleteDocument,
+  duplicateDocument,
   updateContent,
 } from '@/db/documents';
 import type { Editor as TipTapEditor } from '@tiptap/react';
@@ -178,34 +179,9 @@ export default function Home() {
   const handleDuplicateDocument = useCallback(
     async (id: string) => {
       try {
-        const { db } = await import('@/db');
-        const doc = await db.documents.get(id);
-        if (doc?.kind === 'pdf') {
-          const { getStoredFile } = await import('@/db/files');
-          const file = await getStoredFile(id);
-          if (!file) throw new Error('원본 PDF 파일이 없습니다.');
-          const newId = await createPdfDocument({
-            title: `${doc.title} (복사본)`,
-            file: file.blob,
-            fileName: file.name,
-            pageCount: doc.pageCount ?? 0,
-            excerpt: doc.excerpt,
-            folderId: doc.folderId,
-            tags: [...doc.tags],
-          });
-          actions.setActiveDocument(newId);
-          analytics.documentDuplicate();
-        } else if (doc) {
-          const newId = await createDocument({
-            title: `${doc.title} (복사본)`,
-            content: doc.content,
-            htmlContent: doc.htmlContent,
-            folderId: doc.folderId,
-            tags: [...doc.tags],
-          });
-          actions.setActiveDocument(newId);
-          analytics.documentDuplicate();
-        }
+        const newId = await duplicateDocument(id);
+        actions.setActiveDocument(newId);
+        analytics.documentDuplicate();
       } catch (error) {
         console.error('Failed to duplicate document:', error);
       }
