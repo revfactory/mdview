@@ -1,5 +1,7 @@
 'use client';
 
+import { getDirtyEditorSnapshot } from '@/lib/editor-dirty-snapshot';
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Sidebar } from '@/components/layout/sidebar';
@@ -25,7 +27,8 @@ import { useEditorManager } from '@/hooks/use-editor';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { SourceEditor } from '@/components/features/editor/source-editor';
 import { htmlToMarkdown as savedHtmlToMarkdown } from '@/lib/markdown';
-import { enqueueDocumentSave } from '@/lib/document-save-queue';
+import { copyDocumentSnapshot } from '@/lib/copy-document-snapshot';
+import { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves } from '@/lib/document-save-queue';
 import { SplitView } from '@/components/features/editor/split-view';
 import { useRecentDocuments, useDocument } from '@/hooks/use-documents';
 import {
@@ -47,6 +50,9 @@ export default function Home() {
   const viewMode = useUIStore((s) => s.viewMode);
   const focusMode = useUIStore((s) => s.focusMode);
   const isMobile = useUIStore((s) => s.isMobile);
+  const pageFlushRef = useRef<(() => Promise<void>) | null>(null);
+  const copyingRef = useRef(false);
+  const handleFlushReady = useCallback((flush: (() => Promise<void>) | null) => { pageFlushRef.current = flush; }, []);
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
   const [mdImportOpen, setMdImportOpen] = useState(false);
@@ -178,15 +184,34 @@ export default function Home() {
 
   const handleDuplicateDocument = useCallback(
     async (id: string) => {
+      if (copyingRef.current) return;
+      copyingRef.current = true;
       try {
-        const newId = await duplicateDocument(id);
-        actions.setActiveDocument(newId);
+        await copyDocumentSnapshot(id, async () => {
+          if (id === activeDocumentId && documentKind !== 'pdf') {
+            if (isLoading || !canSave) throw new Error('문서를 불러오는 중입니다.');
+            if (isChunked && viewMode !== 'source') {
+              if (!pageFlushRef.current) throw new Error('페이지를 불러오는 중입니다.');
+              await pageFlushRef.current();
+            } else if (!isChunked && viewMode !== 'source' && !sourcePending) {
+              if (!tiptapEditor) throw new Error('편집기를 불러오는 중입니다.');
+              const html = getDirtyEditorSnapshot(tiptapEditor);
+              if (html !== null) await enqueueDocumentSave(id, savedHtmlToMarkdown(html), html);
+            }
+          }
+        }, awaitDocumentSaves, duplicateDocument);
+        // Stay on the original: edits made while the snapshot was saving must
+        // not be unmounted/cancelled by an automatic document switch.
         analytics.documentDuplicate();
+        const { useToastStore } = await import('@/stores/toast-store');
+        useToastStore.getState().actions.addToast('복사본을 만들었습니다. 문서 목록에서 확인하세요.', 'success');
       } catch (error) {
         console.error('Failed to duplicate document:', error);
-      }
+        const { useToastStore } = await import('@/stores/toast-store');
+        useToastStore.getState().actions.addToast('문서를 복사하지 못했습니다. 원본을 유지합니다. 저장 상태를 확인하고 다시 시도하세요.', 'error');
+      } finally { copyingRef.current = false; }
     },
-    [actions]
+    [activeDocumentId, documentKind, isLoading, canSave, isChunked, viewMode, sourcePending, tiptapEditor]
   );
 
   // For chunked documents: merged content for export and source view
@@ -250,21 +275,20 @@ export default function Home() {
 
   // Handle source editor changes for chunked documents — re-chunk and save
   const handleChunkedSourceChange = useCallback(
-    async (markdown: string, _html: string) => {
+    (markdown: string) => {
       if (!activeDocumentId) return;
       setMergedSourceContent(markdown);
-
-      const { chunkDocument } = await import('@/lib/chunk-document');
-      const { saveChunks } = await import('@/db/chunks');
-      const { updateDocument } = await import('@/db/documents');
-
-      const chunks = chunkDocument(markdown);
-      await saveChunks(activeDocumentId, chunks);
-      await updateDocument(activeDocumentId, {
-        content: markdown,
-        isChunked: true,
-        chunkCount: chunks.length,
-      });
+      const id = activeDocumentId;
+      void enqueueDocumentOperation(id, async () => {
+        const { db } = await import('@/db');
+        const { chunkDocument } = await import('@/lib/chunk-document');
+        const { saveChunks } = await import('@/db/chunks');
+        const chunks = chunkDocument(markdown);
+        await db.transaction('rw', db.documents, db.chunks, async () => {
+          await saveChunks(id, chunks);
+          await updateDocument(id, { content: markdown, htmlContent: '', isChunked: true, chunkCount: chunks.length });
+        });
+      }).catch(error => console.error('Failed to save source:', error));
     },
     [activeDocumentId]
   );
@@ -434,6 +458,7 @@ export default function Home() {
                     <PaginatedEditor
                       documentId={activeDocumentId}
                       totalChunks={chunkCount}
+                      onFlushReady={handleFlushReady}
                       onEditorReady={handleEditorReady}
                     />
                   ) : (
@@ -462,9 +487,9 @@ export default function Home() {
                     ) : (
                       <div className="flex-1 min-h-0 w-full mx-auto">
                         <SourceEditor
-                          onSourceChange={isChunked ? undefined : onSourceChange}
+                          onSourceChange={isChunked ? handleChunkedSourceChange : onSourceChange}
                           content={isChunked ? mergedSourceContent : content}
-                          onChange={isChunked ? handleChunkedSourceChange : onChange}
+                          onChange={onChange}
                         />
                       </div>
                     )}
@@ -474,6 +499,7 @@ export default function Home() {
                     <PaginatedSplitView
                       documentId={activeDocumentId}
                       totalChunks={chunkCount}
+                      onFlushReady={handleFlushReady}
                       onEditorReady={handleEditorReady}
                     />
                   ) : (

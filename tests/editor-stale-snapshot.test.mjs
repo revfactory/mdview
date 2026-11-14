@@ -4,6 +4,8 @@ import vm from 'node:vm';
 import { test } from 'node:test';
 import ts from 'typescript';
 
+const dirty = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/lib/editor-dirty-snapshot.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: dirty });
 function harness() {
   const source = readFileSync(new URL('../src/components/features/editor/editor.tsx', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -30,6 +32,7 @@ function harness() {
   const actions = { updateCounts(words, characters) { counts.push({ words, characters }); } };
   const exports = {};
   vm.runInNewContext(js, { exports, setTimeout(fn) { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout(id) { timers.delete(id); }, require(name) {
+    if (name === '@/lib/editor-dirty-snapshot') return dirty;
     if (name === 'react') return { useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial }; }, useState: x => [x, () => {}], useEffect: effect, useLayoutEffect: effect };
     if (name === 'react/jsx-runtime') return { jsx: () => ({}), jsxs: () => ({}) };
     if (name === '@tiptap/react') return { useEditor(value) { options ??= value; return editor; } };
@@ -39,6 +42,7 @@ function harness() {
     return new Proxy({ default: extension }, { get: (obj, key) => key === '__esModule' ? true : obj[key] ?? extension });
   } });
   return {
+    snapshot: () => dirty.getDirtyEditorSnapshot(editor),
     calls, timers, conversions, editableCalls, counts, listeners,
     render(content = '<p>old</p>', editable = true) { cursor = 0; effects = []; exports.Editor({ content, editable, onChange: (...args) => calls.push(args) }); effects.forEach(fn => fn()); },
     edit(value) { html = value; transaction(true); options.onUpdate({ editor }); },
@@ -100,4 +104,21 @@ test('visual counts update on edits, skip selection-only transactions and unsubs
   assert.equal(h.listeners.size, 0);
   h.edit('<p>detached</p>');
   assert.equal(h.counts.length, length);
+});
+
+
+test('snapshot flush sees immediate input before debounce but not untouched or replaced previews', () => {
+  const h = harness(); h.render(); assert.equal(h.snapshot(), null);
+  h.edit('<p>new input</p>'); assert.equal(h.snapshot(), '<p>new input</p>');
+  assert.deepEqual(h.calls, []);
+  h.render('<p>source replacement</p>'); assert.equal(h.snapshot(), null);
+});
+
+
+test('temporarily blocking edits retains the dirty snapshot after a failed page transition', () => {
+  const h = harness(); h.render(); h.edit('<p>unsaved input</p>');
+  h.render('<p>old</p>', false);
+  assert.equal(h.snapshot(), null);
+  h.render('<p>old</p>', true);
+  assert.equal(h.snapshot(), '<p>unsaved input</p>');
 });

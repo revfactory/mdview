@@ -103,6 +103,8 @@ for (const [file, name] of [
     const modules = {
       react: { ...react, default: react },
       '@/lib/source-indentation': helpers,
+      '@/lib/document-save-queue': { enqueueDocumentOperation: (_id, run) => run() },
+      '@/db/chunks': { updateChunk: async () => {} },
       '@/hooks/use-paginated-chunks': { usePaginatedChunks: () => ({
         currentPage: 0, chunkHtml: '', chunkMarkdown: '', editorRef: { current: null },
         handleChange: markdown => changes.push(markdown),

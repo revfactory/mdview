@@ -57,7 +57,8 @@ test('plain documents and PDF originals retain their content', () => fixture(asy
 test('UI delegates duplication to consistent snapshot operation', () => {
   const source = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8');
   const handler = source.slice(source.indexOf('const handleDuplicateDocument'), source.indexOf('// For chunked documents:'));
-  assert.match(handler, /await duplicateDocument\(id\)/);
+  assert.match(handler, /await copyDocumentSnapshot\(id/);
+  assert.doesNotMatch(handler, /setActiveDocument/);
   assert.doesNotMatch(handler, /content: doc.content/);
 });
 

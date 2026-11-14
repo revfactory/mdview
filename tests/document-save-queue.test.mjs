@@ -123,3 +123,16 @@ test('settled old saves never remove a newer synchronous write failure', async (
   gate.resolve(); await oldSave; await rejected;
   await assert.rejects(q.awaitDocumentSaves('a'), e => e === failure);
 });
+
+test('chunk/source operations share snapshot barrier and preserve document isolation', async () => {
+  const q = createDocumentSaveQueue(async () => {});
+  const gate = deferred(), calls = [];
+  const first = q.enqueueDocumentOperation('a', async () => { await gate.promise; calls.push('chunks'); });
+  const second = q.enqueueDocumentOperation('a', async () => { calls.push('source'); });
+  await q.enqueueDocumentOperation('b', async () => { calls.push('other'); });
+  let done = false;
+  const barrier = q.awaitDocumentSaves('a').then(() => { done = true; });
+  await tick(); assert.equal(done, false); assert.deepEqual(calls, ['other']);
+  gate.resolve(); await Promise.all([first, second, barrier]);
+  assert.deepEqual(calls, ['other', 'chunks', 'source']);
+});

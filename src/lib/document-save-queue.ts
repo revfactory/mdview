@@ -7,8 +7,11 @@ export function createDocumentSaveQueue(write: DocumentWriter) {
   const tails = new Map<string, Promise<void>>();
 
   function enqueueDocumentSave(id: string, markdown: string, html: string): Promise<void> {
+    return enqueueDocumentOperation(id, () => write(id, markdown, html));
+  }
+
+  function enqueueDocumentOperation(id: string, invoke: () => Promise<void>): Promise<void> {
     const previous = tails.get(id);
-    const invoke = () => write(id, markdown, html);
     let save: Promise<void>;
     if (previous) {
       // A failed snapshot must not poison subsequent saves.
@@ -41,7 +44,7 @@ export function createDocumentSaveQueue(write: DocumentWriter) {
     }
   }
 
-  return { enqueueDocumentSave, awaitDocumentSaves };
+  return { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves };
 }
 
-export const { enqueueDocumentSave, awaitDocumentSaves } = createDocumentSaveQueue(updateContent);
+export const { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves } = createDocumentSaveQueue(updateContent);
