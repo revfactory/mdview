@@ -136,3 +136,57 @@ test('chunk/source operations share snapshot barrier and preserve document isola
   gate.resolve(); await Promise.all([first, second, barrier]);
   assert.deepEqual(calls, ['other', 'chunks', 'source']);
 });
+
+test('successful other page cannot hide failed page; matching retry recovers it', async () => {
+  const q = createDocumentSaveQueue(async () => {});
+  const failure = new Error('page zero quota');
+  await assert.rejects(q.enqueueDocumentOperation('a', async () => { throw failure; }, { scope: 'page', page: 0 }), e => e === failure);
+  await q.enqueueDocumentOperation('a', async () => {}, { scope: 'page', page: 1 });
+  await assert.rejects(q.awaitDocumentSaves('a'), e => e === failure);
+  await q.awaitDocumentSaves('b');
+  await q.enqueueDocumentOperation('a', async () => {}, { scope: 'page', page: 0 });
+  await q.awaitDocumentSaves('a');
+});
+
+test('multiple page failures require every matching retry, including retries queued during barrier', async () => {
+  const q = createDocumentSaveQueue(async () => {});
+  for (const page of [0, 1]) await assert.rejects(q.enqueueDocumentOperation('a', async () => { throw Error(`page ${page}`); }, { scope: 'page', page }));
+  const gate = deferred();
+  const retryZero = q.enqueueDocumentOperation('a', () => gate.promise, { scope: 'page', page: 0 });
+  const barrier = q.awaitDocumentSaves('a');
+  const retryOne = q.enqueueDocumentOperation('a', async () => {}, { scope: 'page', page: 1 });
+  gate.resolve();
+  await Promise.all([retryZero, retryOne, barrier]);
+});
+
+test('recovering one page retains another failure and its newest matching error', async () => {
+  const q = createDocumentSaveQueue(async () => {});
+  for (const page of [0, 1]) await assert.rejects(q.enqueueDocumentOperation('a', async () => { throw Error(`page ${page}`); }, { scope: 'page', page }));
+  await q.enqueueDocumentOperation('a', async () => {}, { scope: 'page', page: 0 });
+  await assert.rejects(q.awaitDocumentSaves('a'), /page 1/);
+  await assert.rejects(q.enqueueDocumentOperation('a', async () => { throw Error('retry failed'); }, { scope: 'page', page: 1 }));
+  await assert.rejects(q.awaitDocumentSaves('a'), /retry failed/);
+});
+
+test('unscoped partial success fails closed; explicit full replacement clears all scopes', async () => {
+  const q = createDocumentSaveQueue(async () => {});
+  await assert.rejects(q.enqueueDocumentOperation('a', async () => { throw Error('unknown partial'); }));
+  await q.enqueueDocumentOperation('a', async () => {});
+  await q.enqueueDocumentOperation('a', async () => {}, { scope: 'page', page: 0 });
+  await assert.rejects(q.awaitDocumentSaves('a'), /unknown partial/);
+  await assert.rejects(q.enqueueDocumentOperation('a', async () => { throw Error('page'); }, { scope: 'page', page: 2 }));
+  await q.enqueueDocumentOperation('a', async () => {}, { scope: 'document' });
+  await q.awaitDocumentSaves('a');
+});
+
+test('page success cannot clear failed full replacement; full snapshot can clear partial failures', async () => {
+  let fail = true;
+  const q = createDocumentSaveQueue(async () => { if (fail) throw Error('whole document'); });
+  await assert.rejects(q.enqueueDocumentSave('a', 'new', ''));
+  await q.enqueueDocumentOperation('a', async () => {}, { scope: 'page', page: 0 });
+  await assert.rejects(q.awaitDocumentSaves('a'), /whole document/);
+  await assert.rejects(q.enqueueDocumentOperation('a', async () => { throw Error('partial'); }));
+  fail = false;
+  await q.enqueueDocumentSave('a', 'retry', '');
+  await q.awaitDocumentSaves('a');
+});

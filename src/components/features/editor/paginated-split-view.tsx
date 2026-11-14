@@ -68,7 +68,7 @@ export function PaginatedSplitView({
       if (isPageLoading || pageChanging) throw new Error('페이지를 불러오는 중입니다.');
       if (sourceDirty.current && textareaRef.current) {
         const markdown = textareaRef.current.value;
-        await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, ''));
+        await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, ''), { scope: 'page', page: currentPage });
       } else await flush();
     });
     return () => onFlushReady?.(null);
@@ -105,7 +105,7 @@ export function PaginatedSplitView({
       setSourceText(markdown);
       setSourcePending(true);
       // Persist raw source immediately, before optional asynchronous preview work.
-      void enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '')).catch(console.error);
+      void enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, ''), { scope: 'page', page: currentPage }).catch(console.error);
       try {
         const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
         const html = markdown.length > 50_000 ? await markdownToHtmlAsync(markdown) : markdownToHtml(markdown);

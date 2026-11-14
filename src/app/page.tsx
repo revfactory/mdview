@@ -288,7 +288,7 @@ export default function Home() {
           await saveChunks(id, chunks);
           await updateDocument(id, { content: markdown, htmlContent: '', isChunked: true, chunkCount: chunks.length });
         });
-      }).catch(error => console.error('Failed to save source:', error));
+      }, { scope: 'document' }).catch(error => console.error('Failed to save source:', error));
     },
     [activeDocumentId]
   );

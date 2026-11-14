@@ -3,7 +3,7 @@
 import { getDirtyEditorSnapshot } from '@/lib/editor-dirty-snapshot';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { enqueueDocumentOperation } from '@/lib/document-save-queue';
+import { enqueueDocumentOperation, awaitDocumentSaves } from '@/lib/document-save-queue';
 import { getChunk, updateChunk } from '@/db/chunks';
 import { markdownToHtml, htmlToMarkdown, markdownToHtmlAsync } from '@/lib/markdown';
 import type { Editor as TipTapEditor } from '@tiptap/react';
@@ -16,6 +16,26 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
   const [pageChanging, setPageChanging] = useState(false);
   const transitionInFlight = useRef(false);
   const editorRef = useRef<TipTapEditor | null>(null);
+  // Content publication is not a write acknowledgement. Retain the exact raw
+  // snapshot even when React resets the editor's dirty marker before DB settles.
+  const pendingSnapshot = useRef<{ documentId: string; page: number; markdown: string; html: string } | null>(null);
+
+  const persistSnapshot = useCallback(async (snapshot: NonNullable<typeof pendingSnapshot.current>) => {
+    await enqueueDocumentOperation(snapshot.documentId,
+      () => updateChunk(snapshot.documentId, snapshot.page, snapshot.markdown, snapshot.html),
+      { scope: 'page', page: snapshot.page });
+    if (pendingSnapshot.current === snapshot) pendingSnapshot.current = null;
+  }, []);
+
+  const saveCurrentPage = useCallback(async () => {
+    const html = editorRef.current ? getDirtyEditorSnapshot(editorRef.current) : null;
+    if (html !== null) {
+      pendingSnapshot.current = { documentId, page: currentPage, markdown: htmlToMarkdown(html), html };
+    }
+    const pending = pendingSnapshot.current;
+    if (pending?.documentId === documentId && pending.page === currentPage) await persistSnapshot(pending);
+    await awaitDocumentSaves(documentId);
+  }, [documentId, currentPage, persistSnapshot]);
 
   // Load a chunk and return { html, markdown }
   const loadChunk = useCallback(async (page: number) => {
@@ -68,14 +88,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
       setPageChanging(true);
 
       try {
-        // Save current page from editor
-        if (editorRef.current) {
-          const html = getDirtyEditorSnapshot(editorRef.current);
-          if (html !== null) {
-          const md = htmlToMarkdown(html);
-          await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, md, html));
-          }
-        }
+        await saveCurrentPage();
 
         // Load new page
         const { html, markdown } = await loadChunk(newPage);
@@ -89,28 +102,27 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
         setPageChanging(false);
       }
     },
-    [documentId, currentPage, totalChunks, loadChunk, transitionBlocked]
+    [currentPage, totalChunks, loadChunk, transitionBlocked, saveCurrentPage]
   );
 
   // Handle editor content change (both markdown and html)
   const handleChange = useCallback(
     (markdown: string, html: string) => {
+      const snapshot = { documentId, page: currentPage, markdown, html };
+      pendingSnapshot.current = snapshot;
       setChunkMarkdown(markdown);
       setChunkHtml(html);
-      enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, html)).catch((err) =>
+      persistSnapshot(snapshot).catch((err) =>
         console.error('Failed to save chunk:', err)
       );
     },
-    [documentId, currentPage]
+    [documentId, currentPage, persistSnapshot]
   );
 
   const flush = useCallback(async () => {
     if (isPageLoading || pageChanging || !editorRef.current) throw new Error('페이지를 불러오는 중입니다.');
-    const html = getDirtyEditorSnapshot(editorRef.current);
-    if (html === null) return;
-    const markdown = htmlToMarkdown(html);
-    await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, html));
-  }, [documentId, currentPage, isPageLoading, pageChanging]);
+    await saveCurrentPage();
+  }, [isPageLoading, pageChanging, saveCurrentPage]);
 
   // Keyboard shortcuts: Ctrl+PageUp/PageDown
   useEffect(() => {
