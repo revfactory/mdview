@@ -273,3 +273,9 @@ UI 변경은 PR 본문에 스크린샷 또는 GIF 첨부 권장.
 - 보안 취약점 → [Security Advisories](https://github.com/revfactory/mdview/security/advisories/new) (비공개)
 
 기여해 주셔서 감사합니다! 🎉
+
+### 분석 통계와 QA
+
+Google Analytics는 HTTPS 운영 도메인 `mdview.kr`, `www.mdview.kr`에서만 초기화합니다.
+로컬 및 Vercel 미리보기에서는 GA 스크립트를 요청하지 않으므로 분석 이벤트 전송 여부를 기능 성공 기준으로 삼지 마세요.
+운영 도메인에서 수행한 QA는 여전히 통계에 포함될 수 있습니다. 이 정책은 과거 데이터를 소급 제거하지 않습니다.

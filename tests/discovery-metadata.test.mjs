@@ -32,6 +32,7 @@ const root = load('../src/app/layout.tsx', {
   '@/components/ui/error-boundary': { ErrorBoundary: 'div' },
   '@/components/layout/theme-sync': { ThemeSync: 'span' },
   '@/lib/theme': load('../src/lib/theme.ts'),
+  '@/lib/analytics-bootstrap': load('../src/lib/analytics-bootstrap.ts'),
   './globals.css': {}, '@/styles/editor.css': {}, '@/styles/pdf-viewer.css': {}, 'katex/dist/katex.min.css': {},
 });
 const sitemap = load('../src/app/sitemap.ts', guideImports).default();
