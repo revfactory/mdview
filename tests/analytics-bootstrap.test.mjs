@@ -44,5 +44,19 @@ test('optional bootstrap failure never interrupts the page', () => {
 test('layout has no unconditional external GA script', () => {
   const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8');
   assert.ok(layout.includes('{ANALYTICS_BOOTSTRAP_SCRIPT}'));
-  assert.ok(!layout.includes('googletagmanager.com'));
+  const ast = ts.createSourceFile('layout.tsx', layout, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const externalScripts = [];
+  function visit(node) {
+    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) &&
+        ['Script', 'script'].includes(node.tagName.getText(ast))) {
+      for (const attribute of node.attributes.properties) {
+        if (ts.isJsxAttribute(attribute) && attribute.name.getText(ast) === 'src') {
+          externalScripts.push(node.getText(ast));
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.deepEqual(externalScripts, [], 'layout must not bypass the host-checked bootstrap with a script src');
 });
