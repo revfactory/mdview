@@ -104,7 +104,9 @@ export async function updateDocument(id: string, changes: Partial<Document>): Pr
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-  await db.transaction('rw', db.documents, db.files, async () => {
+  // Keep every part of the document intact if any deletion fails.
+  await db.transaction('rw', db.documents, db.files, db.chunks, async () => {
+    await db.chunks.where('docId').equals(id).delete();
     await db.documents.delete(id);
     await db.files.delete(id);
   });

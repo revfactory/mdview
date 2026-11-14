@@ -1,6 +1,6 @@
 {
   "name": "mdview",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "한글 친화 블록 기반 마크다운 에디터 — HWP/HWPX 임포트·내보내기 지원",
   "license": "Apache-2.0",
@@ -97,6 +97,7 @@
     "@types/turndown": "^5.0.6",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "fake-indexeddb": "^6.2.8",
     "shiki": "^4.0.1",
     "tailwindcss": "^4",
     "typescript": "^6.0.3"
