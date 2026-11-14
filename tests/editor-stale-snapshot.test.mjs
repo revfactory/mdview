@@ -122,3 +122,14 @@ test('temporarily blocking edits retains the dirty snapshot after a failed page 
   h.render('<p>old</p>', true);
   assert.equal(h.snapshot(), '<p>unsaved input</p>');
 });
+
+
+test('in-flight visual conversion cannot publish after a page transition locks the editor', async () => {
+  const h = harness(); h.render(); h.edit('x'.repeat(50001)); h.flush();
+  assert.equal(h.conversions.length, 1);
+  h.render('<p>old</p>', false);
+  h.conversions[0]('stale page contents'); await Promise.resolve();
+  assert.deepEqual(h.calls, []);
+  h.render('<p>old</p>', true);
+  assert.equal(h.snapshot(), 'x'.repeat(50001), 'failed navigation must retain the live snapshot for retry');
+});
