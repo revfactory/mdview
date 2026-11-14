@@ -248,7 +248,7 @@ function joinLines(lines: string[]): string {
 
 /** 원문 글자가 강조·코드·링크·수식·HTML로 해석되지 않게 한다. */
 export function escapeMarkdownInline(text: string): string {
-  return text.replace(/[\\`*_[\]<>~$]/g, (char) => `\\${char}`);
+  return text.replace(/[\\`*_[\]<>~$&]/g, (char) => `\\${char}`);
 }
 
 /** 줄 첫머리에서만 의미가 생기는 문법(제목, 인용, 목록, 구분선)을 막는다. */
