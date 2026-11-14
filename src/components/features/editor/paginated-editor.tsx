@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useLayoutEffect } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
 import { DocumentTitle } from '@/components/features/editor/document-title';
@@ -11,6 +11,7 @@ import type { Editor as TipTapEditor } from '@tiptap/react';
 interface PaginatedEditorProps {
   documentId: string;
   totalChunks: number;
+  onFlushReady?: (flush: (() => Promise<void>) | null) => void;
   onEditorReady?: (editor: TipTapEditor | null) => void;
 }
 
@@ -18,9 +19,11 @@ export function PaginatedEditor({
   documentId,
   totalChunks,
   onEditorReady,
+  onFlushReady,
 }: PaginatedEditorProps) {
   const isMobile = useUIStore((s) => s.isMobile);
   const {
+    flush,
     currentPage,
     chunkHtml,
     isPageLoading,
@@ -29,6 +32,11 @@ export function PaginatedEditor({
     handlePageChange,
     handleChange,
   } = usePaginatedChunks(documentId, totalChunks);
+
+  useLayoutEffect(() => {
+    onFlushReady?.(flush);
+    return () => onFlushReady?.(null);
+  }, [flush, onFlushReady]);
 
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {
@@ -58,6 +66,7 @@ export function PaginatedEditor({
           <Editor
             key={`${documentId}-${currentPage}`}
             content={chunkHtml}
+            editable={!pageChanging}
             onChange={handleChange}
             onEditorReady={handleEditorReady}
           />

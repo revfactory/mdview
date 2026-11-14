@@ -1,16 +1,20 @@
 'use client';
 
+import { getDirtyEditorSnapshot } from '@/lib/editor-dirty-snapshot';
+
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { enqueueDocumentOperation } from '@/lib/document-save-queue';
 import { getChunk, updateChunk } from '@/db/chunks';
 import { markdownToHtml, htmlToMarkdown, markdownToHtmlAsync } from '@/lib/markdown';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
-export function usePaginatedChunks(documentId: string, totalChunks: number) {
+export function usePaginatedChunks(documentId: string, totalChunks: number, transitionBlocked = false) {
   const [currentPage, setCurrentPage] = useState(0);
   const [chunkHtml, setChunkHtml] = useState('');
   const [chunkMarkdown, setChunkMarkdown] = useState('');
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [pageChanging, setPageChanging] = useState(false);
+  const transitionInFlight = useRef(false);
   const editorRef = useRef<TipTapEditor | null>(null);
 
   // Load a chunk and return { html, markdown }
@@ -24,7 +28,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
         ? await markdownToHtmlAsync(chunk.markdown)
         : markdownToHtml(chunk.markdown);
       // Cache HTML
-      await updateChunk(documentId, page, chunk.markdown, html);
+      // Derived HTML need not write back: an edit may have happened during conversion.
     }
     return { html: html || '<p></p>', markdown: chunk.markdown || '' };
   }, [documentId]);
@@ -59,15 +63,18 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
   // Save current chunk, then load new one
   const handlePageChange = useCallback(
     async (newPage: number) => {
-      if (newPage === currentPage || newPage < 0 || newPage >= totalChunks) return;
+      if (transitionInFlight.current || transitionBlocked || newPage === currentPage || newPage < 0 || newPage >= totalChunks) return;
+      transitionInFlight.current = true;
       setPageChanging(true);
 
       try {
         // Save current page from editor
         if (editorRef.current) {
-          const html = editorRef.current.getHTML();
+          const html = getDirtyEditorSnapshot(editorRef.current);
+          if (html !== null) {
           const md = htmlToMarkdown(html);
-          await updateChunk(documentId, currentPage, md, html);
+          await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, md, html));
+          }
         }
 
         // Load new page
@@ -78,10 +85,11 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
       } catch (err) {
         console.error('Failed to change page:', err);
       } finally {
+        transitionInFlight.current = false;
         setPageChanging(false);
       }
     },
-    [documentId, currentPage, totalChunks, loadChunk]
+    [documentId, currentPage, totalChunks, loadChunk, transitionBlocked]
   );
 
   // Handle editor content change (both markdown and html)
@@ -89,12 +97,20 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
     (markdown: string, html: string) => {
       setChunkMarkdown(markdown);
       setChunkHtml(html);
-      updateChunk(documentId, currentPage, markdown, html).catch((err) =>
+      enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, html)).catch((err) =>
         console.error('Failed to save chunk:', err)
       );
     },
     [documentId, currentPage]
   );
+
+  const flush = useCallback(async () => {
+    if (isPageLoading || pageChanging || !editorRef.current) throw new Error('페이지를 불러오는 중입니다.');
+    const html = getDirtyEditorSnapshot(editorRef.current);
+    if (html === null) return;
+    const markdown = htmlToMarkdown(html);
+    await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, html));
+  }, [documentId, currentPage, isPageLoading, pageChanging]);
 
   // Keyboard shortcuts: Ctrl+PageUp/PageDown
   useEffect(() => {
@@ -112,6 +128,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
   }, [currentPage, handlePageChange]);
 
   return {
+    flush,
     currentPage,
     chunkHtml,
     chunkMarkdown,
