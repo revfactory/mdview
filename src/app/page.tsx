@@ -160,9 +160,6 @@ export default function Home() {
   const handleDeleteDocument = useCallback(
     async (id: string) => {
       try {
-        // Clean up chunks if the document was chunked
-        const { deleteChunks } = await import('@/db/chunks');
-        await deleteChunks(id);
         await deleteDocument(id);
         analytics.documentDelete();
         if (activeDocumentId === id) {
