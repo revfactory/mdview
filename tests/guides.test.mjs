@@ -10,7 +10,7 @@ async function loadModule(path) {
 const { guides, getGuide, guideActionHref } = await loadModule('../src/lib/guides.ts');
 const { readEntryAction } = await loadModule('../src/lib/entry-actions.ts');
 test('every guide has a distinct URL, title and description', () => {
-  assert.equal(guides.length, 4);
+  assert.equal(guides.length, 5);
   for (const field of ['slug', 'title', 'description']) assert.equal(new Set(guides.map((guide) => guide[field])).size, guides.length);
   for (const guide of guides) assert.match(guide.slug, /^[a-z]+(?:-[a-z]+)*$/);
 });

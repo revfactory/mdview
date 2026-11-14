@@ -4,12 +4,11 @@ import { Toaster } from 'sonner';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { ThemeSync } from '@/components/layout/theme-sync';
 import { THEME_BOOTSTRAP_SCRIPT } from '@/lib/theme';
+import { ANALYTICS_BOOTSTRAP_SCRIPT } from '@/lib/analytics-bootstrap';
 import './globals.css';
 import '@/styles/editor.css';
 import '@/styles/pdf-viewer.css';
 import 'katex/dist/katex.min.css';
-
-const GA_ID = 'G-DC9P5XSZXR';
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
@@ -131,14 +130,8 @@ export default function RootLayout({
           }}
         />
         <ThemeSync />
-        <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
         <Script id="gtag-init" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_ID}');
-          `}
+          {ANALYTICS_BOOTSTRAP_SCRIPT}
         </Script>
       </body>
     </html>
