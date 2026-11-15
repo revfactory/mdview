@@ -1,8 +1,9 @@
 'use client';
 
+import { createEditorTransitionGate } from '@/lib/editor-transition';
 import { getDirtyEditorSnapshot } from '@/lib/editor-dirty-snapshot';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Toolbar } from '@/components/layout/toolbar';
@@ -50,6 +51,21 @@ export default function Home() {
   const focusMode = useUIStore((s) => s.focusMode);
   const isMobile = useUIStore((s) => s.isMobile);
   const pageFlushRef = useRef<(() => Promise<void>) | null>(null);
+  const leaveRef = useRef<(() => Promise<void>) | null>(null);
+  const handleLeaveReady = useCallback((prepare: (() => Promise<void>) | null) => { leaveRef.current = prepare; }, []);
+  const transitionGate = useRef(createEditorTransitionGate());
+  const [transitionPending, setTransitionPending] = useState(false);
+  const ownerGeneration = useRef(0);
+  const inputRevision = useRef(0);
+  const rawRecovery = useRef<{ id: string; markdown: string; retry: () => Promise<void> } | null>(null);
+  useLayoutEffect(() => {
+    ownerGeneration.current++;
+    return () => {
+      // Invalidate the live generation, not a captured DOM ref.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      ownerGeneration.current++;
+    };
+  }, [activeDocumentId, viewMode]);
   const copyingRef = useRef(false);
   const handleFlushReady = useCallback((flush: (() => Promise<void>) | null) => { pageFlushRef.current = flush; }, []);
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
@@ -75,6 +91,54 @@ export default function Home() {
     useEditorManager(activeDocumentId);
   const isPdf = !!activeDocumentId && !isLoading && documentKind === 'pdf';
 
+  const runTransition = useCallback(async (create: () => Promise<() => void>) => {
+    const generation = ownerGeneration.current;
+    const revision = inputRevision.current;
+    const visual = viewMode !== 'source' && !sourcePending && tiptapEditor && !tiptapEditor.isDestroyed ? tiptapEditor : null;
+    const snapshot = visual?.getHTML();
+    try {
+      return await transitionGate.current({
+        owner: generation,
+        isCurrent: owner => owner === ownerGeneration.current && revision === inputRevision.current &&
+          useEditorStore.getState().activeDocumentId === activeDocumentId &&
+          useUIStore.getState().viewMode === viewMode &&
+          (!visual || (!visual.isDestroyed && visual.getHTML() === snapshot)),
+        setBusy: setTransitionPending,
+        prepare: async () => {
+          if (!activeDocumentId || documentKind === 'pdf') return;
+          if (isChunked && viewMode !== 'source') {
+            if (leaveRef.current) await leaveRef.current();
+            else if (visual) throw new Error('페이지 저장 준비가 끝나지 않았습니다.');
+          } else if (isChunked && viewMode === 'source') {
+            if (rawRecovery.current?.id === activeDocumentId) await rawRecovery.current.retry();
+          } else if (!isChunked && canSave) {
+            if (viewMode === 'source' || sourcePending) await saveCurrent();
+            else if (visual) {
+              const dirty = getDirtyEditorSnapshot(visual);
+              if (dirty !== null) onChange(savedHtmlToMarkdown(dirty), dirty);
+            }
+          }
+          // Includes failures swallowed by autosave and full-source writes.
+          await awaitDocumentSaves(activeDocumentId);
+        },
+        create,
+        commit: commit => commit(),
+      });
+    } catch (error) {
+      console.error('Transition blocked to preserve unsaved content:', error);
+      const { useToastStore } = await import('@/stores/toast-store');
+      useToastStore.getState().actions.addToast('저장하지 못해 이동을 중단했습니다. 현재 원문을 별도로 보관하고 저장 상태를 확인하세요.', 'error');
+      return 'blocked' as const;
+    }
+  }, [activeDocumentId, documentKind, isChunked, viewMode, sourcePending, tiptapEditor, canSave, saveCurrent, onChange]);
+
+  const handleViewModeChange = useCallback((mode: 'wysiwyg' | 'split' | 'source') => {
+    if (mode === viewMode) return;
+    void runTransition(async () => () => { useUIStore.getState().actions.setViewMode(mode); }).then(outcome => {
+      if (outcome === 'committed') analytics.viewModeChange(mode);
+    });
+  }, [runTransition, viewMode]);
+
   // Auto-switch to source view for large non-chunked documents
   useEffect(() => {
     if (isLargeDocument && !isChunked && viewMode !== 'source') {
@@ -87,8 +151,11 @@ export default function Home() {
 
   const handleNewDocument = useCallback(async () => {
     try {
-      const id = await createDocument({ title: '제목 없음' });
-      actions.setActiveDocument(id);
+      const outcome = await runTransition(async () => {
+        const id = await createDocument({ title: '제목 없음' });
+        return () => { actions.setActiveDocument(id); useUIStore.getState().actions.setViewMode('wysiwyg'); };
+      });
+      if (outcome !== 'committed') return;
       analytics.documentCreate();
       if (useUIStore.getState().isMobile) {
         useUIStore.getState().actions.closeSidebar();
@@ -96,12 +163,15 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to create document:', error);
     }
-  }, [actions]);
+  }, [actions, runTransition]);
 
   const handleSampleDocument = useCallback(async () => {
     try {
-      const id = await createSampleDocument();
-      actions.setActiveDocument(id);
+      const outcome = await runTransition(async () => {
+        const id = await createSampleDocument();
+        return () => { actions.setActiveDocument(id); useUIStore.getState().actions.setViewMode('wysiwyg'); };
+      });
+      if (outcome !== 'committed') return;
       analytics.documentCreate();
       if (useUIStore.getState().isMobile) {
         useUIStore.getState().actions.closeSidebar();
@@ -109,7 +179,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to create sample document:', error);
     }
-  }, [actions]);
+  }, [actions, runTransition]);
 
   const handleStart = useCallback((action: EntryAction, source: EntrySource) => {
     analytics.startAction(action, source);
@@ -117,7 +187,6 @@ export default function Home() {
     if (action === 'import-markdown') setMdImportOpen(true);
     if (action === 'import-pdf') setPdfImportOpen(true);
     if (action === 'new' || action === 'sample') {
-      useUIStore.getState().actions.setViewMode('wysiwyg');
       void (action === 'new' ? handleNewDocument() : handleSampleDocument());
     }
   }, [handleNewDocument, handleSampleDocument]);
@@ -141,14 +210,16 @@ export default function Home() {
   }, [handleStart]);
 
   const handleSelectDocument = useCallback(
-    (id: string) => {
-      actions.setActiveDocument(id);
+    async (id: string) => {
+      if (id === activeDocumentId) return;
+      const outcome = await runTransition(async () => () => actions.setActiveDocument(id));
+      if (outcome !== 'committed') return;
       analytics.documentOpen();
       if (useUIStore.getState().isMobile) {
         useUIStore.getState().actions.closeSidebar();
       }
     },
-    [actions]
+    [actions, runTransition, activeDocumentId]
   );
 
   const handleToggleFavorite = useCallback(async (id: string) => {
@@ -166,19 +237,21 @@ export default function Home() {
   const handleDeleteDocument = useCallback(
     async (id: string) => {
       try {
-        await deleteDocument(id);
-        analytics.documentDelete();
         if (activeDocumentId === id) {
-          // 삭제 후 남은 문서가 있으면 선택, 없으면 빈 상태 표시
-          const { db } = await import('@/db');
-          const remaining = await db.documents.orderBy('updatedAt').reverse().limit(1).toArray();
-          actions.setActiveDocument(remaining.length > 0 ? remaining[0].id : null);
-        }
+          const outcome = await runTransition(async () => {
+            await deleteDocument(id);
+            const { db } = await import('@/db');
+            const remaining = await db.documents.orderBy('updatedAt').reverse().limit(1).toArray();
+            return () => actions.setActiveDocument(remaining.length > 0 ? remaining[0].id : null);
+          });
+          if (outcome !== 'committed') return;
+        } else await deleteDocument(id);
+        analytics.documentDelete();
       } catch (error) {
         console.error('Failed to delete document:', error);
       }
     },
-    [activeDocumentId, actions]
+    [activeDocumentId, actions, runTransition]
   );
 
   const handleDuplicateDocument = useCallback(
@@ -218,6 +291,7 @@ export default function Home() {
   const [exportDocumentTitle, setExportDocumentTitle] = useState('MDView');
   const [mergedSourceContent, setMergedSourceContent] = useState('');
   const [mergedSourceLoading, setMergedSourceLoading] = useState(false);
+  const [mergedSourceError, setMergedSourceError] = useState(false);
 
   const prepareExportContent = useCallback(async () => {
     if (isChunked && viewMode === 'source') {
@@ -259,13 +333,24 @@ export default function Home() {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- The loading flag synchronizes the async IndexedDB chunk read with the current document.
     setMergedSourceLoading(true);
+    setMergedSourceError(false);
 
     (async () => {
-      const { getAllChunksMarkdown } = await import('@/db/chunks');
-      const merged = await getAllChunksMarkdown(activeDocumentId);
-      if (!cancelled) {
-        setMergedSourceContent(merged);
-        setMergedSourceLoading(false);
+      try {
+        await awaitDocumentSaves(activeDocumentId);
+        if (cancelled) return;
+        const { getAllChunksMarkdown } = await import('@/db/chunks');
+        const merged = await getAllChunksMarkdown(activeDocumentId);
+        if (!cancelled) setMergedSourceContent(merged);
+      } catch (error) {
+        console.error('Source read failed; retaining raw recovery state:', error);
+        if (!cancelled) {
+          const recovery = rawRecovery.current;
+          if (recovery?.id === activeDocumentId) setMergedSourceContent(recovery.markdown);
+          else setMergedSourceError(true);
+        }
+      } finally {
+        if (!cancelled) setMergedSourceLoading(false);
       }
     })();
 
@@ -276,9 +361,11 @@ export default function Home() {
   const handleChunkedSourceChange = useCallback(
     (markdown: string) => {
       if (!activeDocumentId) return;
+      inputRevision.current++;
       setMergedSourceContent(markdown);
       const id = activeDocumentId;
-      void enqueueDocumentOperation(id, async () => {
+      const snapshot = { id, markdown, retry: async () => {
+        await enqueueDocumentOperation(id, async () => {
         const { db } = await import('@/db');
         const { chunkDocument } = await import('@/lib/chunk-document');
         const { saveChunks } = await import('@/db/chunks');
@@ -287,7 +374,11 @@ export default function Home() {
           await saveChunks(id, chunks);
           await updateDocument(id, { content: markdown, htmlContent: '', isChunked: true, chunkCount: chunks.length });
         });
-      }, { scope: 'document' }).catch(error => console.error('Failed to save source:', error));
+        }, { scope: 'document' });
+        if (rawRecovery.current === snapshot) rawRecovery.current = null;
+      } };
+      rawRecovery.current = snapshot;
+      void snapshot.retry().catch(error => console.error('Failed to save source:', error));
     },
     [activeDocumentId]
   );
@@ -323,8 +414,13 @@ export default function Home() {
 
   const openImportedDocument = useCallback(
     async (importedContent: string, title: string, folderId?: string | null) => {
-      const { id, chunkCount: importedChunks } = await createImportedDocument(importedContent, title, { folderId });
-      actions.setActiveDocument(id);
+      let importedChunks: number | null = null;
+      const outcome = await runTransition(async () => {
+        const created = await createImportedDocument(importedContent, title, { folderId });
+        importedChunks = created.chunkCount;
+        return () => actions.setActiveDocument(created.id);
+      });
+      if (outcome !== 'committed') throw new Error('가져온 문서로 이동하지 않았습니다. 원문을 유지합니다.');
       if (importedChunks !== null) {
         import('@/stores/toast-store').then(({ useToastStore }) => {
           useToastStore.getState().actions.addToast(
@@ -335,7 +431,7 @@ export default function Home() {
       }
       return importedChunks;
     },
-    [actions]
+    [actions, runTransition]
   );
 
   const handleImportComplete = useCallback(
@@ -358,14 +454,17 @@ export default function Home() {
 
   const handlePdfImportComplete = useCallback(
     async ({ file, title, pageCount, excerpt }: PdfImportResult) => {
-      const id = await createPdfDocument({ title, file, fileName: file.name, pageCount, excerpt });
-      actions.setActiveDocument(id);
+      const outcome = await runTransition(async () => {
+        const id = await createPdfDocument({ title, file, fileName: file.name, pageCount, excerpt });
+        return () => actions.setActiveDocument(id);
+      });
+      if (outcome !== 'committed') throw new Error('PDF로 이동하지 않았습니다. 현재 원문을 유지합니다.');
       analytics.importPdf();
       if (useUIStore.getState().isMobile) {
         useUIStore.getState().actions.closeSidebar();
       }
     },
-    [actions]
+    [actions, runTransition]
   );
 
   const activePdfTitle = activeDocument?.title ?? '';
@@ -387,6 +486,7 @@ export default function Home() {
 
   useKeyboardShortcuts({
     onNewDocument: handleNewDocument,
+    onViewModeChange: handleViewModeChange,
     onForceSave: handleForceSave,
     onSearchFocus: () => {
       // Focus search input in sidebar - we'll use a DOM query as a simple approach
@@ -399,6 +499,7 @@ export default function Home() {
   });
 
   return (
+    <div className="h-full" inert={transitionPending} aria-busy={transitionPending} onInputCapture={() => { inputRevision.current++; }}>
     <AppShell
       sidebar={
         <Sidebar
@@ -436,6 +537,7 @@ export default function Home() {
               }}
             >
               <Toolbar
+                onViewModeChange={handleViewModeChange}
                 editor={tiptapEditor}
                 onExport={handleOpenExport}
                 onToggleToc={() => useUIStore.getState().actions.toggleToc()}
@@ -467,6 +569,7 @@ export default function Home() {
                       documentId={activeDocumentId}
                       totalChunks={chunkCount}
                       onFlushReady={handleFlushReady}
+                      onLeaveReady={handleLeaveReady}
                       onEditorReady={handleEditorReady}
                     />
                   ) : (
@@ -487,7 +590,9 @@ export default function Home() {
                     <div className={`w-full mx-auto ${isMobile ? 'px-4 pt-4' : 'px-[60px] pt-6'} shrink-0`}>
                       <DocumentTitle documentId={activeDocumentId} />
                     </div>
-                    {isChunked && mergedSourceLoading ? (
+                    {isChunked && mergedSourceError ? (
+                      <p role="alert" className="p-6">원문을 불러오지 못했습니다. 브라우저 데이터를 삭제하지 말고 다른 문서를 선택한 뒤 다시 시도하세요.</p>
+                    ) : isChunked && mergedSourceLoading ? (
                       <div className="flex flex-col items-center justify-center flex-1 gap-3">
                         <div className="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
                         <div className="text-sm text-[var(--color-text-muted)]">청크 병합 중...</div>
@@ -508,6 +613,7 @@ export default function Home() {
                       documentId={activeDocumentId}
                       totalChunks={chunkCount}
                       onFlushReady={handleFlushReady}
+                      onLeaveReady={handleLeaveReady}
                       onEditorReady={handleEditorReady}
                     />
                   ) : (
@@ -583,5 +689,6 @@ export default function Home() {
 
       <ToastContainer />
     </AppShell>
+    </div>
   );
 }

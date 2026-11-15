@@ -14,6 +14,7 @@ import type { Editor as TipTapEditor } from '@tiptap/react';
 interface PaginatedSplitViewProps {
   documentId: string;
   totalChunks: number;
+  onLeaveReady?: (prepare: (() => Promise<void>) | null) => void;
   onFlushReady?: (flush: (() => Promise<void>) | null) => void;
   onEditorReady?: (editor: TipTapEditor | null) => void;
 }
@@ -23,6 +24,7 @@ export function PaginatedSplitView({
   totalChunks,
   onEditorReady,
   onFlushReady,
+  onLeaveReady,
 }: PaginatedSplitViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sourceDirty = useRef(false);
@@ -34,6 +36,7 @@ export function PaginatedSplitView({
 
   const {
     flush,
+    prepareLeave,
     getCurrentChunkId,
     currentPage,
     chunkHtml,
@@ -78,6 +81,17 @@ export function PaginatedSplitView({
     });
     return () => onFlushReady?.(null);
   }, [flush, onFlushReady, loadError, isPageLoading, pageChanging, documentId, currentPage, getCurrentChunkId]);
+
+  useLayoutEffect(() => {
+    onLeaveReady?.(async () => {
+      if (sourceDirty.current && textareaRef.current) {
+        const markdown = textareaRef.current.value;
+        const chunkId = getCurrentChunkId();
+        await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
+      } else await prepareLeave();
+    });
+    return () => onLeaveReady?.(null);
+  }, [onLeaveReady, prepareLeave, documentId, currentPage, getCurrentChunkId]);
 
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {

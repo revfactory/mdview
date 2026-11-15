@@ -12,6 +12,7 @@ import type { Editor as TipTapEditor } from '@tiptap/react';
 interface PaginatedEditorProps {
   documentId: string;
   totalChunks: number;
+  onLeaveReady?: (prepare: (() => Promise<void>) | null) => void;
   onFlushReady?: (flush: (() => Promise<void>) | null) => void;
   onEditorReady?: (editor: TipTapEditor | null) => void;
 }
@@ -21,10 +22,12 @@ export function PaginatedEditor({
   totalChunks,
   onEditorReady,
   onFlushReady,
+  onLeaveReady,
 }: PaginatedEditorProps) {
   const isMobile = useUIStore((s) => s.isMobile);
   const {
     flush,
+    prepareLeave,
     currentPage,
     chunkHtml,
     isPageLoading,
@@ -40,6 +43,11 @@ export function PaginatedEditor({
     onFlushReady?.(flush);
     return () => onFlushReady?.(null);
   }, [flush, onFlushReady]);
+
+  useLayoutEffect(() => {
+    onLeaveReady?.(prepareLeave);
+    return () => onLeaveReady?.(null);
+  }, [prepareLeave, onLeaveReady]);
 
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {

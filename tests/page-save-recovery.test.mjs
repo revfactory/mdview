@@ -91,3 +91,12 @@ test('missing loaded chunk ID keeps initial editing and navigation blocked', asy
   assert.equal(h.render().currentPage, 0);
   assert.deepEqual(h.writes, []);
 });
+
+test('clean initial-read failure permits leaving but does not authorize manual save',async()=>{
+ const h=harness(null);h.render();await tick();const hook=h.render();
+ await hook.prepareLeave();await assert.rejects(hook.flush());assert.deepEqual(h.writes,[]);
+});
+test('prepareLeave retains failed editable snapshot instead of escaping',async()=>{
+ const h=harness();h.render();await tick();h.setFail(true);h.render().handleChange('unsaved raw','<p>unsaved raw</p>');await tick();
+ await assert.rejects(h.render().prepareLeave());assert.equal(h.writes.at(-1).markdown,'unsaved raw');
+});

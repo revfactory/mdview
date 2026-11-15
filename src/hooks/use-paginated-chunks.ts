@@ -166,6 +166,16 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     await saveCurrentPage();
   }, [loadError, isPageLoading, pageChanging, saveCurrentPage]);
 
+  const prepareLeave = useCallback(async () => {
+    // Initial read failure has no editable page, but earlier failed writes
+    // must still prevent losing their recovery state.
+    if (!loadedChunk.current && !pendingSnapshot.current) {
+      await awaitDocumentSaves(documentId);
+      return;
+    }
+    await flush();
+  }, [documentId, flush]);
+
   // Keyboard shortcuts: Ctrl+PageUp/PageDown
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -183,6 +193,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
 
   return {
     flush,
+    prepareLeave,
     getCurrentChunkId,
     currentPage,
     chunkHtml,
