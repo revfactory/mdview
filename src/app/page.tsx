@@ -116,6 +116,12 @@ export default function Home() {
             else if (visual) {
               const dirty = getDirtyEditorSnapshot(visual);
               if (dirty !== null) onChange(savedHtmlToMarkdown(dirty), dirty);
+              else {
+                // A published preview is not a persistence acknowledgement.
+                // Retry the manager's authoritative raw snapshot, never round-trip
+                // a clean derived editor through HTML-to-Markdown.
+                await saveCurrent();
+              }
             }
           }
           // Includes failures swallowed by autosave and full-source writes.

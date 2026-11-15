@@ -33,3 +33,24 @@ test('source read failure without owned recovery hides stale data and ends loadi
  run('exports.fn='+sourceLoader(),{isChunked:true,activeDocumentId:'B',viewMode:'source',setMergedSourceLoading:v=>loading=v,setMergedSourceError:v=>error=v,setMergedSourceContent:v=>values.push(v),awaitDocumentSaves:async()=>{},rawRecovery:{current:{id:'A',markdown:'private A'}},chunks:{getAllChunksMarkdown:async()=>{throw Error('read');}}}).fn();
  await new Promise(r=>setImmediate(r));assert.equal(error,true);assert.equal(loading,false);assert.deepEqual(values,[]);
 });
+
+test('clean visual retries the authoritative raw snapshot after autosave failure', async () => {
+  const queueSource = readFileSync(new URL('../src/lib/document-save-queue.ts', import.meta.url), 'utf8')
+    .replace("import { updateContent } from '@/db/documents';", 'const updateContent = async () => {};');
+  let unavailable = true;
+  const writes = [];
+  const queue = run(queueSource).createDocumentSaveQueue(async (id, markdown, html) => {
+    writes.push({ id, markdown, html });
+    if (unavailable) throw Error('temporary storage failure');
+  });
+  await assert.rejects(queue.enqueueDocumentSave('A', 'latest raw', '<p>latest raw</p>'));
+  const h = harness({ isChunked: false, getDirtyEditorSnapshot: () => null,
+    awaitDocumentSaves: queue.awaitDocumentSaves,
+    saveCurrent: () => queue.enqueueDocumentSave('A', 'latest raw', '<p>latest raw</p>').catch(() => {}) });
+  assert.equal(await h.transition(h.commit), 'blocked');
+  assert.equal(writes.length, 2, 'failed retry keeps the current document');
+  assert.ok(!h.events.includes('select:B'));
+  unavailable = false;
+  assert.equal(await h.transition(h.commit), 'committed');
+  assert.equal(writes.at(-1).markdown, 'latest raw');
+});
