@@ -92,6 +92,35 @@ export async function createPdfDocument(input: PdfDocumentInput): Promise<string
   return id;
 }
 
+/** Copy the persisted document and its associated data as one consistent snapshot. */
+export async function duplicateDocument(id: string): Promise<string> {
+  const newId = nanoid();
+  const now = new Date();
+  await db.transaction('rw', db.documents, db.files, db.chunks, async () => {
+    const original = await db.documents.get(id);
+    if (!original) throw new Error('문서를 찾을 수 없습니다.');
+    const file = original.kind === 'pdf' ? await db.files.get(id) : undefined;
+    if (original.kind === 'pdf' && !file) throw new Error('원본 PDF 파일이 없습니다.');
+    const chunks = original.isChunked
+      ? await db.chunks.where('docId').equals(id).sortBy('chunkIndex')
+      : [];
+    if (original.isChunked && (chunks.length !== original.chunkCount || chunks.some((chunk, index) => chunk.chunkIndex !== index))) {
+      throw new Error('문서 페이지가 누락되어 복사할 수 없습니다.');
+    }
+    await db.documents.add({
+      ...original, id: newId, title: `${original.title} (복사본)`,
+      tags: [...original.tags], isFavorite: false, isPinned: false,
+      createdAt: now, updatedAt: now, lastOpenedAt: now, sortOrder: now.getTime(),
+    });
+    if (file) await db.files.add({ ...file, id: newId, createdAt: now });
+    if (chunks.length) await db.chunks.bulkAdd(chunks.map((chunk) => ({
+      docId: newId, chunkIndex: chunk.chunkIndex, markdown: chunk.markdown,
+      htmlContent: chunk.htmlContent, updatedAt: now,
+    })));
+  });
+  return newId;
+}
+
 export async function getDocument(id: string): Promise<Document | undefined> {
   return db.documents.get(id);
 }
@@ -159,13 +188,22 @@ export async function updateContent(
   const readingTime = computeReadingTime(isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount);
   const excerpt = extractExcerpt(content);
 
-  await db.documents.update(id, {
-    content,
-    htmlContent,
-    excerpt,
-    wordCount: isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount,
-    charCount,
-    readingTime,
-    updatedAt: new Date(),
+  await db.transaction('rw', db.documents, async () => {
+    const current = await db.documents.get(id);
+    if (!current || current.kind === 'pdf' || current.isChunked) {
+      throw new Error('문서가 삭제되거나 형식이 변경되어 저장할 수 없습니다. 편집 내용을 별도로 보관해주세요.');
+    }
+    const updated = await db.documents.update(id, {
+      content,
+      htmlContent,
+      excerpt,
+      wordCount: isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount,
+      charCount,
+      readingTime,
+      updatedAt: new Date(),
+    });
+    // Dexie resolves with zero when a peer has deleted the target. A no-op
+    // is not a saved edit: keep the queue failure visible to the editor.
+    if (updated !== 1) throw new Error('문서가 삭제되어 저장할 수 없습니다. 편집 내용을 별도로 보관해주세요.');
   });
 }

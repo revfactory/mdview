@@ -1,14 +1,24 @@
 import { updateContent } from '@/db/documents';
 
+type OperationScope = { scope: 'page'; page: number } | { scope: 'document' };
+
 type DocumentWriter = (id: string, markdown: string, html: string) => Promise<void>;
 
-/** Serialize full-document snapshots, independently for each document. */
+/** Serialize writes per document; partial success cannot hide unrelated failures. */
 export function createDocumentSaveQueue(write: DocumentWriter) {
   const tails = new Map<string, Promise<void>>();
+  const failures = new Map<string, Map<string | symbol, unknown>>();
 
   function enqueueDocumentSave(id: string, markdown: string, html: string): Promise<void> {
+    return enqueueDocumentOperation(id, () => write(id, markdown, html), { scope: 'document' });
+  }
+
+  function enqueueDocumentOperation(id: string, invoke: () => Promise<void>, scope?: OperationScope): Promise<void> {
+    // Unscoped operations cannot establish which earlier partial failure they
+    // replace. Keep each failure until an explicit whole-document replacement.
+    const key = scope?.scope === 'page' ? `page:${scope.page}`
+      : scope?.scope === 'document' ? 'document' : Symbol('partial');
     const previous = tails.get(id);
-    const invoke = () => write(id, markdown, html);
     let save: Promise<void>;
     if (previous) {
       // A failed snapshot must not poison subsequent saves.
@@ -18,30 +28,49 @@ export function createDocumentSaveQueue(write: DocumentWriter) {
       try { save = Promise.resolve(invoke()); }
       catch (error) { save = Promise.reject(error); }
     }
+    // Record outcomes before the serialized tail settles. A queued retry then
+    // sees a complete failure ledger, even when writers settle synchronously.
+    save = save.then(() => {
+      if (scope?.scope === 'document') failures.delete(id);
+      else if (scope?.scope === 'page') {
+        const pending = failures.get(id);
+        pending?.delete(key);
+        if (pending?.size === 0) failures.delete(id);
+      }
+    }, error => {
+      let pending = failures.get(id);
+      if (!pending) failures.set(id, pending = new Map());
+      pending.set(key, error);
+      throw error;
+    });
     tails.set(id, save);
-    // Observe rejection internally, but return the original rejecting promise so
-    // callers can report it. Retain the latest failure for load barriers too.
+    // Observe ignored rejections without changing the caller's rejecting promise.
     void save.then(() => {
       if (tails.get(id) === save) tails.delete(id);
-    }, () => {});
+    }, () => {
+      if (tails.get(id) === save) tails.delete(id);
+    });
     return save;
   }
 
   async function awaitDocumentSaves(id: string): Promise<void> {
-    // Include writes appended while the loader was waiting, not only its first
-    // snapshot. A newer successful save supersedes an earlier failed snapshot.
+    // Follow newly appended work before judging unresolved failures. Matching
+    // retries may recover a page; successful unrelated operations may not.
     for (;;) {
       const tail = tails.get(id);
-      if (!tail) return;
-      try { await tail; }
-      catch (error) {
-        if (tails.get(id) === tail) throw error;
+      if (!tail) {
+        const pending = failures.get(id);
+        if (pending?.size) throw pending.values().next().value;
+        return;
       }
-      if (tails.get(id) === tail) return;
+      try { await tail; } catch { /* Consult the scoped ledger after draining. */ }
     }
   }
 
-  return { enqueueDocumentSave, awaitDocumentSaves };
+  // Consult only after draining the queue; a document-level failure alone
+  // never authorizes replay of an unrelated page snapshot.
+  const hasFailedPageSave = (id: string, page: number) => failures.get(id)?.has(`page:${page}`) ?? false;
+  return { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves, hasFailedPageSave };
 }
 
-export const { enqueueDocumentSave, awaitDocumentSaves } = createDocumentSaveQueue(updateContent);
+export const { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves, hasFailedPageSave } = createDocumentSaveQueue(updateContent);

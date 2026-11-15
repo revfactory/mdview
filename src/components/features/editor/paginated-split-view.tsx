@@ -2,16 +2,20 @@
 
 import { indentSourceTextarea } from '@/lib/source-indentation';
 
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useRef, useEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
+import { SaveConflictNotice } from '@/components/features/editor/save-conflict-notice';
+import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
-import { updateChunk } from '@/db/chunks';
+import { awaitDocumentSaves, hasFailedPageSave } from '@/lib/document-save-queue';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
 interface PaginatedSplitViewProps {
   documentId: string;
   totalChunks: number;
+  onLeaveReady?: (prepare: (() => Promise<void>) | null) => void;
+  onFlushReady?: (flush: (() => Promise<void>) | null) => void;
   onEditorReady?: (editor: TipTapEditor | null) => void;
 }
 
@@ -19,21 +23,44 @@ export function PaginatedSplitView({
   documentId,
   totalChunks,
   onEditorReady,
+  onFlushReady,
+  onLeaveReady,
 }: PaginatedSplitViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sourceDirty = useRef(false);
+  const sourceRevision = useRef(0);
+  const [sourcePending, setSourcePending] = useState(false);
+  const [sourceText, setSourceText] = useState('');
   const updatingFromSource = useRef(false);
   const [dividerX, setDividerX] = useState(50);
 
   const {
+    flush,
+    prepareLeave,
+    getCurrentChunkId,
     currentPage,
     chunkHtml,
     chunkMarkdown,
     isPageLoading,
+    loadError,
+    conflictRaw,
+    retryLoad,
     pageChanging,
     editorRef,
     handlePageChange,
     handleChange,
-  } = usePaginatedChunks(documentId, totalChunks);
+    handleSourceInput,
+    publishSourcePreview,
+  } = usePaginatedChunks(documentId, totalChunks, sourcePending);
+
+  useLayoutEffect(() => {
+    sourceRevision.current++;
+    sourceDirty.current = false;
+    updatingFromSource.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset per-page async preview state when its owner changes.
+    setSourcePending(false);
+    return () => { sourceRevision.current++; };
+  }, [documentId, currentPage]);
 
   // Sync textarea when chunk markdown changes (page switch or WYSIWYG edit)
   useEffect(() => {
@@ -46,6 +73,51 @@ export function PaginatedSplitView({
     }
   }, [chunkMarkdown]);
 
+  useLayoutEffect(() => {
+    onFlushReady?.(async () => {
+      if (loadError || isPageLoading || pageChanging) throw new Error('페이지를 불러오는 중입니다.');
+      if (sourceDirty.current && textareaRef.current) {
+        const revision = sourceRevision.current;
+        const markdown = textareaRef.current.value;
+        const chunkId = getCurrentChunkId();
+        // sourceDirty identifies the authoritative editor, not a failed write.
+        // A clean barrier must not replay old source over a newer peer-tab edit.
+        try { await awaitDocumentSaves(documentId); }
+        catch (error) {
+          if (!hasFailedPageSave(documentId, currentPage)) throw error;
+          if (sourceRevision.current !== revision || !sourceDirty.current || getCurrentChunkId() !== chunkId) {
+            throw new Error('편집 내용이 변경되었습니다. 저장을 다시 시도하세요.');
+          }
+          await handleSourceInput(markdown);
+          await awaitDocumentSaves(documentId);
+        }
+      } else await flush();
+    });
+    return () => onFlushReady?.(null);
+  }, [flush, onFlushReady, loadError, isPageLoading, pageChanging, documentId, currentPage, getCurrentChunkId, handleSourceInput]);
+
+  useLayoutEffect(() => {
+    onLeaveReady?.(async () => {
+      if (sourceDirty.current && textareaRef.current) {
+        const revision = sourceRevision.current;
+        const markdown = textareaRef.current.value;
+        const chunkId = getCurrentChunkId();
+        // sourceDirty identifies the authoritative editor, not a failed write.
+        // A clean barrier must not replay old source over a newer peer-tab edit.
+        try { await awaitDocumentSaves(documentId); }
+        catch (error) {
+          if (!hasFailedPageSave(documentId, currentPage)) throw error;
+          if (sourceRevision.current !== revision || !sourceDirty.current || getCurrentChunkId() !== chunkId) {
+            throw new Error('편집 내용이 변경되었습니다. 저장을 다시 시도하세요.');
+          }
+          await handleSourceInput(markdown);
+          await awaitDocumentSaves(documentId);
+        }
+      } else await prepareLeave();
+    });
+    return () => onLeaveReady?.(null);
+  }, [onLeaveReady, prepareLeave, documentId, currentPage, getCurrentChunkId, handleSourceInput]);
+
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {
       editorRef.current = editor;
@@ -57,26 +129,36 @@ export function PaginatedSplitView({
   // WYSIWYG → source sync
   const handleWysiwygChange = useCallback(
     (markdown: string, html: string) => {
+      if (sourcePending) return;
       if (textareaRef.current) {
         textareaRef.current.value = markdown;
       }
       handleChange(markdown, html);
     },
-    [handleChange]
+    [handleChange, sourcePending]
   );
 
   // Source → WYSIWYG sync
   const handleSourceChange = useCallback(
     async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      if (pageChanging || isPageLoading) return;
       updatingFromSource.current = true;
+      sourceDirty.current = true;
+      const revision = ++sourceRevision.current;
       const markdown = e.target.value;
-      const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
-      const html = markdown.length > 50_000
-        ? await markdownToHtmlAsync(markdown)
-        : markdownToHtml(markdown);
-      handleChange(markdown, html);
+      setSourceText(markdown);
+      setSourcePending(true);
+      // Persist raw source immediately, before optional asynchronous preview work.
+      void handleSourceInput(markdown).catch(console.error);
+      try {
+        const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
+        const html = markdown.length > 50_000 ? await markdownToHtmlAsync(markdown) : markdownToHtml(markdown);
+        if (revision !== sourceRevision.current) return;
+        publishSourcePreview(html);
+        setSourcePending(false);
+      } catch (error) { console.error('Preview conversion failed; source is preserved:', error); }
     },
-    [handleChange]
+    [handleSourceInput, publishSourcePreview, pageChanging, isPageLoading]
   );
 
   // Tab key handling in source textarea
@@ -118,6 +200,10 @@ export function PaginatedSplitView({
     document.addEventListener('mouseup', onMouseUp);
   }, []);
 
+  if (loadError && !isPageLoading) {
+    return <PageLoadError message={loadError} onRetry={retryLoad} />;
+  }
+
   if (isPageLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
@@ -129,6 +215,7 @@ export function PaginatedSplitView({
 
   return (
     <div className="flex flex-col h-full">
+      {conflictRaw !== null && <SaveConflictNotice markdown={conflictRaw} />}
       <div className="flex flex-1 min-h-0 relative">
         {/* Left: WYSIWYG Editor */}
         <div className="h-full overflow-y-auto" style={{ width: `${dividerX}%` }}>
@@ -144,6 +231,9 @@ export function PaginatedSplitView({
             <Editor
               key={`split-${documentId}-${currentPage}`}
               content={chunkHtml}
+              sourceContent={sourceText}
+              editable={!sourcePending && !pageChanging}
+              onEdit={() => { sourceDirty.current = false; }}
               onChange={handleWysiwygChange}
               onEditorReady={handleEditorReady}
             />
@@ -175,6 +265,7 @@ export function PaginatedSplitView({
           </div>
           <textarea
             ref={textareaRef}
+            disabled={pageChanging || isPageLoading}
             defaultValue={chunkMarkdown}
             onChange={handleSourceChange}
             onKeyDown={handleKeyDown}
@@ -200,7 +291,7 @@ export function PaginatedSplitView({
           currentPage={currentPage}
           totalPages={totalChunks}
           onPageChange={handlePageChange}
-          disabled={pageChanging}
+          disabled={pageChanging || sourcePending}
         />
       </div>
     </div>

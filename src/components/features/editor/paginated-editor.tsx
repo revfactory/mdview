@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useLayoutEffect } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
 import { DocumentTitle } from '@/components/features/editor/document-title';
+import { SaveConflictNotice } from '@/components/features/editor/save-conflict-notice';
+import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
 import { useUIStore } from '@/stores/ui-store';
 import type { Editor as TipTapEditor } from '@tiptap/react';
@@ -11,6 +13,8 @@ import type { Editor as TipTapEditor } from '@tiptap/react';
 interface PaginatedEditorProps {
   documentId: string;
   totalChunks: number;
+  onLeaveReady?: (prepare: (() => Promise<void>) | null) => void;
+  onFlushReady?: (flush: (() => Promise<void>) | null) => void;
   onEditorReady?: (editor: TipTapEditor | null) => void;
 }
 
@@ -18,17 +22,34 @@ export function PaginatedEditor({
   documentId,
   totalChunks,
   onEditorReady,
+  onFlushReady,
+  onLeaveReady,
 }: PaginatedEditorProps) {
   const isMobile = useUIStore((s) => s.isMobile);
   const {
+    flush,
+    prepareLeave,
     currentPage,
     chunkHtml,
     isPageLoading,
+    loadError,
+    conflictRaw,
+    retryLoad,
     pageChanging,
     editorRef,
     handlePageChange,
     handleChange,
   } = usePaginatedChunks(documentId, totalChunks);
+
+  useLayoutEffect(() => {
+    onFlushReady?.(flush);
+    return () => onFlushReady?.(null);
+  }, [flush, onFlushReady]);
+
+  useLayoutEffect(() => {
+    onLeaveReady?.(prepareLeave);
+    return () => onLeaveReady?.(null);
+  }, [prepareLeave, onLeaveReady]);
 
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {
@@ -37,6 +58,10 @@ export function PaginatedEditor({
     },
     [editorRef, onEditorReady]
   );
+
+  if (loadError && !isPageLoading) {
+    return <PageLoadError message={loadError} onRetry={retryLoad} />;
+  }
 
   if (isPageLoading) {
     return (
@@ -49,6 +74,7 @@ export function PaginatedEditor({
 
   return (
     <div className="flex flex-col h-full">
+      {conflictRaw !== null && <SaveConflictNotice markdown={conflictRaw} />}
       <div
         className="flex-1 min-h-0 overflow-y-auto"
         style={{ padding: isMobile ? '20px 16px 64px 16px' : '40px 40px 96px 40px' }}
@@ -58,6 +84,7 @@ export function PaginatedEditor({
           <Editor
             key={`${documentId}-${currentPage}`}
             content={chunkHtml}
+            editable={!pageChanging}
             onChange={handleChange}
             onEditorReady={handleEditorReady}
           />

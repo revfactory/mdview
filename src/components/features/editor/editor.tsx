@@ -1,5 +1,7 @@
 'use client';
 
+import { markEditorDirty, resetEditorDirty } from '@/lib/editor-dirty-snapshot';
+
 import { useEditor, EditorContent, type EditorEvents } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
@@ -32,13 +34,14 @@ import { useEditorStore } from '@/stores/editor-store';
 
 interface EditorProps {
   content: string;
+  onEdit?: () => void;
   onChange?: (markdown: string, html: string) => void;
   editable?: boolean;
   sourceContent?: string;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
 }
 
-export function Editor({ content, onChange, editable = true, onEditorReady, sourceContent }: EditorProps) {
+export function Editor({ content, onChange, editable = true, onEditorReady, sourceContent, onEdit }: EditorProps) {
   const { actions } = useEditorStore();
   const [initialContent] = useState(content);
   const initialContentRef = useRef(content);
@@ -117,6 +120,8 @@ export function Editor({ content, onChange, editable = true, onEditorReady, sour
     content: initialContent || '<p></p>',
     onUpdate: ({ editor: ed }) => {
       if (!ed.isEditable) return;
+      markEditorDirty(ed);
+      onEdit?.();
       const revision = ++editRevision.current;
       const html = ed.getHTML();
 
@@ -160,6 +165,10 @@ export function Editor({ content, onChange, editable = true, onEditorReady, sour
     syncCounts();
     return () => { editor.off('transaction', onTransaction); };
   }, [editor, actions]);
+
+  useLayoutEffect(() => {
+    if (editor) resetEditorDirty(editor);
+  }, [editor, content, sourceContent]);
 
   // Notify parent when editor is ready
   useEffect(() => {

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useUIStore } from '@/stores/ui-store';
 
 interface KeyboardShortcutsOptions {
+  onViewModeChange: (mode: 'wysiwyg' | 'split' | 'source') => void;
   onNewDocument: () => void;
   onForceSave?: () => void;
   onSearchFocus?: () => void;
@@ -11,6 +12,7 @@ interface KeyboardShortcutsOptions {
 }
 
 export function useKeyboardShortcuts({
+  onViewModeChange,
   onNewDocument,
   onForceSave,
   onSearchFocus,
@@ -44,7 +46,7 @@ export function useKeyboardShortcuts({
         const current = useUIStore.getState().viewMode;
         const idx = viewModes.indexOf(current);
         const next = viewModes[(idx + 1) % viewModes.length];
-        actions.setViewMode(next);
+        onViewModeChange(next);
         return;
       }
 
@@ -86,5 +88,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [actions, onNewDocument, onForceSave, onSearchFocus, onQuickOpen]);
+  }, [actions, onNewDocument, onForceSave, onSearchFocus, onQuickOpen, onViewModeChange]);
 }

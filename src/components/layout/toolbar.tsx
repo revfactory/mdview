@@ -81,6 +81,7 @@ function getActiveBlockLabel(editor: TipTapEditor | null): string {
 }
 
 export interface ToolbarProps {
+  onViewModeChange: (mode: 'wysiwyg' | 'split' | 'source') => void;
   editor?: TipTapEditor | null;
   onExport?: () => void;
   onToggleToc?: () => void;
@@ -91,10 +92,10 @@ export interface ToolbarProps {
   disabled?: boolean;
 }
 
-export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, documentId, isChunked, markdown: sourceMarkdown, disabled = false }: ToolbarProps) {
+export function Toolbar({ onViewModeChange, editor = null, onExport, onToggleToc, documentTitle, documentId, isChunked, markdown: sourceMarkdown, disabled = false }: ToolbarProps) {
   const viewMode = useUIStore((s) => s.viewMode);
   const isMobile = useUIStore((s) => s.isMobile);
-  const { setViewMode, toggleSidebar } = useUIStore((s) => s.actions);
+  const { toggleSidebar } = useUIStore((s) => s.actions);
   const blockLabel = getActiveBlockLabel(editor);
   const noEditor = !editor;
   const { exportPdf } = usePdfExport({ documentTitle: documentTitle || '문서' });
@@ -357,7 +358,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
             <Tooltip content={label} side="bottom" key={mode}>
               <button
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { setViewMode(mode); analytics.viewModeChange(mode); }}
+                onClick={() => onViewModeChange(mode)}
                 aria-label={label}
                 className={`flex items-center justify-center w-8 h-7 rounded-md text-xs transition-all duration-150 cursor-pointer ${
                   viewMode === mode

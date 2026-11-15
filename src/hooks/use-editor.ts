@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { getDocument, updateDocument } from '@/db/documents';
-import { getChunkCount, saveChunks } from '@/db/chunks';
+import { getDocument } from '@/db/documents';
+import { getChunkCount, autoChunkDocument, AutoChunkConflictError } from '@/db/chunks';
 import { chunkDocument } from '@/lib/chunk-document';
 import { useEditorStore } from '@/stores/editor-store';
 import { awaitDocumentSaves } from '@/lib/document-save-queue';
+import { createContentSaveSession } from '@/lib/content-save-session';
+import { plainBaselineFromDocument, savePlainBaseline } from '@/db/content-cas';
 import { useAutosave } from '@/hooks/use-autosave';
 import { markdownToHtml, markdownToHtmlAsync } from '@/lib/markdown';
 import type { DocumentKind } from '@/types';
@@ -17,6 +19,7 @@ export function useEditorManager(documentId: string | null) {
   const [content, setContent] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [isLargeDocument, setIsLargeDocument] = useState(false);
   const [isChunked, setIsChunked] = useState(false);
@@ -24,6 +27,7 @@ export function useEditorManager(documentId: string | null) {
   const [documentKind, setDocumentKind] = useState<DocumentKind>('markdown');
   const { actions } = useEditorStore();
   const [sourcePending, setSourcePending] = useState(false);
+  const [saveConflict, setSaveConflict] = useState(false);
   const sourceRevision = useRef(0);
   const currentDocument = useRef(documentId);
   const loadedDocumentId = useRef(documentId);
@@ -33,7 +37,9 @@ export function useEditorManager(documentId: string | null) {
     sourceRevision.current++;
     return () => { sourceRevision.current++; };
   }, [documentId]);
-  const save = useAutosave(documentId);
+  const saveSession = useRef<ReturnType<typeof createContentSaveSession<ReturnType<typeof plainBaselineFromDocument>, { markdown: string; html: string }>> | null>(null);
+  const reportConflict = useCallback(() => setSaveConflict(true), []);
+  const save = useAutosave(documentId, saveSession, reportConflict);
   const prevDocId = useRef<string | null>(null);
 
   // Load document when ID changes
@@ -43,8 +49,10 @@ export function useEditorManager(documentId: string | null) {
 
     if (!documentId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Clearing the external document selection must reset the editor before another document loads.
+      setLoadError(null);
       setContent('');
       setHtmlContent('');
+      setIsLargeDocument(false);
       setIsChunked(false);
       setChunkCount(0);
       setDocumentKind('markdown');
@@ -53,8 +61,12 @@ export function useEditorManager(documentId: string | null) {
 
     let cancelled = false;
     loadedDocumentId.current = null;
+    saveSession.current = null;
     setLoadedId(null);
     setIsLoading(true);
+    setLoadError(null);
+    setSaveConflict(false);
+    setIsLargeDocument(false);
     setSourcePending(false);
 
     (async () => {
@@ -89,6 +101,7 @@ export function useEditorManager(documentId: string | null) {
         setDocumentKind('markdown');
 
         if (doc) {
+          if (!doc.isChunked) saveSession.current = createContentSaveSession(plainBaselineFromDocument(doc), savePlainBaseline);
           const raw = doc.content || '';
           setContent(raw);
 
@@ -122,11 +135,7 @@ export function useEditorManager(documentId: string | null) {
             // Auto-chunk: split large document into chunks on the fly
             try {
               const chunks = chunkDocument(raw);
-              await saveChunks(documentId, chunks);
-              await updateDocument(documentId, {
-                isChunked: true,
-                chunkCount: chunks.length,
-              } as Partial<import('@/types').Document>);
+              await autoChunkDocument(documentId, { ...doc, content: raw }, chunks);
               if (cancelled) return;
 
               setIsChunked(true);
@@ -147,6 +156,11 @@ export function useEditorManager(documentId: string | null) {
               });
               return;
             } catch (chunkErr) {
+              // A previous document may finish failing after a new one loaded.
+              // Never publish its fallback state or restore its save ownership.
+              if (cancelled) return;
+              // A stale snapshot must not become an editable source fallback.
+              if (chunkErr instanceof AutoChunkConflictError) throw chunkErr;
               console.error('Auto-chunking failed, falling back to source view:', chunkErr);
               setIsLargeDocument(true);
               setHtmlContent('');
@@ -177,6 +191,7 @@ export function useEditorManager(documentId: string | null) {
       } catch (error) {
         if (cancelled) return;
         console.error('Failed to load document:', error);
+        setLoadError(error instanceof AutoChunkConflictError ? error.message : '문서를 불러오지 못했습니다. 다른 문서를 선택한 뒤 다시 열어주세요.');
         setContent('');
         setHtmlContent('');
         setIsChunked(false);
@@ -208,7 +223,9 @@ export function useEditorManager(documentId: string | null) {
       if (currentDocument.current !== documentId || revision !== sourceRevision.current) return;
       setHtmlContent(html);
       setSourcePending(false);
-      void save(markdown, html);
+      // Preview is derived UI state, not a new user edit. The raw source
+      // was already queued above; writing it again can replay an old snapshot
+      // over another editor while conversion was pending. Rebuild HTML on load.
     }).catch(error => {
       if (currentDocument.current !== documentId || revision !== sourceRevision.current) return;
       console.error('Preview conversion failed; source is preserved:', error);
@@ -231,6 +248,7 @@ export function useEditorManager(documentId: string | null) {
     content,
     htmlContent,
     isLoading,
+    loadError,
     isLargeDocument,
     isChunked,
     chunkCount,
@@ -239,6 +257,7 @@ export function useEditorManager(documentId: string | null) {
     onChange,
     onSourceChange,
     sourcePending,
+    saveConflict: loadedId === documentId && saveConflict,
     canSave: loadedId === documentId && !isLoading && documentKind !== 'pdf',
     saveCurrent: () => loadedDocumentId.current === documentId && documentKind !== 'pdf' ? save(content, sourcePending ? '' : htmlContent) : Promise.resolve(),
   };
