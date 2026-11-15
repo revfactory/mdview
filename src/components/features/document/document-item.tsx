@@ -97,8 +97,13 @@ export function DocumentItem({
         }
       `}
     >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label={`${title || '제목 없음'}${kind === 'pdf' ? ' PDF' : ''} 문서 열기`}
+        aria-current={isActive ? 'true' : undefined}
+        className="flex-1 min-w-0 rounded-sm text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+      >
+        <span className="flex items-center gap-1">
           {isFavorite && (
             <Pin className="w-3 h-3 shrink-0 text-[var(--color-accent)] -rotate-45" fill="currentColor" />
           )}
@@ -122,13 +127,13 @@ export function DocumentItem({
           <span className="shrink-0 text-[11px] text-[var(--color-text-placeholder)]">
             {formatDate(updatedAt)}
           </span>
-        </div>
+        </span>
         {excerpt && (
-          <p className="text-[12px] leading-snug text-[var(--color-text-muted)] truncate mt-0.5">
+          <span className="block text-[12px] leading-snug text-[var(--color-text-muted)] truncate mt-0.5">
             {excerpt}
-          </p>
+          </span>
         )}
-      </div>
+      </button>
       <div className="flex items-center shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu
           trigger={
