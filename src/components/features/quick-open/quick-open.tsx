@@ -61,6 +61,8 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
           setSelectedIndex(Math.max(selectedIndex - 1, 0));
           break;
         case 'Enter':
+          // A focused result owns its native Enter click, not the highlighted row.
+          if ((e.target as HTMLElement)?.closest('[data-quick-open-item]')) return;
           e.preventDefault();
           if (filtered[selectedIndex]) {
             handleSelect(filtered[selectedIndex].id);
