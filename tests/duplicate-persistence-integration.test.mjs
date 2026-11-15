@@ -42,7 +42,12 @@ async function fixture(run) {
   try {
     await db.documents.add({ id: 'source', title: '한글 원본', content: 'stale', tags: [], isChunked: true, chunkCount: 2 });
     await chunks.saveChunks('source', [{ index: 0, markdown: 'old 0' }, { index: 1, markdown: 'old 1' }]);
-    await run({ db, documents, chunks, queue, copy });
+    const openPeer = async () => {
+      const peer = new Dexie(name, { indexedDB, IDBKeyRange });
+      await peer.open();
+      return peer;
+    };
+    await run({ db, documents, chunks, queue, copy, openPeer });
   } finally { await db.delete(); }
 }
 const deferred = () => {
@@ -110,4 +115,44 @@ test('copy must not forget a failed page when another page later saves successfu
   await queue.enqueueDocumentOperation('source', () => chunks.updateChunk('source', 1, 'new page one', ''), { scope: 'page', page: 1 });
   assert.equal((await chunks.getChunk('source', 0)).markdown, 'old 0');
   await assert.rejects(copy(), /page zero quota/, 'copy must stop until the failed page is recovered');
+}));
+
+test('independent DB connection sees coherent pages when rechunk and copy overlap', () => fixture(async ({ db, chunks, copy, openPeer }) => {
+  const peer = await openPeer();
+  try {
+    const replacement = peer.transaction('rw', peer.table('documents'), peer.table('chunks'), async () => {
+      await peer.table('chunks').where('docId').equals('source').delete();
+      await peer.table('chunks').add({ docId: 'source', chunkIndex: 0, markdown: 'peer replacement', htmlContent: '', updatedAt: new Date() });
+      await peer.table('documents').update('source', { content: 'peer replacement', chunkCount: 1 });
+    });
+    const copying = copy();
+    await replacement;
+    const id = await copying;
+    db.close(); await db.open();
+    const document = await db.documents.get(id);
+    const pages = await db.chunks.where('docId').equals(id).sortBy('chunkIndex');
+    assert.equal(pages.length, document.chunkCount);
+    // Either complete old or complete new snapshot is legal; mixing is not.
+    assert.ok(
+      (pages.length === 1 && document.content === 'peer replacement' && pages[0].markdown === 'peer replacement') ||
+      (pages.length === 2 && document.content === 'stale' && pages[0].markdown === 'old 0' && pages[1].markdown === 'old 1'),
+    );
+    assert.equal(await chunks.getChunkCount('source'), 1);
+  } finally { peer.close(); }
+}));
+
+test('copy transaction abort is visible as no partial document from another connection', () => fixture(async ({ db, copy, openPeer }) => {
+  const peer = await openPeer();
+  const fail = () => { throw Error('copy quota'); };
+  try {
+    db.chunks.hook('creating', fail);
+    await assert.rejects(copy(), /copy quota/);
+    assert.equal(await peer.table('documents').count(), 1);
+    assert.equal(await peer.table('chunks').count(), 2);
+    assert.equal((await peer.table('documents').get('source')).title, '한글 원본');
+    db.chunks.hook('creating').unsubscribe(fail);
+    const id = await copy();
+    assert.equal((await peer.table('documents').get(id)).chunkCount, 2);
+    assert.equal(await peer.table('chunks').where('docId').equals(id).count(), 2);
+  } finally { db.chunks.hook('creating').unsubscribe(fail); peer.close(); }
 }));
