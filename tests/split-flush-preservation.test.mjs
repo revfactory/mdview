@@ -10,12 +10,12 @@ function run(js,context={}){const exports={};vm.runInNewContext(ts.transpileModu
 for(const name of ['onFlushReady','onLeaveReady']) {
  test(`${name}: already persisted raw source must not overwrite another tab's later edit`,async()=>{
   let stored='peer newer',writes=0;
-  const flush=run('exports.fn='+callback(name),{loadError:null,isPageLoading:false,pageChanging:false,hasFailedPageSave:()=>true,sourceRevision:{current:1},sourceDirty:{current:true},textareaRef:{current:{value:'local already saved'}},getCurrentChunkId:()=>101,documentId:'A',currentPage:0,awaitDocumentSaves:async()=>{},enqueueDocumentOperation:async(_id,fn)=>fn(),updateChunk:async(_id,_page,raw)=>{writes++;stored=raw;}}).fn;
+  const flush=run('exports.fn='+callback(name),{loadError:null,isPageLoading:false,pageChanging:false,hasFailedPageSave:()=>true,sourceRevision:{current:1},sourceDirty:{current:true},textareaRef:{current:{value:'local already saved'}},getCurrentChunkId:()=>101,documentId:'A',currentPage:0,awaitDocumentSaves:async()=>{},enqueueDocumentOperation:async(_id,fn)=>fn(),handleSourceInput:async(raw)=>{writes++;stored=raw;}}).fn;
   await flush(); assert.equal(writes,0);assert.equal(stored,'peer newer');
  });
  test(`${name}: failed raw source retries exact text and continued failure rejects`,async()=>{
   let stored='old',fail=true,failed=true;
-  const flush=run('exports.fn='+callback(name),{loadError:null,isPageLoading:false,pageChanging:false,hasFailedPageSave:()=>true,sourceRevision:{current:1},sourceDirty:{current:true},textareaRef:{current:{value:'latest **raw**'}},getCurrentChunkId:()=>101,documentId:'A',currentPage:0,awaitDocumentSaves:async()=>{if(failed)throw Error('failed write');},enqueueDocumentOperation:async(_id,fn)=>fn(),updateChunk:async(_id,_page,raw)=>{if(fail)throw Error('quota');stored=raw;failed=false;}}).fn;
+  const flush=run('exports.fn='+callback(name),{loadError:null,isPageLoading:false,pageChanging:false,hasFailedPageSave:()=>true,sourceRevision:{current:1},sourceDirty:{current:true},textareaRef:{current:{value:'latest **raw**'}},getCurrentChunkId:()=>101,documentId:'A',currentPage:0,awaitDocumentSaves:async()=>{if(failed)throw Error('failed write');},enqueueDocumentOperation:async(_id,fn)=>fn(),handleSourceInput:async(raw)=>{if(fail)throw Error('quota');stored=raw;failed=false;}}).fn;
   await assert.rejects(flush(),/quota/);assert.equal(stored,'old');fail=false;await flush();assert.equal(stored,'latest **raw**');
  });
 }
@@ -28,6 +28,6 @@ test('a newer source revision during failed barrier is not overwritten by captur
 
 test('an unrelated page failure must not replay already saved source over a peer edit',async()=>{
  let stored='peer newer';let writes=0;
- const flush=run('exports.fn='+callback('onLeaveReady'),{hasFailedPageSave:()=>false,sourceRevision:{current:1},sourceDirty:{current:true},textareaRef:{current:{value:'local already saved'}},getCurrentChunkId:()=>101,documentId:'A',currentPage:0,awaitDocumentSaves:async()=>{throw Error('page 1 failed');},enqueueDocumentOperation:async(_id,fn)=>fn(),updateChunk:async(_id,_page,raw)=>{writes++;stored=raw;}}).fn;
+ const flush=run('exports.fn='+callback('onLeaveReady'),{hasFailedPageSave:()=>false,sourceRevision:{current:1},sourceDirty:{current:true},textareaRef:{current:{value:'local already saved'}},getCurrentChunkId:()=>101,documentId:'A',currentPage:0,awaitDocumentSaves:async()=>{throw Error('page 1 failed');},enqueueDocumentOperation:async(_id,fn)=>fn(),handleSourceInput:async(raw)=>{writes++;stored=raw;}}).fn;
  await assert.rejects(flush(),/page 1 failed/);assert.equal(writes,0);assert.equal(stored,'peer newer');
 });

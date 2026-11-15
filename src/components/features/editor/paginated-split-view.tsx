@@ -7,8 +7,7 @@ import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
 import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
-import { enqueueDocumentOperation, awaitDocumentSaves, hasFailedPageSave } from '@/lib/document-save-queue';
-import { updateChunk } from '@/db/chunks';
+import { awaitDocumentSaves, hasFailedPageSave } from '@/lib/document-save-queue';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
 interface PaginatedSplitViewProps {
@@ -48,6 +47,8 @@ export function PaginatedSplitView({
     editorRef,
     handlePageChange,
     handleChange,
+    handleSourceInput,
+    publishSourcePreview,
   } = usePaginatedChunks(documentId, totalChunks, sourcePending);
 
   useLayoutEffect(() => {
@@ -85,13 +86,13 @@ export function PaginatedSplitView({
           if (sourceRevision.current !== revision || !sourceDirty.current || getCurrentChunkId() !== chunkId) {
             throw new Error('편집 내용이 변경되었습니다. 저장을 다시 시도하세요.');
           }
-          await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
+          await handleSourceInput(markdown);
           await awaitDocumentSaves(documentId);
         }
       } else await flush();
     });
     return () => onFlushReady?.(null);
-  }, [flush, onFlushReady, loadError, isPageLoading, pageChanging, documentId, currentPage, getCurrentChunkId]);
+  }, [flush, onFlushReady, loadError, isPageLoading, pageChanging, documentId, currentPage, getCurrentChunkId, handleSourceInput]);
 
   useLayoutEffect(() => {
     onLeaveReady?.(async () => {
@@ -107,13 +108,13 @@ export function PaginatedSplitView({
           if (sourceRevision.current !== revision || !sourceDirty.current || getCurrentChunkId() !== chunkId) {
             throw new Error('편집 내용이 변경되었습니다. 저장을 다시 시도하세요.');
           }
-          await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
+          await handleSourceInput(markdown);
           await awaitDocumentSaves(documentId);
         }
       } else await prepareLeave();
     });
     return () => onLeaveReady?.(null);
-  }, [onLeaveReady, prepareLeave, documentId, currentPage, getCurrentChunkId]);
+  }, [onLeaveReady, prepareLeave, documentId, currentPage, getCurrentChunkId, handleSourceInput]);
 
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {
@@ -143,20 +144,19 @@ export function PaginatedSplitView({
       sourceDirty.current = true;
       const revision = ++sourceRevision.current;
       const markdown = e.target.value;
-      const chunkId = getCurrentChunkId();
       setSourceText(markdown);
       setSourcePending(true);
       // Persist raw source immediately, before optional asynchronous preview work.
-      void enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage }).catch(console.error);
+      void handleSourceInput(markdown).catch(console.error);
       try {
         const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
         const html = markdown.length > 50_000 ? await markdownToHtmlAsync(markdown) : markdownToHtml(markdown);
         if (revision !== sourceRevision.current) return;
-        handleChange(markdown, html);
+        publishSourcePreview(html);
         setSourcePending(false);
       } catch (error) { console.error('Preview conversion failed; source is preserved:', error); }
     },
-    [handleChange, documentId, currentPage, pageChanging, isPageLoading, getCurrentChunkId]
+    [handleSourceInput, publishSourcePreview, pageChanging, isPageLoading]
   );
 
   // Tab key handling in source textarea

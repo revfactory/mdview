@@ -100,3 +100,23 @@ test('prepareLeave retains failed editable snapshot instead of escaping',async()
  const h=harness();h.render();await tick();h.setFail(true);h.render().handleChange('unsaved raw','<p>unsaved raw</p>');await tick();
  await assert.rejects(h.render().prepareLeave());assert.equal(h.writes.at(-1).markdown,'unsaved raw');
 });
+
+test('source preview publication never persists and failed raw snapshot remains retryable',async()=>{
+ const h=harness();h.render();await tick();let hook=h.render();hook.editorRef.current={};h.setFail(true);
+ await assert.rejects(hook.handleSourceInput('exact raw **text**'));
+ hook=h.render();hook.publishSourcePreview('<p>derived preview</p>');await tick();
+ assert.equal(h.writes.length,1);assert.equal(h.render().chunkMarkdown,'exact raw **text**');
+ await assert.rejects(h.render().prepareLeave());assert.equal(h.writes.length,2);
+ assert.equal(h.writes[1].markdown,'exact raw **text**');assert.equal(h.writes[1].html,'');
+ h.setFail(false);await h.render().handleSourceInput('exact raw **text**');
+ const count=h.writes.length;await h.render().handlePageChange(1);
+ assert.equal(h.writes.length,count,'successful source retry clears pending snapshot');
+});
+
+test('new source input supersedes a failed visual snapshot before preview completion',async()=>{
+ const h=harness();h.render();await tick();h.render().editorRef.current={};h.setFail(true);
+ h.render().handleChange('old visual','<p>old visual</p>');await tick();
+ await assert.rejects(h.render().handleSourceInput('new raw'));
+ h.setFail(false);await h.render().prepareLeave();
+ assert.equal(h.writes.at(-1).markdown,'new raw');assert.equal(h.writes.at(-1).html,'');
+});

@@ -161,6 +161,20 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     [documentId, currentPage, persistSnapshot, getCurrentChunkId]
   );
 
+  // Raw source is authoritative. Keep a retry snapshot without publishing an
+  // empty preview, and never treat derived conversion as another user write.
+  const handleSourceInput = useCallback(async (markdown: string) => {
+    const snapshot = { documentId, page: currentPage, chunkId: getCurrentChunkId(), markdown, html: '' };
+    pendingSnapshot.current = snapshot;
+    setChunkMarkdown(markdown);
+    await persistSnapshot(snapshot);
+  }, [documentId, currentPage, getCurrentChunkId, persistSnapshot]);
+
+  const publishSourcePreview = useCallback((html: string) => {
+    getCurrentChunkId();
+    setChunkHtml(html);
+  }, [getCurrentChunkId]);
+
   const flush = useCallback(async () => {
     if (loadError || isPageLoading || pageChanging || !editorRef.current) throw new Error('페이지를 불러오는 중입니다.');
     await saveCurrentPage();
@@ -205,5 +219,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     editorRef,
     handlePageChange,
     handleChange,
+    handleSourceInput,
+    publishSourcePreview,
   };
 }

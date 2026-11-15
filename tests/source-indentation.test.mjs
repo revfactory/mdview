@@ -108,6 +108,8 @@ for (const [file, name] of [
       '@/hooks/use-paginated-chunks': { usePaginatedChunks: () => ({
         getCurrentChunkId: () => 101, currentPage: 0, chunkHtml: '', chunkMarkdown: '', editorRef: { current: null },
         handleChange: markdown => changes.push(markdown),
+        handleSourceInput: async markdown => { changes.push(markdown); },
+        publishSourcePreview: () => {},
       }) },
       '@/lib/markdown': { markdownToHtml: value => value },
     };
