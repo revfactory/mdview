@@ -68,3 +68,12 @@ test('unchanged normal source navigation does not rewrite storage',async()=>{
  h.context.useUIStore.getState=()=>({viewMode:'source'});
  assert.equal(await h.transition(h.commit),'committed');assert.equal(writes,0);
 });
+
+test('transition recovery never replays old manager raw after newer input fails',async()=>{
+ for(const mode of ['wysiwyg','source']){
+  let reject,retries=0;const h=harness({isChunked:false,viewMode:mode,getDirtyEditorSnapshot:()=>null,awaitDocumentSaves:()=>new Promise((_,r)=>reject=r),saveCurrent:async()=>{retries++;}});
+  h.context.useUIStore.getState=()=>({viewMode:mode});
+  const pending=h.transition(h.commit);h.context.inputRevision.current++;reject(Error('newer save failed'));
+  assert.equal(await pending,'blocked');assert.equal(retries,0);assert.ok(!h.events.includes('select:B'));
+ }
+});

@@ -96,13 +96,14 @@ export default function Home() {
     const revision = inputRevision.current;
     const visual = viewMode !== 'source' && !sourcePending && tiptapEditor && !tiptapEditor.isDestroyed ? tiptapEditor : null;
     const snapshot = visual?.getHTML();
+    const isCurrent = () => generation === ownerGeneration.current && revision === inputRevision.current &&
+      useEditorStore.getState().activeDocumentId === activeDocumentId &&
+      useUIStore.getState().viewMode === viewMode &&
+      (!visual || (!visual.isDestroyed && visual.getHTML() === snapshot));
     try {
       return await transitionGate.current({
         owner: generation,
-        isCurrent: owner => owner === ownerGeneration.current && revision === inputRevision.current &&
-          useEditorStore.getState().activeDocumentId === activeDocumentId &&
-          useUIStore.getState().viewMode === viewMode &&
-          (!visual || (!visual.isDestroyed && visual.getHTML() === snapshot)),
+        isCurrent,
         setBusy: setTransitionPending,
         prepare: async () => {
           if (!activeDocumentId || documentKind === 'pdf') return;
@@ -116,7 +117,10 @@ export default function Home() {
               // Raw edits are queued synchronously by the source change handler.
               // Preserve a clean stored document when no failed write needs retry.
               try { await awaitDocumentSaves(activeDocumentId); }
-              catch { await saveCurrent(); }
+              catch (error) {
+                if (!isCurrent()) throw error;
+                await saveCurrent();
+              }
             }
             else if (visual) {
               const dirty = getDirtyEditorSnapshot(visual);
@@ -126,7 +130,10 @@ export default function Home() {
                 // Only retry its authoritative raw snapshot after a failed save;
                 // never round-trip a clean derived editor through Markdown.
                 try { await awaitDocumentSaves(activeDocumentId); }
-                catch { await saveCurrent(); }
+                catch (error) {
+                if (!isCurrent()) throw error;
+                await saveCurrent();
+              }
               }
             }
           }
@@ -399,6 +406,10 @@ export default function Home() {
     if (!activeDocumentId || isLoading || !canSave) return;
     if (!isChunked && (viewMode === 'source' || sourcePending || !tiptapEditor)) { await saveCurrent(); return; }
     if (!isChunked && !tiptapEditor) return;
+    const generation = ownerGeneration.current;
+    const revision = inputRevision.current;
+    const isCurrentSave = () => ownerGeneration.current === generation && inputRevision.current === revision &&
+      useEditorStore.getState().activeDocumentId === activeDocumentId;
     actions.setSaveStatus('saving');
     try {
       if (isChunked) {
@@ -410,15 +421,27 @@ export default function Home() {
         }
         await awaitDocumentSaves(activeDocumentId);
       } else if (tiptapEditor) {
-        const html = tiptapEditor.getHTML();
-        const md = savedHtmlToMarkdown(html);
-        await enqueueDocumentSave(activeDocumentId, md, html);
+        const dirty = getDirtyEditorSnapshot(tiptapEditor);
+        if (dirty !== null) {
+          // Publish both manager state and persistence before a subsequent view
+          // switch. A clean derived preview must never replace raw Markdown.
+          onChange(savedHtmlToMarkdown(dirty), dirty);
+        } else {
+          try { await awaitDocumentSaves(activeDocumentId); }
+          catch (error) {
+            // This callback may outlive a newer edit or document selection.
+            // Its captured manager snapshot must not clear a newer failure.
+            if (!isCurrentSave()) throw error;
+            await saveCurrent();
+          }
+        }
+        await awaitDocumentSaves(activeDocumentId);
       }
-      if (useEditorStore.getState().activeDocumentId === activeDocumentId) actions.setSaveStatus('saved');
+      if (isCurrentSave()) actions.setSaveStatus('saved');
     } catch {
-      if (useEditorStore.getState().activeDocumentId === activeDocumentId) actions.setSaveStatus('error');
+      if (isCurrentSave()) actions.setSaveStatus('error');
     }
-  }, [activeDocumentId, tiptapEditor, actions, isChunked, saveCurrent, viewMode, sourcePending, isLoading, canSave]);
+  }, [activeDocumentId, tiptapEditor, actions, isChunked, saveCurrent, onChange, viewMode, sourcePending, isLoading, canSave]);
 
   const handleEditorReady = useCallback((editor: TipTapEditor | null) => {
     setTiptapEditor(editor ?? null);

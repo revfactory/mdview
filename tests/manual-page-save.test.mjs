@@ -16,6 +16,7 @@ function harness(options = {}) {
   assert.ok(callback);
   const events = [];
   const context = {
+    ownerGeneration: { current: 1 }, inputRevision: { current: 0 },
     activeDocumentId: 'doc', isLoading: false, canSave: true, isChunked: true, viewMode: 'wysiwyg', sourcePending: false,
     tiptapEditor: { getHTML() { events.push('serialize'); return '<p>one page</p>'; } },
     pageFlushRef: { current: async () => { events.push('flush'); } },
@@ -24,6 +25,8 @@ function harness(options = {}) {
     awaitDocumentSaves: async id => { events.push('wait:' + id); },
     updateContent: async () => events.push('aggregate-write'),
     enqueueDocumentSave: async () => events.push('document-save'),
+    getDirtyEditorSnapshot: editor => editor.getHTML(),
+    onChange: () => events.push('manager-save'),
     savedHtmlToMarkdown: () => 'one page',
     saveCurrent: async () => events.push('source-save'),
     ...options,
@@ -56,7 +59,7 @@ test('missing page flush and failed queue both leave manual save in error', asyn
 });
 test('ordinary visual and source document saves retain their existing routes', async () => {
   const visual = harness({ isChunked: false }); await visual.save();
-  assert.deepEqual(visual.events, ['saving', 'serialize', 'document-save', 'saved']);
+  assert.deepEqual(visual.events, ['saving', 'serialize', 'manager-save', 'wait:doc', 'saved']);
   const source = harness({ isChunked: false, viewMode: 'source' }); await source.save();
   assert.deepEqual(source.events, ['source-save']);
 });
@@ -64,4 +67,36 @@ test('completion for a no-longer-selected document does not overwrite current sa
   const h = harness({ useEditorStore: { getState: () => ({ activeDocumentId: 'other' }) } });
   await h.save();
   assert.deepEqual(h.events, ['saving', 'flush', 'wait:doc']);
+});
+
+test('unchanged ordinary visual save must not round-trip raw Markdown through preview HTML',async()=>{
+ let stored='<!-- keep comment -->\n[link][ref]\n\n[ref]: https://example.com';const original=stored;
+ const h=harness({isChunked:false,getDirtyEditorSnapshot:()=>null,enqueueDocumentSave:async(_id,md)=>{stored=md;}});
+ await h.save();assert.equal(stored,original);assert.ok(!h.events.includes('serialize'));
+});
+test('ordinary dirty manual save publishes manager state before immediate source navigation',async()=>{
+ let managerRaw='old';const h=harness({isChunked:false,getDirtyEditorSnapshot:()=>'<p>latest</p>',savedHtmlToMarkdown:()=> 'latest',onChange:md=>{managerRaw=md;}});
+ await h.save();assert.equal(managerRaw,'latest');
+});
+
+test('ordinary dirty save swallowed persistence failure cannot announce saved',async()=>{
+ const h=harness({isChunked:false,awaitDocumentSaves:async()=>{throw Error('quota');}});await h.save();
+ assert.deepEqual(h.events,['saving','serialize','manager-save','error']);
+});
+test('ordinary clean failed save retries raw but confirms final barrier',async()=>{
+ for(const succeeds of [false,true]){
+  let failed=true;let retried=0;const h=harness({isChunked:false,getDirtyEditorSnapshot:()=>null,awaitDocumentSaves:async()=>{if(failed)throw Error('quota');},saveCurrent:async()=>{retried++;failed=!succeeds;}});
+  await h.save();assert.equal(retried,1);assert.deepEqual(h.events,['saving',succeeds?'saved':'error']);
+ }
+});
+
+test('clean manual save never retries a stale closure after input or owner changes',async()=>{
+ for(const change of ['input','owner','document']){
+  const owner={current:1},revision={current:0};let id='doc',reject,retries=0;
+  const h=harness({isChunked:false,getDirtyEditorSnapshot:()=>null,ownerGeneration:owner,inputRevision:revision,useEditorStore:{getState:()=>({activeDocumentId:id})},awaitDocumentSaves:()=>new Promise((_,r)=>reject=r),saveCurrent:async()=>{retries++;}});
+  const pending=h.save();
+  if(change==='input')revision.current++;else if(change==='owner')owner.current++;else id='other';
+  reject(Error('newer raw failed'));await pending;
+  assert.equal(retries,0);assert.deepEqual(h.events,['saving']);
+ }
 });
