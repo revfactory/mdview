@@ -1,5 +1,8 @@
 'use client';
 
+import { SaveConflictNotice } from '@/components/features/editor/save-conflict-notice';
+import { createContentSaveSession } from '@/lib/content-save-session';
+import { readSourceBaseline, saveSourceBaseline } from '@/db/content-cas';
 import { createEditorTransitionGate } from '@/lib/editor-transition';
 import { getDirtyEditorSnapshot } from '@/lib/editor-dirty-snapshot';
 
@@ -29,7 +32,7 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { SourceEditor } from '@/components/features/editor/source-editor';
 import { htmlToMarkdown as savedHtmlToMarkdown } from '@/lib/markdown';
 import { copyDocumentSnapshot } from '@/lib/copy-document-snapshot';
-import { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves } from '@/lib/document-save-queue';
+import { enqueueDocumentOperation, awaitDocumentSaves } from '@/lib/document-save-queue';
 import { SplitView } from '@/components/features/editor/split-view';
 import { useRecentDocuments, useDocument } from '@/hooks/use-documents';
 import {
@@ -57,6 +60,8 @@ export default function Home() {
   const [transitionPending, setTransitionPending] = useState(false);
   const ownerGeneration = useRef(0);
   const inputRevision = useRef(0);
+  const [sourceConflictId, setSourceConflictId] = useState<string | null>(null);
+  const sourceSessionRef = useRef<{ id: string; session: ReturnType<typeof createContentSaveSession<Awaited<ReturnType<typeof readSourceBaseline>>, { markdown: string; html: string }>> } | null>(null);
   const rawRecovery = useRef<{ id: string; markdown: string; retry: () => Promise<void> } | null>(null);
   useLayoutEffect(() => {
     ownerGeneration.current++;
@@ -87,7 +92,7 @@ export default function Home() {
   }, [activeDocumentId, recentDocs, actions]);
 
 
-  const { content, htmlContent, isLoading, loadError, isLargeDocument, isChunked, chunkCount, documentKind, onChange, onSourceChange, sourcePending, saveCurrent, canSave } =
+  const { content, htmlContent, isLoading, loadError, isLargeDocument, isChunked, chunkCount, documentKind, onChange, onSourceChange, sourcePending, saveCurrent, canSave, saveConflict } =
     useEditorManager(activeDocumentId);
   const isPdf = !!activeDocumentId && !isLoading && documentKind === 'pdf';
 
@@ -287,7 +292,7 @@ export default function Home() {
             } else if (!isChunked && viewMode !== 'source' && !sourcePending) {
               if (!tiptapEditor) throw new Error('편집기를 불러오는 중입니다.');
               const html = getDirtyEditorSnapshot(tiptapEditor);
-              if (html !== null) await enqueueDocumentSave(id, savedHtmlToMarkdown(html), html);
+              if (html !== null) onChange(savedHtmlToMarkdown(html), html);
             }
           }
         }, awaitDocumentSaves, duplicateDocument);
@@ -302,7 +307,7 @@ export default function Home() {
         useToastStore.getState().actions.addToast('문서를 복사하지 못했습니다. 원본을 유지합니다. 저장 상태를 확인하고 다시 시도하세요.', 'error');
       } finally { copyingRef.current = false; }
     },
-    [activeDocumentId, documentKind, isLoading, canSave, isChunked, viewMode, sourcePending, tiptapEditor]
+    [activeDocumentId, documentKind, isLoading, canSave, isChunked, viewMode, sourcePending, tiptapEditor, onChange]
   );
 
   // For chunked documents: merged content for export and source view
@@ -358,9 +363,12 @@ export default function Home() {
       try {
         await awaitDocumentSaves(activeDocumentId);
         if (cancelled) return;
-        const { getAllChunksMarkdown } = await import('@/db/chunks');
-        const merged = await getAllChunksMarkdown(activeDocumentId);
-        if (!cancelled) setMergedSourceContent(merged);
+        const baseline = await readSourceBaseline(activeDocumentId);
+        if (!cancelled) {
+          setSourceConflictId(null);
+          sourceSessionRef.current = { id: activeDocumentId, session: createContentSaveSession(baseline, saveSourceBaseline) };
+          setMergedSourceContent(baseline.pages.map(page => page.markdown).join('\n'));
+        }
       } catch (error) {
         console.error('Source read failed; retaining raw recovery state:', error);
         if (!cancelled) {
@@ -383,11 +391,15 @@ export default function Home() {
       inputRevision.current++;
       setMergedSourceContent(markdown);
       const id = activeDocumentId;
+      const owner = sourceSessionRef.current?.id === id ? sourceSessionRef.current.session : null;
       const snapshot = { id, markdown, retry: async () => {
         await enqueueDocumentOperation(id, async () => {
-          const { chunkDocument } = await import('@/lib/chunk-document');
-          const { replaceChunkedSource } = await import('@/db/chunks');
-          await replaceChunkedSource(id, markdown, chunkDocument(markdown));
+          if (!owner) throw new Error('원문 저장 기준을 불러오지 못했습니다.');
+          try { await owner.save({ markdown, html: '' }); }
+          catch (error) {
+            if (owner.hasConflict() && useEditorStore.getState().activeDocumentId === id) setSourceConflictId(id);
+            throw error;
+          }
         }, { scope: 'document' });
         if (rawRecovery.current === snapshot) rawRecovery.current = null;
       } };
@@ -579,6 +591,9 @@ export default function Home() {
               />
             </div>
 
+            {((!isChunked && saveConflict) || (isChunked && viewMode === 'source' && sourceConflictId === activeDocumentId)) && (
+              <SaveConflictNotice markdown={isChunked ? mergedSourceContent : content} />
+            )}
             {sourcePending && !isLoading && (
               <div role="status" className="px-4 py-2 text-sm text-[var(--color-text-muted)]">
                 미리보기를 갱신하는 동안 시각 편집이 잠겨 있습니다. 소스 보기에서 원문을 계속 편집할 수 있습니다.

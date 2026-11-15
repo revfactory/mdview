@@ -4,6 +4,7 @@ import { useCallback, useLayoutEffect } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
 import { DocumentTitle } from '@/components/features/editor/document-title';
+import { SaveConflictNotice } from '@/components/features/editor/save-conflict-notice';
 import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
 import { useUIStore } from '@/stores/ui-store';
@@ -32,6 +33,7 @@ export function PaginatedEditor({
     chunkHtml,
     isPageLoading,
     loadError,
+    conflictRaw,
     retryLoad,
     pageChanging,
     editorRef,
@@ -72,6 +74,7 @@ export function PaginatedEditor({
 
   return (
     <div className="flex flex-col h-full">
+      {conflictRaw !== null && <SaveConflictNotice markdown={conflictRaw} />}
       <div
         className="flex-1 min-h-0 overflow-y-auto"
         style={{ padding: isMobile ? '20px 16px 64px 16px' : '40px 40px 96px 40px' }}

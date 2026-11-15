@@ -5,6 +5,7 @@ import { indentSourceTextarea } from '@/lib/source-indentation';
 import React, { useCallback, useLayoutEffect, useRef, useEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
+import { SaveConflictNotice } from '@/components/features/editor/save-conflict-notice';
 import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
 import { awaitDocumentSaves, hasFailedPageSave } from '@/lib/document-save-queue';
@@ -42,6 +43,7 @@ export function PaginatedSplitView({
     chunkMarkdown,
     isPageLoading,
     loadError,
+    conflictRaw,
     retryLoad,
     pageChanging,
     editorRef,
@@ -213,6 +215,7 @@ export function PaginatedSplitView({
 
   return (
     <div className="flex flex-col h-full">
+      {conflictRaw !== null && <SaveConflictNotice markdown={conflictRaw} />}
       <div className="flex flex-1 min-h-0 relative">
         {/* Left: WYSIWYG Editor */}
         <div className="h-full overflow-y-auto" style={{ width: `${dividerX}%` }}>

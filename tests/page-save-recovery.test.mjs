@@ -3,11 +3,16 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { test } from 'node:test';
 import ts from 'typescript';
+const sessionExports = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/lib/content-save-session.ts', import.meta.url), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports: sessionExports });
+
 
 function harness(initialId = 101) {
   const source = readFileSync(new URL('../src/hooks/use-paginated-chunks.ts', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
   const slots = [], writes = [], reads = [];
+  const storage = new Map();
   let cursor = 0, fail = false, failure = null, effects = [], recordId = initialId;
   function effect(fn, deps) { const i=cursor++, old=slots[i]; if(!old || deps.some((v,j)=>v!==old.deps[j])) effects.push(()=>{old?.cleanup?.(); slots[i]={deps,cleanup:fn()};}); }
   const exports = {};
@@ -27,16 +32,28 @@ function harness(initialId = 101) {
         },
         async awaitDocumentSaves() { if (failure) throw failure; },
       };
-      if (name === '@/db/chunks') return {
-        async updateChunk(id, page, markdown, html, expectedChunkId) { assert.equal(expectedChunkId, page + 101); writes.push({ id, page, markdown, html, expectedChunkId }); if (fail) throw Error('quota'); if (expectedChunkId !== recordId + page) throw Error('stale chunk'); },
-        async getChunk(id, page) { reads.push(page); return { id: recordId == null ? undefined : recordId + page, markdown: 'page ' + page, htmlContent: '<p>page ' + page + '</p>' }; },
+      if (name === '@/lib/content-save-session') return sessionExports;
+      if (name === '@/db/content-cas') return {
+        async savePageBaseline(expected, snapshot) {
+          const {docId:id,index:page}=expected; const {markdown,html}=snapshot;
+          writes.push({ id, page, markdown, html, expectedChunkId:expected.id });
+          if (fail) throw Error('quota');
+          const stored = storage.get(page) ?? {markdown:'page '+page,htmlContent:'<p>page '+page+'</p>'};
+          if (expected.id !== recordId + page || expected.markdown !== stored.markdown || expected.htmlContent !== stored.htmlContent) throw new sessionExports.ContentConflictError();
+          storage.set(page,{markdown,htmlContent:html});
+          return {...expected,markdown,htmlContent:html};
+        },
+        async readPageBaseline(docId, index) {
+          reads.push(index); const stored=storage.get(index) ?? {markdown:'page '+index,htmlContent:'<p>page '+index+'</p>'};
+          return {docId,index,isChunked:true,chunkCount:2,id:recordId == null ? undefined : recordId+index,...stored};
+        },
       };
       if (name === '@/lib/markdown') return { htmlToMarkdown: value => value, markdownToHtml: value => value };
       throw Error(name);
     },
   });
   return {
-    writes, reads, replacePageSet() { recordId = 201; },
+    writes, reads, peerEdit(markdown) { storage.set(0,{markdown,htmlContent:''}); }, storedPage() {return storage.get(0);}, replacePageSet() { recordId = 201; },
     setFail(value) { fail = value; },
     render() { cursor = 0; effects=[]; const result=exports.usePaginatedChunks('doc', 2); effects.forEach(fn=>fn()); return result; },
   };
@@ -78,7 +95,7 @@ test('same-index replacement cannot make a retained edit adopt a new chunk ID', 
   hook = h.render(); await hook.handlePageChange(1);
   assert.equal(h.render().currentPage, 0);
   assert.deepEqual(h.reads, []);
-  assert.equal(h.writes.length, 2);
+  assert.equal(h.writes.length, 1, 'sticky CAS conflict blocks later storage attempts');
   assert.ok(h.writes.every(write => write.expectedChunkId === 101));
 });
 
@@ -119,4 +136,16 @@ test('new source input supersedes a failed visual snapshot before preview comple
  await assert.rejects(h.render().handleSourceInput('new raw'));
  h.setFail(false);await h.render().prepareLeave();
  assert.equal(h.writes.at(-1).markdown,'new raw');assert.equal(h.writes.at(-1).html,'');
+});
+
+
+test('peer content change with same ID remains intact through hook retries and new local input', async () => {
+ const h=harness();h.render();await tick();h.render().editorRef.current={};h.peerEdit('peer newer raw');
+ h.render().handleChange('local conflict','<p>local</p>');await tick();
+ assert.equal(h.writes.length,1);assert.equal(h.storedPage().markdown,'peer newer raw');
+ await assert.rejects(h.render().prepareLeave(),e=>e instanceof sessionExports.ContentConflictError);
+ await assert.rejects(h.render().handleSourceInput('latest recovery raw'),e=>e instanceof sessionExports.ContentConflictError);
+ assert.equal(h.writes.length,1);assert.equal(h.storedPage().markdown,'peer newer raw');
+ assert.equal(h.render().chunkMarkdown,'latest recovery raw');
+ assert.equal(h.render().currentPage,0);
 });

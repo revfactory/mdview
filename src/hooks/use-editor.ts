@@ -6,6 +6,8 @@ import { getChunkCount, autoChunkDocument, AutoChunkConflictError } from '@/db/c
 import { chunkDocument } from '@/lib/chunk-document';
 import { useEditorStore } from '@/stores/editor-store';
 import { awaitDocumentSaves } from '@/lib/document-save-queue';
+import { createContentSaveSession } from '@/lib/content-save-session';
+import { plainBaselineFromDocument, savePlainBaseline } from '@/db/content-cas';
 import { useAutosave } from '@/hooks/use-autosave';
 import { markdownToHtml, markdownToHtmlAsync } from '@/lib/markdown';
 import type { DocumentKind } from '@/types';
@@ -25,6 +27,7 @@ export function useEditorManager(documentId: string | null) {
   const [documentKind, setDocumentKind] = useState<DocumentKind>('markdown');
   const { actions } = useEditorStore();
   const [sourcePending, setSourcePending] = useState(false);
+  const [saveConflict, setSaveConflict] = useState(false);
   const sourceRevision = useRef(0);
   const currentDocument = useRef(documentId);
   const loadedDocumentId = useRef(documentId);
@@ -34,7 +37,9 @@ export function useEditorManager(documentId: string | null) {
     sourceRevision.current++;
     return () => { sourceRevision.current++; };
   }, [documentId]);
-  const save = useAutosave(documentId);
+  const saveSession = useRef<ReturnType<typeof createContentSaveSession<ReturnType<typeof plainBaselineFromDocument>, { markdown: string; html: string }>> | null>(null);
+  const reportConflict = useCallback(() => setSaveConflict(true), []);
+  const save = useAutosave(documentId, saveSession, reportConflict);
   const prevDocId = useRef<string | null>(null);
 
   // Load document when ID changes
@@ -56,9 +61,11 @@ export function useEditorManager(documentId: string | null) {
 
     let cancelled = false;
     loadedDocumentId.current = null;
+    saveSession.current = null;
     setLoadedId(null);
     setIsLoading(true);
     setLoadError(null);
+    setSaveConflict(false);
     setIsLargeDocument(false);
     setSourcePending(false);
 
@@ -94,6 +101,7 @@ export function useEditorManager(documentId: string | null) {
         setDocumentKind('markdown');
 
         if (doc) {
+          if (!doc.isChunked) saveSession.current = createContentSaveSession(plainBaselineFromDocument(doc), savePlainBaseline);
           const raw = doc.content || '';
           setContent(raw);
 
@@ -249,6 +257,7 @@ export function useEditorManager(documentId: string | null) {
     onChange,
     onSourceChange,
     sourcePending,
+    saveConflict: loadedId === documentId && saveConflict,
     canSave: loadedId === documentId && !isLoading && documentKind !== 'pdf',
     saveCurrent: () => loadedDocumentId.current === documentId && documentKind !== 'pdf' ? save(content, sourcePending ? '' : htmlContent) : Promise.resolve(),
   };

@@ -24,6 +24,8 @@ function harness() {
   vm.runInNewContext(js, { exports, console: { error() {} }, require(name) {
     if (name === 'react') return react;
     if (name === '@/stores/editor-store') return { useEditorStore: () => ({ actions }) };
+    if (name === '@/lib/content-save-session') return { createContentSaveSession: () => ({ hasConflict: () => false }) };
+    if (name === '@/db/content-cas') return { plainBaselineFromDocument: doc => doc };
     if (name === '@/hooks/use-autosave') return { useAutosave: id => async md => { writes.push({id,md}); } };
     if (name === '@/lib/document-save-queue') return { awaitDocumentSaves: async () => {} };
     if (name === '@/db/documents') return { getDocument: async id => ({ content: id === 'A' ? 'a'.repeat(300001) : 'B raw', htmlContent: '<p>B preview</p>' }), updateDocument: async () => {} };

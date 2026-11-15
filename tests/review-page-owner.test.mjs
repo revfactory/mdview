@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { test } from 'node:test';
 import ts from 'typescript';
+const sessionExports = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/lib/content-save-session.ts', import.meta.url), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports: sessionExports });
+
 
 function harness() {
   const source = readFileSync(new URL('../src/hooks/use-paginated-chunks.ts', import.meta.url), 'utf8');
@@ -31,9 +35,18 @@ function harness() {
         },
         async awaitDocumentSaves() { if (barrier) await barrier; if (failure) throw failure; },
       };
-      if (name === '@/db/chunks') return {
-        async updateChunk(id, page, markdown, html, expectedChunkId) { assert.equal(expectedChunkId, page + 101); writes.push({ id, page, markdown, html, expectedChunkId }); if (fail) throw Error('quota'); },
-        async getChunk(id, page) { reads.push(page); if (page === 0 && initialRead) return initialRead(); if (page === 1 && deferredRead) return deferredRead; return { id: page + 101, markdown: 'page ' + page, htmlContent: '<p>page ' + page + '</p>' }; },
+      if (name === '@/lib/content-save-session') return sessionExports;
+      if (name === '@/db/content-cas') return {
+        async savePageBaseline(expected, snapshot) {
+          const {docId:id,index:page}=expected;const {markdown,html}=snapshot;
+          assert.equal(expected.id,page+101);writes.push({id,page,markdown,html,expectedChunkId:expected.id});
+          if(fail) throw Error('quota'); return {...expected,markdown,htmlContent:html};
+        },
+        async readPageBaseline(docId,index) {
+          reads.push(index);
+          const result = index===0 && initialRead ? await initialRead() : index===1 && deferredRead ? await deferredRead : {id:index+101,markdown:'page '+index,htmlContent:'<p>page '+index+'</p>'};
+          return {...result,docId,index,isChunked:true,chunkCount:2};
+        },
       };
       if (name === '@/lib/markdown') return { htmlToMarkdown: value => value, markdownToHtml: value => value };
       throw Error(name);
