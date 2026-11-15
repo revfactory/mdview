@@ -286,3 +286,23 @@ test('full-source replacement rejects changed document kind and preserves metada
  await chunks.replaceChunkedSource('source','new',[{index:0,markdown:'new'}]);
  assert.equal((await db.documents.get('source')).content,'new');assert.equal(await chunks.getChunkCount('source'),1);
 }));
+
+for (const targetKind of ['chunked', 'pdf']) {
+  test(`stale ordinary save rejects after peer changes document to ${targetKind}`, () => fixture(async ({ db, queue, openPeer }) => {
+    await db.documents.add({ id: 'plain', title: 'plain', content: 'original', tags: [] });
+    const peer = await openPeer();
+    try {
+      await peer.table('documents').update('plain', targetKind === 'pdf'
+        ? { kind: 'pdf', content: 'PDF metadata' }
+        : { isChunked: true, chunkCount: 1, content: 'chunked metadata' });
+      if (targetKind === 'chunked') await peer.table('chunks').add({ docId: 'plain', chunkIndex: 0, markdown: 'peer latest page' });
+      else await peer.table('files').add({ id: 'plain', blob: new Blob(['peer original PDF']) });
+    } finally { peer.close(); }
+    const before = await db.documents.get('plain');
+    await assert.rejects(queue.enqueueDocumentSave('plain', 'stale ordinary input', '<p>stale</p>'), /문서/);
+    await assert.rejects(queue.awaitDocumentSaves('plain'), /문서/);
+    assert.deepEqual(await db.documents.get('plain'), before);
+    if (targetKind === 'chunked') assert.equal((await db.chunks.where('docId').equals('plain').first()).markdown, 'peer latest page');
+    else assert.equal(await (await db.files.get('plain')).blob.text(), 'peer original PDF');
+  }));
+}

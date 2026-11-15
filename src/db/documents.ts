@@ -188,16 +188,22 @@ export async function updateContent(
   const readingTime = computeReadingTime(isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount);
   const excerpt = extractExcerpt(content);
 
-  const updated = await db.documents.update(id, {
-    content,
-    htmlContent,
-    excerpt,
-    wordCount: isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount,
-    charCount,
-    readingTime,
-    updatedAt: new Date(),
+  await db.transaction('rw', db.documents, async () => {
+    const current = await db.documents.get(id);
+    if (!current || current.kind === 'pdf' || current.isChunked) {
+      throw new Error('문서가 삭제되거나 형식이 변경되어 저장할 수 없습니다. 편집 내용을 별도로 보관해주세요.');
+    }
+    const updated = await db.documents.update(id, {
+      content,
+      htmlContent,
+      excerpt,
+      wordCount: isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount,
+      charCount,
+      readingTime,
+      updatedAt: new Date(),
+    });
+    // Dexie resolves with zero when a peer has deleted the target. A no-op
+    // is not a saved edit: keep the queue failure visible to the editor.
+    if (updated !== 1) throw new Error('문서가 삭제되어 저장할 수 없습니다. 편집 내용을 별도로 보관해주세요.');
   });
-  // Dexie resolves with zero when a peer has deleted the target. A no-op
-  // is not a saved edit: keep the queue failure visible to the editor.
-  if (updated !== 1) throw new Error('문서가 삭제되어 저장할 수 없습니다. 편집 내용을 별도로 보관해주세요.');
 }
