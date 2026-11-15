@@ -37,7 +37,6 @@ import {
   updateDocument,
   deleteDocument,
   duplicateDocument,
-  updateContent,
 } from '@/db/documents';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 import { analytics } from '@/lib/analytics';
@@ -296,13 +295,22 @@ export default function Home() {
   const handleForceSave = useCallback(async () => {
     if (!activeDocumentId || isLoading || !canSave) return;
     if (!isChunked && (viewMode === 'source' || sourcePending || !tiptapEditor)) { await saveCurrent(); return; }
-    if (!tiptapEditor) return;
+    if (!isChunked && !tiptapEditor) return;
     actions.setSaveStatus('saving');
     try {
-      const html = tiptapEditor.getHTML();
-      const md = savedHtmlToMarkdown(html);
-      if (isChunked) await updateContent(activeDocumentId, md, html);
-      else await enqueueDocumentSave(activeDocumentId, md, html);
+      if (isChunked) {
+        // The visible page is not the whole document. Reuse the same guarded
+        // page flush as duplication, then verify every queued source/page save.
+        if (viewMode !== 'source') {
+          if (!pageFlushRef.current) throw new Error('페이지를 불러오는 중입니다.');
+          await pageFlushRef.current();
+        }
+        await awaitDocumentSaves(activeDocumentId);
+      } else if (tiptapEditor) {
+        const html = tiptapEditor.getHTML();
+        const md = savedHtmlToMarkdown(html);
+        await enqueueDocumentSave(activeDocumentId, md, html);
+      }
       if (useEditorStore.getState().activeDocumentId === activeDocumentId) actions.setSaveStatus('saved');
     } catch {
       if (useEditorStore.getState().activeDocumentId === activeDocumentId) actions.setSaveStatus('error');
