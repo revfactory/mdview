@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { test } from 'node:test';
 import ts from 'typescript';
 
-function harness() {
+function harness(onWrite = () => {}) {
   const source = readFileSync(new URL('../src/hooks/use-editor.ts', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const slots = [], writes = [], conversions = [], layouts = [];
@@ -20,7 +20,7 @@ function harness() {
   vm.runInNewContext(js, { exports, console, require(name) {
     if (name === 'react') return react;
     if (name === '@/stores/editor-store') return { useEditorStore: () => ({ actions: {} }) };
-    if (name === '@/hooks/use-autosave') return { useAutosave: id => async (md, html) => { writes.push({id, md, html}); } };
+    if (name === '@/hooks/use-autosave') return { useAutosave: id => async (md, html) => { writes.push({id, md, html}); try { await onWrite(md, html); } catch { /* Autosave reports errors without rejecting its caller. */ } } };
     if (name === '@/lib/markdown') return {
       markdownToHtml: md => `<p>${md}</p>`,
       markdownToHtmlAsync: md => new Promise((resolve, reject) => conversions.push({md, resolve, reject})),
@@ -47,7 +47,7 @@ test('source writes start before preview conversion and remain available during 
   editor = h.render('A');
   assert.equal(editor.sourcePending, false);
   assert.equal(editor.htmlContent, '<p>ready</p>');
-  assert.equal(h.writes[1].html, '<p>ready</p>');
+  assert.equal(h.writes.length, 1);
 });
 
 test('document switch and stale callbacks cannot move source or late preview into another document', async () => {
@@ -67,8 +67,8 @@ test('newest source wins when previews complete out of order', async () => {
   editor.onSourceChange('b'.repeat(50001));
   h.conversions[1].resolve('<p>new</p>'); await settle();
   h.conversions[0].resolve('<p>old</p>'); await settle();
-  assert.equal(h.writes.length, 3);
-  assert.equal(h.writes[2].md, 'b'.repeat(50001));
+  assert.equal(h.writes.length, 2);
+  assert.equal(h.writes[1].md, 'b'.repeat(50001));
   assert.equal(h.render('A').htmlContent, '<p>new</p>');
 });
 
@@ -85,4 +85,29 @@ test('force save is unavailable before a selected document finishes loading', as
   await selected.saveCurrent();
   assert.equal(h.writes.length, 1);
   await settle();
+});
+
+
+test('late derived preview must not overwrite a newer stored raw edit',async()=>{
+ let stored='initial';const h=harness(md=>{stored=md;});
+ h.render('A').onSourceChange('local raw'.repeat(7000));
+ assert.equal(h.writes.length,1);
+ stored='newer external raw';
+ h.conversions[0].resolve('<p>old local preview</p>');await settle();
+ assert.equal(stored,'newer external raw');assert.equal(h.writes.length,1);
+ assert.equal(h.render('A').htmlContent,'<p>old local preview</p>');
+});
+
+
+test('successful preview does not hide a failed raw save or retry it incidentally',async()=>{
+ const queueSource=readFileSync(new URL('../src/lib/document-save-queue.ts',import.meta.url),'utf8').replace("import { updateContent } from '@/db/documents';",'const updateContent=async()=>{};');
+ const exports={};vm.runInNewContext(ts.transpileModule(queueSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports});
+ let fail=true;let writes=0;
+ const queue=exports.createDocumentSaveQueue(async()=>{writes++;if(fail)throw Error('quota');});
+ const h=harness((md,html)=>queue.enqueueDocumentSave('A',md,html));
+ h.render('A').onSourceChange('x'.repeat(50001));await settle();
+ await assert.rejects(queue.awaitDocumentSaves('A'),/quota/);fail=false;
+ h.conversions[0].resolve('<p>preview succeeds</p>');await settle();
+ assert.equal(h.render('A').sourcePending,false);assert.equal(writes,1);
+ await assert.rejects(queue.awaitDocumentSaves('A'),/quota/);
 });

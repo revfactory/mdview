@@ -208,7 +208,9 @@ export function useEditorManager(documentId: string | null) {
       if (currentDocument.current !== documentId || revision !== sourceRevision.current) return;
       setHtmlContent(html);
       setSourcePending(false);
-      void save(markdown, html);
+      // Preview is derived UI state, not a new user edit. The raw source
+      // was already queued above; writing it again can replay an old snapshot
+      // over another editor while conversion was pending. Rebuild HTML on load.
     }).catch(error => {
       if (currentDocument.current !== documentId || revision !== sourceRevision.current) return;
       console.error('Preview conversion failed; source is preserved:', error);
