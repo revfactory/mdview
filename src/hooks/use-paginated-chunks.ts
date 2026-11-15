@@ -2,7 +2,7 @@
 
 import { getDirtyEditorSnapshot } from '@/lib/editor-dirty-snapshot';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { enqueueDocumentOperation, awaitDocumentSaves } from '@/lib/document-save-queue';
 import { getChunk, updateChunk } from '@/db/chunks';
 import { markdownToHtml, htmlToMarkdown, markdownToHtmlAsync } from '@/lib/markdown';
@@ -15,6 +15,17 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [pageChanging, setPageChanging] = useState(false);
   const transitionInFlight = useRef(false);
+  const ownerGeneration = useRef(0);
+  // Invalidate old asynchronous transitions before the next document is painted.
+  useLayoutEffect(() => {
+    ownerGeneration.current++;
+    transitionInFlight.current = false;
+    return () => {
+      // Invalidate the live ownership counter, not a captured generation.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      ownerGeneration.current++;
+    };
+  }, [documentId]);
   const editorRef = useRef<TipTapEditor | null>(null);
   // Content publication is not a write acknowledgement. Retain the exact raw
   // snapshot even when React resets the editor's dirty marker before DB settles.
@@ -58,6 +69,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- A new external document selection resets pagination before its async IndexedDB read.
     setCurrentPage(0);
+    setPageChanging(false);
     setIsPageLoading(true);
 
     (async () => {
@@ -85,21 +97,26 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     async (newPage: number) => {
       if (transitionInFlight.current || transitionBlocked || newPage === currentPage || newPage < 0 || newPage >= totalChunks) return;
       transitionInFlight.current = true;
+      const generation = ownerGeneration.current;
       setPageChanging(true);
 
       try {
         await saveCurrentPage();
+        if (generation !== ownerGeneration.current) return;
 
         // Load new page
         const { html, markdown } = await loadChunk(newPage);
+        if (generation !== ownerGeneration.current) return;
         setChunkHtml(html);
         setChunkMarkdown(markdown);
         setCurrentPage(newPage);
       } catch (err) {
         console.error('Failed to change page:', err);
       } finally {
-        transitionInFlight.current = false;
-        setPageChanging(false);
+        if (generation === ownerGeneration.current) {
+          transitionInFlight.current = false;
+          setPageChanging(false);
+        }
       }
     },
     [currentPage, totalChunks, loadChunk, transitionBlocked, saveCurrentPage]

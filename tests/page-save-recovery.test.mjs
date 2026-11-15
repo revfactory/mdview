@@ -15,7 +15,7 @@ function harness() {
       if (name === 'react') return {
         useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = v; }]; },
         useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial }; },
-        useCallback: fn => fn, useEffect() {},
+        useCallback: fn => fn, useEffect() {}, useLayoutEffect() {},
       };
       if (name === '@/lib/editor-dirty-snapshot') return { getDirtyEditorSnapshot: () => null };
       if (name === '@/lib/document-save-queue') return {
