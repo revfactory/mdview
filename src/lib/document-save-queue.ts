@@ -67,7 +67,10 @@ export function createDocumentSaveQueue(write: DocumentWriter) {
     }
   }
 
-  return { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves };
+  // Consult only after draining the queue; a document-level failure alone
+  // never authorizes replay of an unrelated page snapshot.
+  const hasFailedPageSave = (id: string, page: number) => failures.get(id)?.has(`page:${page}`) ?? false;
+  return { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves, hasFailedPageSave };
 }
 
-export const { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves } = createDocumentSaveQueue(updateContent);
+export const { enqueueDocumentSave, enqueueDocumentOperation, awaitDocumentSaves, hasFailedPageSave } = createDocumentSaveQueue(updateContent);

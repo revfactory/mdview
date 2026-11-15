@@ -190,3 +190,17 @@ test('page success cannot clear failed full replacement; full snapshot can clear
   await q.enqueueDocumentSave('a', 'retry', '');
   await q.awaitDocumentSaves('a');
 });
+
+test('page retry eligibility excludes unrelated and whole-document failures', async () => {
+ const q = createDocumentSaveQueue(async()=>{});
+ const fail=async()=>{throw Error('failure');};
+ await assert.rejects(q.enqueueDocumentOperation('A',fail,{scope:'page',page:1}));
+ assert.equal(q.hasFailedPageSave('A',0),false);
+ assert.equal(q.hasFailedPageSave('A',1),true);
+ assert.equal(q.hasFailedPageSave('B',1),false);
+ await assert.rejects(q.enqueueDocumentOperation('A',fail,{scope:'document'}));
+ assert.equal(q.hasFailedPageSave('A',0),false);
+ await q.enqueueDocumentOperation('A',async()=>{},{scope:'page',page:1});
+ assert.equal(q.hasFailedPageSave('A',1),false);
+ await assert.rejects(q.awaitDocumentSaves('A'));
+});

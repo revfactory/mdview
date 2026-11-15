@@ -7,7 +7,7 @@ import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
 import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
-import { enqueueDocumentOperation } from '@/lib/document-save-queue';
+import { enqueueDocumentOperation, awaitDocumentSaves, hasFailedPageSave } from '@/lib/document-save-queue';
 import { updateChunk } from '@/db/chunks';
 import type { Editor as TipTapEditor } from '@tiptap/react';
 
@@ -74,9 +74,20 @@ export function PaginatedSplitView({
     onFlushReady?.(async () => {
       if (loadError || isPageLoading || pageChanging) throw new Error('페이지를 불러오는 중입니다.');
       if (sourceDirty.current && textareaRef.current) {
+        const revision = sourceRevision.current;
         const markdown = textareaRef.current.value;
         const chunkId = getCurrentChunkId();
-        await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
+        // sourceDirty identifies the authoritative editor, not a failed write.
+        // A clean barrier must not replay old source over a newer peer-tab edit.
+        try { await awaitDocumentSaves(documentId); }
+        catch (error) {
+          if (!hasFailedPageSave(documentId, currentPage)) throw error;
+          if (sourceRevision.current !== revision || !sourceDirty.current || getCurrentChunkId() !== chunkId) {
+            throw new Error('편집 내용이 변경되었습니다. 저장을 다시 시도하세요.');
+          }
+          await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
+          await awaitDocumentSaves(documentId);
+        }
       } else await flush();
     });
     return () => onFlushReady?.(null);
@@ -85,9 +96,20 @@ export function PaginatedSplitView({
   useLayoutEffect(() => {
     onLeaveReady?.(async () => {
       if (sourceDirty.current && textareaRef.current) {
+        const revision = sourceRevision.current;
         const markdown = textareaRef.current.value;
         const chunkId = getCurrentChunkId();
-        await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
+        // sourceDirty identifies the authoritative editor, not a failed write.
+        // A clean barrier must not replay old source over a newer peer-tab edit.
+        try { await awaitDocumentSaves(documentId); }
+        catch (error) {
+          if (!hasFailedPageSave(documentId, currentPage)) throw error;
+          if (sourceRevision.current !== revision || !sourceDirty.current || getCurrentChunkId() !== chunkId) {
+            throw new Error('편집 내용이 변경되었습니다. 저장을 다시 시도하세요.');
+          }
+          await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
+          await awaitDocumentSaves(documentId);
+        }
       } else await prepareLeave();
     });
     return () => onLeaveReady?.(null);
