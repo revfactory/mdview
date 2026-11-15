@@ -112,15 +112,21 @@ export default function Home() {
           } else if (isChunked && viewMode === 'source') {
             if (rawRecovery.current?.id === activeDocumentId) await rawRecovery.current.retry();
           } else if (!isChunked && canSave) {
-            if (viewMode === 'source' || sourcePending) await saveCurrent();
+            if (viewMode === 'source' || sourcePending) {
+              // Raw edits are queued synchronously by the source change handler.
+              // Preserve a clean stored document when no failed write needs retry.
+              try { await awaitDocumentSaves(activeDocumentId); }
+              catch { await saveCurrent(); }
+            }
             else if (visual) {
               const dirty = getDirtyEditorSnapshot(visual);
               if (dirty !== null) onChange(savedHtmlToMarkdown(dirty), dirty);
               else {
-                // A published preview is not a persistence acknowledgement.
-                // Retry the manager's authoritative raw snapshot, never round-trip
-                // a clean derived editor through HTML-to-Markdown.
-                await saveCurrent();
+                // A clean view must not rewrite storage merely because we leave.
+                // Only retry its authoritative raw snapshot after a failed save;
+                // never round-trip a clean derived editor through Markdown.
+                try { await awaitDocumentSaves(activeDocumentId); }
+                catch { await saveCurrent(); }
               }
             }
           }

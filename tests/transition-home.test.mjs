@@ -54,3 +54,17 @@ test('clean visual retries the authoritative raw snapshot after autosave failure
   assert.equal(await h.transition(h.commit), 'committed');
   assert.equal(writes.at(-1).markdown, 'latest raw');
 });
+
+test('clean visual navigation without a failed save does not overwrite a newer stored snapshot',async()=>{
+ const queueSource=readFileSync(new URL('../src/lib/document-save-queue.ts',import.meta.url),'utf8').replace("import { updateContent } from '@/db/documents';",'const updateContent=async()=>{};');
+ let stored='newer external edit';let writes=0;
+ const queue=run(queueSource).createDocumentSaveQueue(async(_id,markdown)=>{writes++;stored=markdown;});
+ const h=harness({isChunked:false,getDirtyEditorSnapshot:()=>null,awaitDocumentSaves:queue.awaitDocumentSaves,saveCurrent:()=>queue.enqueueDocumentSave('A','older unchanged view','<p>older unchanged view</p>')});
+ assert.equal(await h.transition(h.commit),'committed');assert.equal(stored,'newer external edit');assert.equal(writes,0);
+});
+
+test('unchanged normal source navigation does not rewrite storage',async()=>{
+ let writes=0;const h=harness({isChunked:false,viewMode:'source',saveCurrent:async()=>{writes++;}});
+ h.context.useUIStore.getState=()=>({viewMode:'source'});
+ assert.equal(await h.transition(h.commit),'committed');assert.equal(writes,0);
+});
