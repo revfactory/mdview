@@ -27,6 +27,7 @@
 - [마크다운을 한글 HWPX로 내보내기](https://mdview.kr/guides/markdown-to-hwpx)
 - [마크다운을 PDF로 저장하기](https://mdview.kr/guides/markdown-to-pdf)
 - [에디터 사용법과 로컬 저장 안내](https://mdview.kr/guides/markdown-editor)
+- [마크다운 문법 모음: 제목·목록·표·코드 예제](https://mdview.kr/guides/markdown-cheatsheet)
 
 문서는 현재 브라우저에 저장됩니다. 중요한 문서는 파일로 백업하고, 복잡한 표·이미지·서식은 변환 후 확인하세요. HWP 바이너리(`.hwp`)로 내보내는 기능은 제공하지 않습니다.
 

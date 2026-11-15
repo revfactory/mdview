@@ -16,42 +16,55 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
   const [pageChanging, setPageChanging] = useState(false);
   const transitionInFlight = useRef(false);
   const ownerGeneration = useRef(0);
+  const loadedChunk = useRef<{ documentId: string; page: number; id: number } | null>(null);
   // Invalidate old asynchronous transitions before the next document is painted.
   useLayoutEffect(() => {
     ownerGeneration.current++;
+    loadedChunk.current = null;
     transitionInFlight.current = false;
     return () => {
       // Invalidate the live ownership counter, not a captured generation.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       ownerGeneration.current++;
+      loadedChunk.current = null;
     };
   }, [documentId]);
   const editorRef = useRef<TipTapEditor | null>(null);
   // Content publication is not a write acknowledgement. Retain the exact raw
   // snapshot even when React resets the editor's dirty marker before DB settles.
-  const pendingSnapshot = useRef<{ documentId: string; page: number; markdown: string; html: string } | null>(null);
+  const pendingSnapshot = useRef<{ documentId: string; page: number; chunkId: number; markdown: string; html: string } | null>(null);
 
   const persistSnapshot = useCallback(async (snapshot: NonNullable<typeof pendingSnapshot.current>) => {
     await enqueueDocumentOperation(snapshot.documentId,
-      () => updateChunk(snapshot.documentId, snapshot.page, snapshot.markdown, snapshot.html),
+      () => updateChunk(snapshot.documentId, snapshot.page, snapshot.markdown, snapshot.html, snapshot.chunkId),
       { scope: 'page', page: snapshot.page });
     if (pendingSnapshot.current === snapshot) pendingSnapshot.current = null;
   }, []);
 
+  const getCurrentChunkId = useCallback(() => {
+    const loaded = loadedChunk.current;
+    if (!loaded || loaded.documentId !== documentId || loaded.page !== currentPage) {
+      throw new Error('페이지를 불러오는 중이거나 페이지 식별자가 없습니다.');
+    }
+    return loaded.id;
+  }, [documentId, currentPage]);
+
   const saveCurrentPage = useCallback(async () => {
+    const chunkId = getCurrentChunkId();
     const html = editorRef.current ? getDirtyEditorSnapshot(editorRef.current) : null;
     if (html !== null) {
-      pendingSnapshot.current = { documentId, page: currentPage, markdown: htmlToMarkdown(html), html };
+      pendingSnapshot.current = { documentId, page: currentPage, chunkId, markdown: htmlToMarkdown(html), html };
     }
     const pending = pendingSnapshot.current;
     if (pending?.documentId === documentId && pending.page === currentPage) await persistSnapshot(pending);
     await awaitDocumentSaves(documentId);
-  }, [documentId, currentPage, persistSnapshot]);
+  }, [documentId, currentPage, persistSnapshot, getCurrentChunkId]);
 
   // Load a chunk and return { html, markdown }
   const loadChunk = useCallback(async (page: number) => {
     const chunk = await getChunk(documentId, page);
-    if (!chunk) return { html: '<p></p>', markdown: '' };
+    if (!chunk || !Number.isSafeInteger(chunk.id) || chunk.id! <= 0) throw new Error('페이지가 없거나 식별자가 유효하지 않습니다.');
+    const id = chunk.id as number;
 
     let html = chunk.htmlContent;
     if (!html && chunk.markdown) {
@@ -61,7 +74,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
       // Cache HTML
       // Derived HTML need not write back: an edit may have happened during conversion.
     }
-    return { html: html || '<p></p>', markdown: chunk.markdown || '' };
+    return { id, html: html || '<p></p>', markdown: chunk.markdown || '' };
   }, [documentId]);
 
   // Load first chunk on mount / document switch
@@ -71,11 +84,14 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     setCurrentPage(0);
     setPageChanging(false);
     setIsPageLoading(true);
+    loadedChunk.current = null;
 
     (async () => {
       try {
-        const { html, markdown } = await loadChunk(0);
+        const { id, html, markdown } = await loadChunk(0);
         if (cancelled) return;
+        loadedChunk.current = { documentId, page: 0, id };
+        setIsPageLoading(false);
         setChunkHtml(html);
         setChunkMarkdown(markdown);
       } catch (err) {
@@ -84,8 +100,6 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
           setChunkHtml('<p></p>');
           setChunkMarkdown('');
         }
-      } finally {
-        if (!cancelled) setIsPageLoading(false);
       }
     })();
 
@@ -105,8 +119,9 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
         if (generation !== ownerGeneration.current) return;
 
         // Load new page
-        const { html, markdown } = await loadChunk(newPage);
+        const { id, html, markdown } = await loadChunk(newPage);
         if (generation !== ownerGeneration.current) return;
+        loadedChunk.current = { documentId, page: newPage, id };
         setChunkHtml(html);
         setChunkMarkdown(markdown);
         setCurrentPage(newPage);
@@ -119,13 +134,13 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
         }
       }
     },
-    [currentPage, totalChunks, loadChunk, transitionBlocked, saveCurrentPage]
+    [documentId, currentPage, totalChunks, loadChunk, transitionBlocked, saveCurrentPage]
   );
 
   // Handle editor content change (both markdown and html)
   const handleChange = useCallback(
     (markdown: string, html: string) => {
-      const snapshot = { documentId, page: currentPage, markdown, html };
+      const snapshot = { documentId, page: currentPage, chunkId: getCurrentChunkId(), markdown, html };
       pendingSnapshot.current = snapshot;
       setChunkMarkdown(markdown);
       setChunkHtml(html);
@@ -133,7 +148,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
         console.error('Failed to save chunk:', err)
       );
     },
-    [documentId, currentPage, persistSnapshot]
+    [documentId, currentPage, persistSnapshot, getCurrentChunkId]
   );
 
   const flush = useCallback(async () => {
@@ -158,6 +173,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
 
   return {
     flush,
+    getCurrentChunkId,
     currentPage,
     chunkHtml,
     chunkMarkdown,

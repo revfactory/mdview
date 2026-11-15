@@ -47,7 +47,11 @@ async function fixture(run) {
       await peer.open();
       return peer;
     };
-    await run({ db, documents, chunks, queue, copy, openPeer });
+    // Simulate an editor's loaded identity: capture once, never at save time.
+    const loadedIds = await Promise.all([0, 1].map(async page => (await chunks.getChunk('source', page)).id));
+    const loadedChunks = { ...chunks, updateChunk: (...args) => chunks.updateChunk(...args,
+      ...(args.length === 4 ? [loadedIds[args[1]]] : [])) };
+    await run({ db, documents, chunks: loadedChunks, queue, copy, openPeer });
   } finally { await db.delete(); }
 }
 const deferred = () => {
@@ -155,4 +159,55 @@ test('copy transaction abort is visible as no partial document from another conn
     assert.equal((await peer.table('documents').get(id)).chunkCount, 2);
     assert.equal(await peer.table('chunks').where('docId').equals(id).count(), 2);
   } finally { db.chunks.hook('creating').unsubscribe(fail); peer.close(); }
+}));
+
+test('delayed page edit after document deletion must reject without orphan resurrection', () => fixture(async ({ db, documents, chunks, queue }) => {
+  await documents.deleteDocument('source');
+  await assert.rejects(queue.enqueueDocumentOperation('source',
+    () => chunks.updateChunk('source', 0, 'late edit', '<p>late edit</p>'), { scope: 'page', page: 0 }));
+  assert.equal(await db.documents.count(), 0);
+  assert.equal(await db.chunks.count(), 0);
+}));
+
+test('delayed page edit after rechunk removes its page must not recreate it', () => fixture(async ({ db, documents, chunks, queue }) => {
+  await db.transaction('rw', db.documents, db.chunks, async () => {
+    await chunks.saveChunks('source', [{ index: 0, markdown: 'replacement' }]);
+    await documents.updateDocument('source', { content: 'replacement', chunkCount: 1 });
+  });
+  await assert.rejects(queue.enqueueDocumentOperation('source',
+    () => chunks.updateChunk('source', 1, 'stale page one', ''), { scope: 'page', page: 1 }));
+  assert.equal(await chunks.getChunkCount('source'), 1);
+  assert.equal((await chunks.getChunk('source', 0)).markdown, 'replacement');
+}));
+
+test('missing page rejects without silently creating replacement text', () => fixture(async ({ db, chunks, queue }) => {
+  await db.chunks.where('[docId+chunkIndex]').equals(['source', 0]).delete();
+  await assert.rejects(queue.enqueueDocumentOperation('source',
+    () => chunks.updateChunk('source', 0, 'replacement text', ''), { scope: 'page', page: 0 }), /페이지/);
+  await assert.rejects(queue.awaitDocumentSaves('source'), /페이지/);
+  assert.equal(await chunks.getChunkCount('source'), 1);
+  assert.equal((await chunks.getChunk('source', 1)).markdown, 'old 1');
+}));
+
+test('same-index replacement rejects a previously loaded editor snapshot', () => fixture(async ({ db, documents, chunks, queue }) => {
+  const old = await chunks.getChunk('source', 0);
+  await db.transaction('rw', db.documents, db.chunks, async () => {
+    await chunks.saveChunks('source', [{ index: 0, markdown: 'new generation' }]);
+    await documents.updateDocument('source', { content: 'new generation', chunkCount: 1 });
+  });
+  const replacement = await chunks.getChunk('source', 0);
+  assert.notEqual(replacement.id, old.id);
+  await assert.rejects(queue.enqueueDocumentOperation('source',
+    () => chunks.updateChunk('source', 0, 'stale old editor', '', old.id), { scope: 'page', page: 0 }), /다시 구성/);
+  assert.equal((await chunks.getChunk('source', 0)).markdown, 'new generation');
+  // A newly loaded editor can save; the matching successful retry clears failure.
+  await queue.enqueueDocumentOperation('source',
+    () => chunks.updateChunk('source', 0, 'new edit', '', replacement.id), { scope: 'page', page: 0 });
+  await queue.awaitDocumentSaves('source');
+  assert.equal((await chunks.getChunk('source', 0)).markdown, 'new edit');
+}));
+
+test('page writes without a loaded identity fail closed', () => fixture(async ({ chunks }) => {
+  await assert.rejects(chunks.updateChunk('source', 0, 'unidentified edit', '', undefined), /다시 구성/);
+  assert.equal((await chunks.getChunk('source', 0)).markdown, 'old 0');
 }));

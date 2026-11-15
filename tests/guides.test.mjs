@@ -28,3 +28,27 @@ test('related links resolve and every guide has substantive task steps', () => {
   }
   assert.equal(getGuide('missing'), undefined);
 });
+
+for (const file of ['README.md', 'README.en.md']) {
+  const readme = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  const links = [...readme.matchAll(/\[[^\]]+\]\((https:\/\/(?:www\.)?mdview\.kr\/guides\/[^)\s]+)\)/g)]
+    .map(([, href]) => new URL(href));
+
+  test(`${file} directly links to every published guide`, () => {
+    for (const { slug } of guides) {
+      assert.ok(links.some(url => url.pathname === `/guides/${slug}` && !url.hash), `missing guide: ${slug}`);
+    }
+  });
+
+  test(`${file} guide links resolve to current pages and sections`, () => {
+    for (const url of links) {
+      assert.equal(url.search, '', 'guide links must not carry tracking or document data');
+      const guide = getGuide(url.pathname.slice('/guides/'.length));
+      assert.ok(guide, `unknown guide: ${url.pathname}`);
+      if (url.hash) {
+        const ids = ['steps', 'questions', ...guide.sections.map((section, index) => section.id ?? `section-${index}`)];
+        assert.ok(ids.includes(url.hash.slice(1)), `unknown section: ${url.href}`);
+      }
+    }
+  });
+}

@@ -33,6 +33,7 @@ export function PaginatedSplitView({
 
   const {
     flush,
+    getCurrentChunkId,
     currentPage,
     chunkHtml,
     chunkMarkdown,
@@ -68,11 +69,12 @@ export function PaginatedSplitView({
       if (isPageLoading || pageChanging) throw new Error('페이지를 불러오는 중입니다.');
       if (sourceDirty.current && textareaRef.current) {
         const markdown = textareaRef.current.value;
-        await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, ''), { scope: 'page', page: currentPage });
+        const chunkId = getCurrentChunkId();
+        await enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage });
       } else await flush();
     });
     return () => onFlushReady?.(null);
-  }, [flush, onFlushReady, isPageLoading, pageChanging, documentId, currentPage]);
+  }, [flush, onFlushReady, isPageLoading, pageChanging, documentId, currentPage, getCurrentChunkId]);
 
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {
@@ -102,10 +104,11 @@ export function PaginatedSplitView({
       sourceDirty.current = true;
       const revision = ++sourceRevision.current;
       const markdown = e.target.value;
+      const chunkId = getCurrentChunkId();
       setSourceText(markdown);
       setSourcePending(true);
       // Persist raw source immediately, before optional asynchronous preview work.
-      void enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, ''), { scope: 'page', page: currentPage }).catch(console.error);
+      void enqueueDocumentOperation(documentId, () => updateChunk(documentId, currentPage, markdown, '', chunkId), { scope: 'page', page: currentPage }).catch(console.error);
       try {
         const { markdownToHtmlAsync, markdownToHtml } = await import('@/lib/markdown');
         const html = markdown.length > 50_000 ? await markdownToHtmlAsync(markdown) : markdownToHtml(markdown);
@@ -114,7 +117,7 @@ export function PaginatedSplitView({
         setSourcePending(false);
       } catch (error) { console.error('Preview conversion failed; source is preserved:', error); }
     },
-    [handleChange, documentId, currentPage, pageChanging, isPageLoading]
+    [handleChange, documentId, currentPage, pageChanging, isPageLoading, getCurrentChunkId]
   );
 
   // Tab key handling in source textarea

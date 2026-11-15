@@ -29,6 +29,7 @@ The interface and these task guides are in Korean:
 - [Export Markdown as HWPX](https://mdview.kr/guides/markdown-to-hwpx)
 - [Save Markdown as PDF](https://mdview.kr/guides/markdown-to-pdf)
 - [Editor and local storage guide](https://mdview.kr/guides/markdown-editor)
+- [Markdown syntax reference: headings, lists, tables, and code](https://mdview.kr/guides/markdown-cheatsheet)
 
 Documents are stored in the current browser. Export important files as backups and check complex tables, images, and formatting after conversion. Export to the binary `.hwp` format is not supported.
 

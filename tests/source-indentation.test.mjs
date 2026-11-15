@@ -106,7 +106,7 @@ for (const [file, name] of [
       '@/lib/document-save-queue': { enqueueDocumentOperation: (_id, run) => run() },
       '@/db/chunks': { updateChunk: async () => {} },
       '@/hooks/use-paginated-chunks': { usePaginatedChunks: () => ({
-        currentPage: 0, chunkHtml: '', chunkMarkdown: '', editorRef: { current: null },
+        getCurrentChunkId: () => 101, currentPage: 0, chunkHtml: '', chunkMarkdown: '', editorRef: { current: null },
         handleChange: markdown => changes.push(markdown),
       }) },
       '@/lib/markdown': { markdownToHtml: value => value },
