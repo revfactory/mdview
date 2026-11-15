@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import vm from 'node:vm';
-import React from 'react';
+import React, { act } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { createRoot } from 'react-dom/client';
 import domino from '@mixmark-io/domino';
 import ts from 'typescript';
 
@@ -93,5 +94,32 @@ test('each open/closed render derives inert and aria-hidden from visibility', ()
     const { panel } = render(open);
     assert.equal(panel.hasAttribute('inert'), !open);
     assert.equal(panel.getAttribute('aria-hidden'), String(!open));
+  }
+});
+
+test('React removes and restores inert on the same mounted panel when visibility changes', async () => {
+  const window = domino.createWindow('<!doctype html><html><body><div id="root"></div></body></html>');
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: window });
+  Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true });
+  const container = window.document.getElementById('root');
+  const root = createRoot(container);
+  try {
+    let panel;
+    for (const open of [false, true, false, true]) {
+      await act(async () => root.render(render(open).tree));
+      if (panel) assert.equal(container.firstElementChild, panel, 'update the existing panel rather than remounting');
+      panel = container.firstElementChild;
+      assert.equal(panel.hasAttribute('inert'), !open);
+      assert.equal(panel.getAttribute('aria-hidden'), String(!open));
+      assert.equal(panel.querySelectorAll('button').length, 4);
+    }
+  } finally {
+    await act(async () => root.unmount());
+    if (previous) Object.defineProperty(globalThis, 'window', previous);
+    else delete globalThis.window;
+    if (previousAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
+    else delete globalThis.IS_REACT_ACT_ENVIRONMENT;
   }
 });
