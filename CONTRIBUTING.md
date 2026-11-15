@@ -36,9 +36,11 @@ MDView 프로젝트에 관심을 가져주셔서 감사합니다! 모든 형태�
 
 ### 사전 요구사항
 
-- **Node.js 20 LTS** 이상 ([설치 가이드](https://nodejs.org))
+- **Node.js 24 LTS** (`.nvmrc` 기준, [설치 가이드](https://nodejs.org))
 - **npm** (Node.js와 함께 설치됨)
 - **git**
+
+PDF 처리에 사용하는 `pdfjs-dist`는 Node.js 22.13 이상을 요구하므로 Node.js 20은 지원하지 않습니다. 개발·CI·릴리즈는 `.nvmrc`의 Node.js 24를 사용하며 현재 운영 환경도 24.x입니다. nvm을 사용한다면 저장소에서 `nvm install && nvm use`로 맞출 수 있습니다.
 
 ### 셋업 절차
 
