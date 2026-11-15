@@ -128,3 +128,23 @@ export async function autoChunkDocument(
     if (updated !== 1) throw new AutoChunkConflictError();
   });
 }
+
+/** Whole-source editing may replace pages, but cannot recreate a missing owner. */
+export async function replaceChunkedSource(
+  docId: string,
+  markdown: string,
+  chunks: { index: number; markdown: string }[],
+): Promise<void> {
+  await db.transaction('rw', db.documents, db.chunks, async () => {
+    const document = await db.documents.get(docId);
+    if (!document || !document.isChunked || document.kind === 'pdf') {
+      throw new Error('문서가 삭제되거나 형식이 변경되어 저장할 수 없습니다. 현재 원문을 별도로 보관해주세요.');
+    }
+    await saveChunks(docId, chunks);
+    const updated = await db.documents.update(docId, {
+      content: markdown, htmlContent: '', isChunked: true,
+      chunkCount: chunks.length, updatedAt: new Date(),
+    });
+    if (updated !== 1) throw new Error('문서가 변경되어 저장할 수 없습니다.');
+  });
+}

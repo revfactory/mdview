@@ -77,3 +77,14 @@ test('transition recovery never replays old manager raw after newer input fails'
   assert.equal(await pending,'blocked');assert.equal(retries,0);assert.ok(!h.events.includes('select:B'));
  }
 });
+
+test('full-source parent conflict retains exact recovery text and invokes guarded replacement',async()=>{
+ let fail=true;const calls=[];const rawRecovery={current:null};
+ const handler=callback('handleChunkedSourceChange').replace("import('@/lib/chunk-document')",'Promise.resolve(chunkModule)').replace("import('@/db/chunks')",'Promise.resolve(dbModule)');
+ const change=run('exports.fn='+handler,{activeDocumentId:'A',inputRevision:{current:0},setMergedSourceContent(){},rawRecovery,enqueueDocumentOperation:async(_id,fn)=>fn(),chunkModule:{chunkDocument:markdown=>[{index:0,markdown}]},dbModule:{replaceChunkedSource:async(id,markdown)=>{calls.push([id,markdown]);if(fail)throw Error('owner gone');}}}).fn;
+ change('exact **unsaved** raw');await new Promise(r=>setImmediate(r));
+ assert.equal(rawRecovery.current.markdown,'exact **unsaved** raw');
+ await assert.rejects(rawRecovery.current.retry(),/owner gone/);assert.ok(rawRecovery.current);
+ fail=false;await rawRecovery.current.retry();assert.equal(rawRecovery.current,null);
+ assert.equal(calls.length,3);for(const call of calls)assert.deepEqual(call,['A','exact **unsaved** raw']);
+});

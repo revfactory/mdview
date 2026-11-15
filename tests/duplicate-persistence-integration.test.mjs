@@ -263,3 +263,26 @@ test('ordinary existing document save still writes content and completes its bar
   assert.equal(saved.htmlContent, '<p>new raw</p>');
   assert.equal(saved.charCount, 7);
 }));
+
+test('full-source edit after peer deletion cannot recreate orphan pages or clear failure',()=>fixture(async({db,chunks,queue,openPeer})=>{
+ const peer=await openPeer();try{
+  await peer.transaction('rw',peer.table('documents'),peer.table('chunks'),async()=>{await peer.table('chunks').where('docId').equals('source').delete();await peer.table('documents').delete('source');});
+  await assert.rejects(queue.enqueueDocumentOperation('source',()=>chunks.replaceChunkedSource('source','unsaved raw',[{index:0,markdown:'unsaved raw'}]),{scope:'document'}),/문서/);
+  await assert.rejects(queue.awaitDocumentSaves('source'),/문서/);
+  assert.equal(await chunks.getChunkCount('source'),0);assert.equal(await db.documents.get('source'),undefined);
+ }finally{peer.close();}
+}));
+test('full-source replacement rejects changed document kind and preserves metadata rollback',()=>fixture(async({db,chunks})=>{
+ await db.documents.update('source',{kind:'pdf'});
+ await assert.rejects(chunks.replaceChunkedSource('source','new',[{index:0,markdown:'new'}]),/형식/);
+ assert.equal((await chunks.getChunk('source',0)).markdown,'old 0');
+ await db.documents.update('source',{kind:'markdown',isChunked:false});
+ await assert.rejects(chunks.replaceChunkedSource('source','new',[{index:0,markdown:'new'}]),/형식/);
+ await db.documents.update('source',{isChunked:true});
+ const fail=()=>{throw Error('metadata quota');};db.documents.hook('updating',fail);
+ await assert.rejects(chunks.replaceChunkedSource('source','new',[{index:0,markdown:'new'}]),/metadata quota/);
+ assert.equal((await chunks.getChunk('source',0)).markdown,'old 0');assert.equal((await db.documents.get('source')).content,'stale');
+ db.documents.hook('updating').unsubscribe(fail);
+ await chunks.replaceChunkedSource('source','new',[{index:0,markdown:'new'}]);
+ assert.equal((await db.documents.get('source')).content,'new');assert.equal(await chunks.getChunkCount('source'),1);
+}));

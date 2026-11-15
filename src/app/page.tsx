@@ -385,14 +385,9 @@ export default function Home() {
       const id = activeDocumentId;
       const snapshot = { id, markdown, retry: async () => {
         await enqueueDocumentOperation(id, async () => {
-        const { db } = await import('@/db');
-        const { chunkDocument } = await import('@/lib/chunk-document');
-        const { saveChunks } = await import('@/db/chunks');
-        const chunks = chunkDocument(markdown);
-        await db.transaction('rw', db.documents, db.chunks, async () => {
-          await saveChunks(id, chunks);
-          await updateDocument(id, { content: markdown, htmlContent: '', isChunked: true, chunkCount: chunks.length });
-        });
+          const { chunkDocument } = await import('@/lib/chunk-document');
+          const { replaceChunkedSource } = await import('@/db/chunks');
+          await replaceChunkedSource(id, markdown, chunkDocument(markdown));
         }, { scope: 'document' });
         if (rawRecovery.current === snapshot) rawRecovery.current = null;
       } };
