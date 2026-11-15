@@ -45,6 +45,7 @@ export function useEditorManager(documentId: string | null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Clearing the external document selection must reset the editor before another document loads.
       setContent('');
       setHtmlContent('');
+      setIsLargeDocument(false);
       setIsChunked(false);
       setChunkCount(0);
       setDocumentKind('markdown');
@@ -55,6 +56,7 @@ export function useEditorManager(documentId: string | null) {
     loadedDocumentId.current = null;
     setLoadedId(null);
     setIsLoading(true);
+    setIsLargeDocument(false);
     setSourcePending(false);
 
     (async () => {
@@ -147,6 +149,9 @@ export function useEditorManager(documentId: string | null) {
               });
               return;
             } catch (chunkErr) {
+              // A previous document may finish failing after a new one loaded.
+              // Never publish its fallback state or restore its save ownership.
+              if (cancelled) return;
               console.error('Auto-chunking failed, falling back to source view:', chunkErr);
               setIsLargeDocument(true);
               setHtmlContent('');
