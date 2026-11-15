@@ -5,6 +5,7 @@ import { indentSourceTextarea } from '@/lib/source-indentation';
 import React, { useCallback, useLayoutEffect, useRef, useEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
+import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
 import { enqueueDocumentOperation } from '@/lib/document-save-queue';
 import { updateChunk } from '@/db/chunks';
@@ -38,6 +39,8 @@ export function PaginatedSplitView({
     chunkHtml,
     chunkMarkdown,
     isPageLoading,
+    loadError,
+    retryLoad,
     pageChanging,
     editorRef,
     handlePageChange,
@@ -66,7 +69,7 @@ export function PaginatedSplitView({
 
   useLayoutEffect(() => {
     onFlushReady?.(async () => {
-      if (isPageLoading || pageChanging) throw new Error('페이지를 불러오는 중입니다.');
+      if (loadError || isPageLoading || pageChanging) throw new Error('페이지를 불러오는 중입니다.');
       if (sourceDirty.current && textareaRef.current) {
         const markdown = textareaRef.current.value;
         const chunkId = getCurrentChunkId();
@@ -74,7 +77,7 @@ export function PaginatedSplitView({
       } else await flush();
     });
     return () => onFlushReady?.(null);
-  }, [flush, onFlushReady, isPageLoading, pageChanging, documentId, currentPage, getCurrentChunkId]);
+  }, [flush, onFlushReady, loadError, isPageLoading, pageChanging, documentId, currentPage, getCurrentChunkId]);
 
   const handleEditorReady = useCallback(
     (editor: TipTapEditor | null) => {
@@ -158,6 +161,10 @@ export function PaginatedSplitView({
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }, []);
+
+  if (loadError && !isPageLoading) {
+    return <PageLoadError message={loadError} onRetry={retryLoad} />;
+  }
 
   if (isPageLoading) {
     return (

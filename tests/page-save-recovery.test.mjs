@@ -84,7 +84,8 @@ test('same-index replacement cannot make a retained edit adopt a new chunk ID', 
 
 test('missing loaded chunk ID keeps initial editing and navigation blocked', async () => {
   const h = harness(null); h.render(); await tick(); const hook = h.render();
-  assert.equal(hook.isPageLoading, true);
+  assert.equal(hook.isPageLoading, false);
+  assert.ok(hook.loadError);
   assert.throws(() => hook.getCurrentChunkId(), /식별자/);
   await hook.handlePageChange(1);
   assert.equal(h.render().currentPage, 0);

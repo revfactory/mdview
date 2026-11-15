@@ -8,12 +8,12 @@ function harness() {
   const source = readFileSync(new URL('../src/hooks/use-paginated-chunks.ts', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
   const slots = [], writes = [], reads = [];
-  let cursor = 0, fail = false, failure = null, deferredRead = null, barrier = null, effects = [];
+  let cursor = 0, fail = false, failure = null, deferredRead = null, initialRead = null, barrier = null, effects = [];
   const exports = {};
   vm.runInNewContext(js, { exports, console: { error() {} }, window: { addEventListener() {}, removeEventListener() {} },
     require(name) {
       if (name === 'react') return {
-        useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = v; }]; },
+        useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v; }]; },
         useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial }; },
         useCallback(fn, deps) { const i=cursor++, old=slots[i]; if(!old || deps.some((v,j)=>v!==old.deps[j])) slots[i]={deps,fn}; return slots[i].fn; }, useEffect(fn, deps) {
  const i=cursor++, old=slots[i];
@@ -33,14 +33,14 @@ function harness() {
       };
       if (name === '@/db/chunks') return {
         async updateChunk(id, page, markdown, html, expectedChunkId) { assert.equal(expectedChunkId, page + 101); writes.push({ id, page, markdown, html, expectedChunkId }); if (fail) throw Error('quota'); },
-        async getChunk(id, page) { reads.push(page); if (page === 1 && deferredRead) return deferredRead; return { id: page + 101, markdown: 'page ' + page, htmlContent: '<p>page ' + page + '</p>' }; },
+        async getChunk(id, page) { reads.push(page); if (page === 0 && initialRead) return initialRead(); if (page === 1 && deferredRead) return deferredRead; return { id: page + 101, markdown: 'page ' + page, htmlContent: '<p>page ' + page + '</p>' }; },
       };
       if (name === '@/lib/markdown') return { htmlToMarkdown: value => value, markdownToHtml: value => value };
       throw Error(name);
     },
   });
   return {
-    writes, reads, delaySave(promise) { barrier=promise; }, unmount() { for(const slot of slots) slot?.cleanup?.(); }, delayPageOne(promise) { deferredRead=promise; },
+    writes, reads, setInitialRead(fn) { initialRead=fn; }, delaySave(promise) { barrier=promise; }, unmount() { for(const slot of slots) slot?.cleanup?.(); }, delayPageOne(promise) { deferredRead=promise; },
     setFail(value) { fail = value; },
     render(id='doc') { cursor = 0; effects=[]; const result=exports.usePaginatedChunks(id, 2); for(const effect of effects) effect(); return result; },
   };
@@ -107,4 +107,35 @@ test('unmount invalidates an in-flight page load', async () => {
  const switching=h.render('A').handlePageChange(1);await tick();h.unmount();
  resolve({id:102,markdown:'unmounted result',htmlContent:'<p>unmounted</p>'});await switching;
  assert.notEqual(h.render('A').chunkMarkdown,'unmounted result');
+});
+
+
+test('initial read failure terminates loading and retry recovers without writes', async () => {
+ const h=harness(); h.setInitialRead(async()=>{throw Error('read unavailable');});
+ h.render();await tick(); let hook=h.render();
+ assert.equal(hook.isPageLoading,false);assert.ok(hook.loadError);
+ assert.throws(()=>hook.handleChange('must not save','<p>must not save</p>'));
+ await assert.rejects(hook.flush());await hook.handlePageChange(1);
+ assert.deepEqual(h.writes,[]);assert.deepEqual(h.reads,[0]);
+ h.setInitialRead(null);hook.retryLoad();h.render();await tick();hook=h.render();
+ assert.equal(hook.isPageLoading,false);assert.equal(hook.loadError,null);
+ assert.equal(hook.getCurrentChunkId(),101);assert.deepEqual(h.writes,[]);
+});
+
+test('late failed initial read cannot replace another document successful read', async()=>{
+ const h=harness();let reject;
+ h.setInitialRead(()=>new Promise((_,r)=>reject=r));h.render('A');
+ h.setInitialRead(null);h.render('B');await tick();reject(Error('late A'));await tick();
+ const hook=h.render('B');assert.equal(hook.loadError,null);assert.equal(hook.isPageLoading,false);
+ assert.equal(hook.getCurrentChunkId(),101);assert.deepEqual(h.writes,[]);
+});
+
+test('late retry result does not publish into a newly selected document',async()=>{
+ const h=harness();h.setInitialRead(async()=>{throw Error('read unavailable');});
+ h.render('A');await tick();let resolve;
+ h.setInitialRead(()=>new Promise(r=>resolve=r));h.render('A').retryLoad();h.render('A');
+ h.setInitialRead(null);h.render('B');await tick();
+ resolve({id:501,markdown:'A retry',htmlContent:'<p>A retry</p>'});await tick();
+ const hook=h.render('B');assert.equal(hook.loadError,null);assert.equal(hook.getCurrentChunkId(),101);
+ assert.notEqual(hook.chunkMarkdown,'A retry');assert.deepEqual(h.writes,[]);
 });

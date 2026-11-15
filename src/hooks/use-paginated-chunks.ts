@@ -13,6 +13,8 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
   const [chunkHtml, setChunkHtml] = useState('');
   const [chunkMarkdown, setChunkMarkdown] = useState('');
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [pageChanging, setPageChanging] = useState(false);
   const transitionInFlight = useRef(false);
   const ownerGeneration = useRef(0);
@@ -84,6 +86,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     setCurrentPage(0);
     setPageChanging(false);
     setIsPageLoading(true);
+    setLoadError(null);
     loadedChunk.current = null;
 
     (async () => {
@@ -97,19 +100,26 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
       } catch (err) {
         console.error('Failed to load chunk:', err);
         if (!cancelled) {
-          setChunkHtml('<p></p>');
-          setChunkMarkdown('');
+          // A failed read is not an empty document. Keep editors unavailable.
+          setLoadError('페이지를 불러오지 못했습니다. 저장된 내용은 변경하지 않았습니다.');
+          setIsPageLoading(false);
         }
       }
     })();
 
     return () => { cancelled = true; };
-  }, [documentId, loadChunk]);
+  }, [documentId, loadChunk, loadAttempt]);
+
+  const retryLoad = useCallback(() => {
+    if (!loadError || isPageLoading) return;
+    setIsPageLoading(true);
+    setLoadAttempt(attempt => attempt + 1);
+  }, [loadError, isPageLoading]);
 
   // Save current chunk, then load new one
   const handlePageChange = useCallback(
     async (newPage: number) => {
-      if (transitionInFlight.current || transitionBlocked || newPage === currentPage || newPage < 0 || newPage >= totalChunks) return;
+      if (!loadedChunk.current || transitionInFlight.current || transitionBlocked || newPage === currentPage || newPage < 0 || newPage >= totalChunks) return;
       transitionInFlight.current = true;
       const generation = ownerGeneration.current;
       setPageChanging(true);
@@ -152,9 +162,9 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
   );
 
   const flush = useCallback(async () => {
-    if (isPageLoading || pageChanging || !editorRef.current) throw new Error('페이지를 불러오는 중입니다.');
+    if (loadError || isPageLoading || pageChanging || !editorRef.current) throw new Error('페이지를 불러오는 중입니다.');
     await saveCurrentPage();
-  }, [isPageLoading, pageChanging, saveCurrentPage]);
+  }, [loadError, isPageLoading, pageChanging, saveCurrentPage]);
 
   // Keyboard shortcuts: Ctrl+PageUp/PageDown
   useEffect(() => {
@@ -178,6 +188,8 @@ export function usePaginatedChunks(documentId: string, totalChunks: number, tran
     chunkHtml,
     chunkMarkdown,
     isPageLoading,
+    loadError,
+    retryLoad,
     pageChanging,
     editorRef,
     handlePageChange,

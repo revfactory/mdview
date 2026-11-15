@@ -4,6 +4,7 @@ import { useCallback, useLayoutEffect } from 'react';
 import { Editor } from '@/components/features/editor/editor';
 import { PageNavigator } from '@/components/features/editor/page-navigator';
 import { DocumentTitle } from '@/components/features/editor/document-title';
+import { PageLoadError } from '@/components/features/editor/page-load-error';
 import { usePaginatedChunks } from '@/hooks/use-paginated-chunks';
 import { useUIStore } from '@/stores/ui-store';
 import type { Editor as TipTapEditor } from '@tiptap/react';
@@ -27,6 +28,8 @@ export function PaginatedEditor({
     currentPage,
     chunkHtml,
     isPageLoading,
+    loadError,
+    retryLoad,
     pageChanging,
     editorRef,
     handlePageChange,
@@ -45,6 +48,10 @@ export function PaginatedEditor({
     },
     [editorRef, onEditorReady]
   );
+
+  if (loadError && !isPageLoading) {
+    return <PageLoadError message={loadError} onRetry={retryLoad} />;
+  }
 
   if (isPageLoading) {
     return (
