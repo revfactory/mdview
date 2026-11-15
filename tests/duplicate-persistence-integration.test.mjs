@@ -211,3 +211,34 @@ test('page writes without a loaded identity fail closed', () => fixture(async ({
   await assert.rejects(chunks.updateChunk('source', 0, 'unidentified edit', '', undefined), /다시 구성/);
   assert.equal((await chunks.getChunk('source', 0)).markdown, 'old 0');
 }));
+
+test('automatic pagination commits metadata and pages together and rolls back metadata failure',()=>fixture(async({db,chunks})=>{
+ await db.chunks.where('docId').equals('source').delete();
+ await db.documents.update('source',{isChunked:false,chunkCount:0,content:'raw original'});
+ const expected=await db.documents.get('source');
+ const fail=()=>{throw Error('metadata quota');};db.documents.hook('updating',fail);
+ await assert.rejects(chunks.autoChunkDocument('source',expected,[{index:0,markdown:'raw original'}]),/metadata quota/);
+ assert.equal(await chunks.getChunkCount('source'),0);assert.equal((await db.documents.get('source')).isChunked,false);
+ db.documents.hook('updating').unsubscribe(fail);
+ await chunks.autoChunkDocument('source',expected,[{index:0,markdown:'raw original'}]);
+ assert.equal((await db.documents.get('source')).isChunked,true);assert.equal(await chunks.getChunkCount('source'),1);
+}));
+test('automatic pagination refuses a stale peer-edited or deleted document snapshot',()=>fixture(async({db,chunks,openPeer})=>{
+ await db.chunks.where('docId').equals('source').delete();await db.documents.update('source',{isChunked:false,chunkCount:0,content:'old raw'});
+ const expected=await db.documents.get('source');const peer=await openPeer();
+ try{
+  await peer.table('documents').update('source',{content:'peer newer'});
+  await assert.rejects(chunks.autoChunkDocument('source',expected,[{index:0,markdown:'old raw'}]),/문서가 변경/);
+  assert.equal(await chunks.getChunkCount('source'),0);assert.equal((await db.documents.get('source')).content,'peer newer');
+  await peer.table('documents').delete('source');
+  await assert.rejects(chunks.autoChunkDocument('source',expected,[{index:0,markdown:'old raw'}]),/문서가 변경/);
+  assert.equal(await chunks.getChunkCount('source'),0);
+ }finally{peer.close();}
+}));
+test('automatic pagination does not replace existing or already-paginated page records',()=>fixture(async({db,chunks})=>{
+ let expected=await db.documents.get('source');
+ await assert.rejects(chunks.autoChunkDocument('source',expected,[{index:0,markdown:'replacement'}]),/문서가 변경/);
+ await db.documents.update('source',{isChunked:false,chunkCount:0});expected=await db.documents.get('source');
+ await assert.rejects(chunks.autoChunkDocument('source',expected,[{index:0,markdown:'replacement'}]),/문서가 변경/);
+ assert.equal((await chunks.getChunk('source',0)).markdown,'old 0');assert.equal(await chunks.getChunkCount('source'),2);
+}));

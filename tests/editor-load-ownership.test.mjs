@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import ts from 'typescript';
 
 function harness() {
+  class Conflict extends Error {}
   const source = readFileSync(new URL('../src/hooks/use-editor.ts', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const slots = [], effects = [], layouts = [], chunkWrites = [], active = [], writes = [];
@@ -26,12 +27,12 @@ function harness() {
     if (name === '@/hooks/use-autosave') return { useAutosave: id => async md => { writes.push({id,md}); } };
     if (name === '@/lib/document-save-queue') return { awaitDocumentSaves: async () => {} };
     if (name === '@/db/documents') return { getDocument: async id => ({ content: id === 'A' ? 'a'.repeat(300001) : 'B raw', htmlContent: '<p>B preview</p>' }), updateDocument: async () => {} };
-    if (name === '@/db/chunks') return { saveChunks: () => new Promise((resolve, reject) => chunkWrites.push({resolve,reject})) };
+    if (name === '@/db/chunks') return { AutoChunkConflictError: Conflict, autoChunkDocument: () => new Promise((resolve, reject) => chunkWrites.push({resolve,reject})) };
     if (name === '@/lib/markdown') return { markdownToHtml: raw => `<p>${raw}</p>` };
     if (name === '@/lib/chunk-document') return { chunkDocument: raw => [{index:0, markdown:raw}] };
     return {};
   }});
-  return { chunkWrites, active, writes, render(id) { cursor = 0; const result = exports.useEditorManager(id); layouts.splice(0).forEach(fn => fn()); effects.splice(0).forEach(fn => fn()); return result; } };
+  return { conflict: () => new Conflict("changed"), chunkWrites, active, writes, render(id) { cursor = 0; const result = exports.useEditorManager(id); layouts.splice(0).forEach(fn => fn()); effects.splice(0).forEach(fn => fn()); return result; } };
 }
 const settle = async () => { for(let i=0;i<12;i++) await Promise.resolve(); };
 
@@ -73,4 +74,10 @@ test('clearing selection resets the fallback flag and cancels a pending large lo
   assert.equal(editor.htmlContent, '');
   assert.equal(editor.isLargeDocument, false);
   assert.equal(h.active.at(-1), 'A'); // no stale selection publication after clearing
+});
+
+test('automatic pagination conflict is not an editable stale source fallback',async()=>{
+ const h=harness();h.render('A');await settle();h.chunkWrites[0].reject(h.conflict());await settle();
+ const editor=h.render('A');assert.equal(editor.canSave,false);assert.ok(editor.loadError);assert.equal(editor.isLargeDocument,false);
+ editor.onSourceChange('must not overwrite peer');await settle();assert.deepEqual(h.writes,[]);
 });

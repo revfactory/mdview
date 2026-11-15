@@ -102,3 +102,29 @@ export async function getAllChunksMarkdown(docId: string): Promise<string> {
 export async function deleteChunks(docId: string): Promise<void> {
   await db.chunks.where('docId').equals(docId).delete();
 }
+
+export class AutoChunkConflictError extends Error {
+  constructor() { super('문서가 변경되어 자동 분할을 중단했습니다. 다른 문서를 선택한 뒤 다시 열어주세요.'); }
+}
+
+/** Convert an unchanged, unpaginated snapshot without partial page/metadata writes. */
+export async function autoChunkDocument(
+  docId: string,
+  expected: { content: string; updatedAt?: Date; isChunked?: boolean; chunkCount?: number },
+  chunks: { index: number; markdown: string }[],
+): Promise<void> {
+  await db.transaction('rw', db.documents, db.chunks, async () => {
+    const current = await db.documents.get(docId);
+    if (!current || current.isChunked || current.content !== expected.content ||
+        current.updatedAt?.getTime() !== expected.updatedAt?.getTime() ||
+        current.isChunked !== expected.isChunked || current.chunkCount !== expected.chunkCount ||
+        await db.chunks.where('docId').equals(docId).count() !== 0) {
+      throw new AutoChunkConflictError();
+    }
+    await saveChunks(docId, chunks);
+    const updated = await db.documents.update(docId, {
+      isChunked: true, chunkCount: chunks.length, updatedAt: new Date(),
+    });
+    if (updated !== 1) throw new AutoChunkConflictError();
+  });
+}

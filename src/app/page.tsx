@@ -87,7 +87,7 @@ export default function Home() {
   }, [activeDocumentId, recentDocs, actions]);
 
 
-  const { content, htmlContent, isLoading, isLargeDocument, isChunked, chunkCount, documentKind, onChange, onSourceChange, sourcePending, saveCurrent, canSave } =
+  const { content, htmlContent, isLoading, loadError, isLargeDocument, isChunked, chunkCount, documentKind, onChange, onSourceChange, sourcePending, saveCurrent, canSave } =
     useEditorManager(activeDocumentId);
   const isPdf = !!activeDocumentId && !isLoading && documentKind === 'pdf';
 
@@ -598,6 +598,8 @@ export default function Home() {
                       문서 로딩 중...
                     </div>
                   </div>
+                ) : loadError ? (
+                  <p role="alert" className="p-6">{loadError} 브라우저 데이터를 삭제하지 마세요.</p>
                 ) : viewMode === 'wysiwyg' ? (
                   isChunked ? (
                     <PaginatedEditor

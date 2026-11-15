@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { getDocument, updateDocument } from '@/db/documents';
-import { getChunkCount, saveChunks } from '@/db/chunks';
+import { getDocument } from '@/db/documents';
+import { getChunkCount, autoChunkDocument, AutoChunkConflictError } from '@/db/chunks';
 import { chunkDocument } from '@/lib/chunk-document';
 import { useEditorStore } from '@/stores/editor-store';
 import { awaitDocumentSaves } from '@/lib/document-save-queue';
@@ -17,6 +17,7 @@ export function useEditorManager(documentId: string | null) {
   const [content, setContent] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [isLargeDocument, setIsLargeDocument] = useState(false);
   const [isChunked, setIsChunked] = useState(false);
@@ -43,6 +44,7 @@ export function useEditorManager(documentId: string | null) {
 
     if (!documentId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Clearing the external document selection must reset the editor before another document loads.
+      setLoadError(null);
       setContent('');
       setHtmlContent('');
       setIsLargeDocument(false);
@@ -56,6 +58,7 @@ export function useEditorManager(documentId: string | null) {
     loadedDocumentId.current = null;
     setLoadedId(null);
     setIsLoading(true);
+    setLoadError(null);
     setIsLargeDocument(false);
     setSourcePending(false);
 
@@ -124,11 +127,7 @@ export function useEditorManager(documentId: string | null) {
             // Auto-chunk: split large document into chunks on the fly
             try {
               const chunks = chunkDocument(raw);
-              await saveChunks(documentId, chunks);
-              await updateDocument(documentId, {
-                isChunked: true,
-                chunkCount: chunks.length,
-              } as Partial<import('@/types').Document>);
+              await autoChunkDocument(documentId, { ...doc, content: raw }, chunks);
               if (cancelled) return;
 
               setIsChunked(true);
@@ -152,6 +151,8 @@ export function useEditorManager(documentId: string | null) {
               // A previous document may finish failing after a new one loaded.
               // Never publish its fallback state or restore its save ownership.
               if (cancelled) return;
+              // A stale snapshot must not become an editable source fallback.
+              if (chunkErr instanceof AutoChunkConflictError) throw chunkErr;
               console.error('Auto-chunking failed, falling back to source view:', chunkErr);
               setIsLargeDocument(true);
               setHtmlContent('');
@@ -182,6 +183,7 @@ export function useEditorManager(documentId: string | null) {
       } catch (error) {
         if (cancelled) return;
         console.error('Failed to load document:', error);
+        setLoadError(error instanceof AutoChunkConflictError ? error.message : '문서를 불러오지 못했습니다. 다른 문서를 선택한 뒤 다시 열어주세요.');
         setContent('');
         setHtmlContent('');
         setIsChunked(false);
@@ -238,6 +240,7 @@ export function useEditorManager(documentId: string | null) {
     content,
     htmlContent,
     isLoading,
+    loadError,
     isLargeDocument,
     isChunked,
     chunkCount,
