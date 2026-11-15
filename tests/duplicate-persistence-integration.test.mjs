@@ -242,3 +242,24 @@ test('automatic pagination does not replace existing or already-paginated page r
  await assert.rejects(chunks.autoChunkDocument('source',expected,[{index:0,markdown:'replacement'}]),/문서가 변경/);
  assert.equal((await chunks.getChunk('source',0)).markdown,'old 0');assert.equal(await chunks.getChunkCount('source'),2);
 }));
+
+test('ordinary save after peer deletion rejects instead of reporting a successful no-op', () => fixture(async ({ db, documents, queue, openPeer }) => {
+  await db.documents.add({ id: 'plain', title: 'plain', content: 'original', tags: [] });
+  const peer = await openPeer();
+  try { await peer.table('documents').delete('plain'); } finally { peer.close(); }
+  await assert.rejects(queue.enqueueDocumentSave('plain', 'unsaved local edit', ''), /문서/);
+  await assert.rejects(queue.awaitDocumentSaves('plain'), /문서/);
+  assert.equal(await db.documents.get('plain'), undefined);
+  assert.equal((await db.documents.get('source')).content, 'stale');
+  await assert.rejects(documents.updateContent('missing', 'raw', ''), /문서/);
+}));
+
+test('ordinary existing document save still writes content and completes its barrier', () => fixture(async ({ db, queue }) => {
+  await db.documents.add({ id: 'plain', title: 'plain', content: 'original', tags: [] });
+  await queue.enqueueDocumentSave('plain', 'new raw', '<p>new raw</p>');
+  await queue.awaitDocumentSaves('plain');
+  const saved = await db.documents.get('plain');
+  assert.equal(saved.content, 'new raw');
+  assert.equal(saved.htmlContent, '<p>new raw</p>');
+  assert.equal(saved.charCount, 7);
+}));

@@ -188,7 +188,7 @@ export async function updateContent(
   const readingTime = computeReadingTime(isLarge ? wordCount * Math.ceil(content.length / 100_000) : wordCount);
   const excerpt = extractExcerpt(content);
 
-  await db.documents.update(id, {
+  const updated = await db.documents.update(id, {
     content,
     htmlContent,
     excerpt,
@@ -197,4 +197,7 @@ export async function updateContent(
     readingTime,
     updatedAt: new Date(),
   });
+  // Dexie resolves with zero when a peer has deleted the target. A no-op
+  // is not a saved edit: keep the queue failure visible to the editor.
+  if (updated !== 1) throw new Error('문서가 삭제되어 저장할 수 없습니다. 편집 내용을 별도로 보관해주세요.');
 }
