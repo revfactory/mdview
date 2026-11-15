@@ -103,3 +103,35 @@ test('deleted parent or changed mode fails closed before writing',()=>fixture(as
  await peer.table('documents').delete('plain');await peer.table('documents').update('pages',{kind:'pdf'});
  for(const promise of [cas.savePlainBaseline(plain,{markdown:'x',html:''}),cas.savePageBaseline(page,{markdown:'x',html:''}),cas.saveSourceBaseline(source,{markdown:'x',html:''})]) await assert.rejects(promise,e=>e instanceof ContentConflictError);
 }));
+
+for (const mode of ['Plain', 'Page', 'Source']) {
+ test(`${mode} competing sessions allow one winner and retain the losing edit`, () => fixture(async ({ db, cas, createContentSaveSession, ContentConflictError }) => {
+  const baseline = mode === 'Plain' ? await cas.readPlainBaseline('plain') : mode === 'Page' ? await cas.readPageBaseline('pages', 0) : await cas.readSourceBaseline('pages');
+  const sessions = [0, 1].map(() => createContentSaveSession(baseline, cas[`save${mode}Baseline`]));
+  const results = await Promise.allSettled(sessions.map((session, i) => session.save({markdown:`competing ${i}`,html:''})));
+  const winner = results.findIndex(r => r.status === 'fulfilled');
+  const loser = 1 - winner;
+  assert.notEqual(winner, -1);
+  assert.equal(results[loser].status, 'rejected');
+  assert.ok(results[loser].reason instanceof ContentConflictError);
+  assert.equal(sessions[loser].getPendingSnapshot().markdown, `competing ${loser}`);
+  await assert.rejects(sessions[loser].retry(), e => e instanceof ContentConflictError);
+  const stored = mode === 'Plain' ? (await db.documents.get('plain')).content : (await cas.readSourceBaseline('pages')).pages[0].markdown;
+  assert.equal(stored, `competing ${winner}`);
+ }));
+}
+
+test('quota recovery cannot adopt a peer edit made while the source save was failing', () => fixture(async ({ db, peer, cas, createContentSaveSession, ContentConflictError }) => {
+ const baseline = await cas.readSourceBaseline('pages');
+ const session = createContentSaveSession(baseline, cas.saveSourceBaseline);
+ const fail = () => { throw Error('quota'); };
+ db.documents.hook('updating', fail);
+ await assert.rejects(session.save({markdown:'unsaved local source',html:''}), /quota/);
+ db.documents.hook('updating').unsubscribe(fail);
+ await peer.table('chunks').update(baseline.pages[1].id, {markdown:'peer after quota'});
+ await assert.rejects(session.retry(), e => e instanceof ContentConflictError);
+ assert.equal(session.hasConflict(), true);
+ assert.equal(session.getPendingSnapshot().markdown, 'unsaved local source');
+ assert.equal((await db.chunks.get(baseline.pages[1].id)).markdown, 'peer after quota');
+ assert.equal(await db.chunks.count(), 2);
+}));
