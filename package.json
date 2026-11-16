@@ -90,7 +90,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/file-saver": "^2.0.7",
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
     "@types/pako": "^2.0.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
