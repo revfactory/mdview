@@ -12,6 +12,7 @@ function harness(file, component, convertAsync) {
   const react = {
     useRef(initial) { const index = cursor++; return refs[index] ??= { current: initial }; },
     useCallback: fn => fn,
+    useId: () => 'source-keyboard-help',
     useState: initial => [initial, () => {}],
     useEffect() {},
     useLayoutEffect: fn => layoutEffects.push(fn),

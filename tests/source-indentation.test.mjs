@@ -97,7 +97,7 @@ for (const [file, name] of [
     const changes = [];
     const react = {
       createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
-      useRef: current => ({ current }), useCallback: fn => fn,
+      useRef: current => ({ current }), useCallback: fn => fn, useId: () => 'source-keyboard-help',
       useEffect() {}, useLayoutEffect: fn => fn(), useState: initial => [initial, () => {}],
     };
     const modules = {
