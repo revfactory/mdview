@@ -48,6 +48,7 @@ export interface SidebarProps {
   onDuplicateDocument?: (id: string) => void;
   onImport?: () => void;
   onImportMarkdown?: () => void;
+  onImportPdf?: () => void;
   onSettings?: () => void;
 }
 
@@ -217,6 +218,7 @@ export function Sidebar({
   onDuplicateDocument,
   onImport,
   onImportMarkdown,
+  onImportPdf,
   onSettings,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -321,7 +323,7 @@ export function Sidebar({
 
     // Apply search filter - search across ALL docs including folder docs
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
       // When searching, show all matching docs regardless of folder
       filtered = (docs).filter(
         (d) =>
@@ -358,20 +360,27 @@ export function Sidebar({
       </div>
 
       {/* Import Buttons */}
-      <div className="px-3 mb-2 flex gap-2">
+      <div className="px-3 mb-2 flex gap-1.5">
         <button
           onClick={handleImportMarkdown}
-          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
+          className="flex items-center justify-center gap-1.5 flex-[1.4] min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
         >
-          <FileCode className="w-3.5 h-3.5" />
-          <span>Markdown</span>
+          <FileCode className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Markdown</span>
         </button>
         <button
           onClick={onImport}
-          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+          className="flex items-center justify-center gap-1.5 flex-1 min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
         >
-          <Import className="w-3.5 h-3.5" />
-          <span>HWP</span>
+          <Import className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">HWP</span>
+        </button>
+        <button
+          onClick={onImportPdf}
+          className="flex items-center justify-center gap-1.5 flex-1 min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+        >
+          <FileText className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">PDF</span>
         </button>
       </div>
 
@@ -420,9 +429,9 @@ export function Sidebar({
 
       {/* Document List / Folder Tree */}
       <div className="flex-1 overflow-y-auto px-3">
-        {/* Folder Section - only show if folders exist */}
+        {/* Keep folder state mounted, but show only filtered results during search. */}
         {hasFolders && (
-          <>
+          <div hidden={Boolean(searchQuery.trim())}>
             <div className="flex items-center justify-between px-2.5 py-1">
               <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
                 폴더
@@ -452,7 +461,7 @@ export function Sidebar({
               />
             ))}
             <div className="mx-1 my-1.5 h-px bg-[var(--color-border)]" />
-          </>
+          </div>
         )}
 
         {/* Add folder button - always visible above document list */}

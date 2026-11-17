@@ -4,11 +4,13 @@ import React, { useCallback, useMemo } from 'react';
 import { Pin, Star, Copy, Trash2, MoreHorizontal } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import type { DocumentKind } from '@/types';
 
 export interface DocumentItemProps {
   id: string;
   title: string;
   excerpt: string;
+  kind?: DocumentKind;
   updatedAt: Date;
   isFavorite: boolean;
   isActive: boolean;
@@ -22,6 +24,7 @@ export function DocumentItem({
   id,
   title,
   excerpt,
+  kind,
   updatedAt,
   isFavorite,
   isActive,
@@ -94,10 +97,23 @@ export function DocumentItem({
         }
       `}
     >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label={`${title || '제목 없음'}${kind === 'pdf' ? ' PDF' : ''} 문서 열기`}
+        aria-current={isActive ? 'true' : undefined}
+        className="flex-1 min-w-0 rounded-sm text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+      >
+        <span className="flex items-center gap-1">
           {isFavorite && (
             <Pin className="w-3 h-3 shrink-0 text-[var(--color-accent)] -rotate-45" fill="currentColor" />
+          )}
+          {kind === 'pdf' && (
+            <span
+              className="shrink-0 rounded px-1 py-px text-[9px] font-semibold leading-none tracking-wide bg-[var(--color-danger)]/10 text-[var(--color-danger)]"
+              aria-label="PDF 문서"
+            >
+              PDF
+            </span>
           )}
           <span
             className={`flex-1 truncate text-[13px] font-medium ${
@@ -111,13 +127,13 @@ export function DocumentItem({
           <span className="shrink-0 text-[11px] text-[var(--color-text-placeholder)]">
             {formatDate(updatedAt)}
           </span>
-        </div>
+        </span>
         {excerpt && (
-          <p className="text-[12px] leading-snug text-[var(--color-text-muted)] truncate mt-0.5">
+          <span className="block text-[12px] leading-snug text-[var(--color-text-muted)] truncate mt-0.5">
             {excerpt}
-          </p>
+          </span>
         )}
-      </div>
+      </button>
       <div className="flex items-center shrink-0 mt-0.5" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu
           trigger={

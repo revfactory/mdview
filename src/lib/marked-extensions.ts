@@ -12,7 +12,7 @@ function renderKatex(latex: string, displayMode: boolean): string {
       output: 'html',
     });
   } catch {
-    return `<code>${latex}</code>`;
+    return `<code>${escapeAttr(latex)}</code>`;
   }
 }
 

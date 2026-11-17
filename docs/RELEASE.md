@@ -2,7 +2,7 @@
 
 기능 추가는 minor, 수정은 patch 버전을 올립니다. 아직 0.x 단계입니다.
 
-1. 배포 대상으로 검증한 변경만 CHANGELOG.md의 날짜가 있는 새 버전 섹션으로 옮깁니다. 미병합 PR은 제외합니다.
+1. 배포 대상으로 검증한 변경만 CHANGELOG.md의 날짜가 있는 새 버전 섹션으로 옮깁니다. 미병합 PR은 제외합니다. 날짜는 실제 달력 날짜의 `YYYY-MM-DD` 형식이며, 제목·주석만 남기지 말고 실제 변경 내용을 기록합니다. `node scripts/release-notes.mjs`로 게시 전 검증할 수 있습니다.
 2. package.json과 package-lock.json 루트 버전을 함께 갱신합니다. npm publish는 하지 않습니다.
 3. PR에서 lint, typecheck, npm test, build 및 변경 범위에 맞는 QA를 검증합니다.
 4. 승인된 버전 PR을 main에 머지하면 Release workflow가 검증을 다시 실행하고 해당 커밋의 버전 태그와 GitHub Release를 게시합니다.

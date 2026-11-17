@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, FilePlus2, FileText, FolderOpen } from 'lucide-react';
+import { ArrowRight, FilePlus2, FileText, FolderOpen, FileType2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { EntryAction } from '@/lib/entry-actions';
 
@@ -17,10 +17,11 @@ export function WelcomePanel({ onStart }: WelcomePanelProps) {
     <section className="mx-auto flex w-full max-w-3xl flex-col px-5 py-8 sm:px-10 sm:py-12" aria-labelledby="welcome-title">
       <p className="mb-3 text-sm font-medium text-[var(--color-accent)]">MDView · 무료 온라인 마크다운 에디터</p>
       <h1 id="welcome-title" className="text-2xl font-bold leading-tight tracking-tight sm:text-4xl">한글 파일부터 마크다운까지,<br className="hidden sm:block" /> 바로 열고 편집하세요.</h1>
-      <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--color-text-secondary)] sm:text-base">HWP·HWPX와 .md 파일을 가져오거나 새 글을 시작하세요. 설치나 회원가입 없이 문서를 편집하고 마크다운 또는 HWPX로 내보낼 수 있습니다.</p>
+      <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--color-text-secondary)] sm:text-base">HWP·HWPX와 .md 파일을 가져오거나 새 글을 시작하세요. PDF는 원본 그대로 열어 보고, 필요하면 마크다운으로 바꿔 편집할 수 있습니다. 설치나 회원가입 없이 마크다운 또는 HWPX로 내보낼 수 있습니다.</p>
       <div className="mt-6 flex flex-wrap gap-2">
         <Button icon={FolderOpen} onClick={() => onStart('import-hwp')}>HWP·HWPX 열기</Button>
         <Button variant="secondary" icon={FileText} onClick={() => onStart('import-markdown')}>마크다운 열기</Button>
+        <Button variant="secondary" icon={FileType2} onClick={() => onStart('import-pdf')}>PDF 열기</Button>
         <Button variant="secondary" icon={FilePlus2} onClick={() => onStart('new')}>새 문서 만들기</Button>
       </div>
       <button className="mt-4 w-fit cursor-pointer text-sm text-[var(--color-accent)] underline underline-offset-4" onClick={() => onStart('sample')}>파일 없이 샘플 문서로 체험하기</button>
