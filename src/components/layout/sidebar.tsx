@@ -28,6 +28,9 @@ import {
 } from '@/hooks/use-documents';
 import { useFolderTree, type FolderTreeNode } from '@/hooks/use-folders';
 import { useUIStore } from '@/stores/ui-store';
+import { useSystemTheme } from '@/hooks/use-system-theme';
+import { isDarkTheme } from '@/lib/theme';
+import packageInfo from '../../../package.json';
 import { createFolder, updateFolder, deleteFolder } from '@/db/folders';
 import { updateDocument } from '@/db/documents';
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -45,6 +48,7 @@ export interface SidebarProps {
   onDuplicateDocument?: (id: string) => void;
   onImport?: () => void;
   onImportMarkdown?: () => void;
+  onImportPdf?: () => void;
   onSettings?: () => void;
 }
 
@@ -214,6 +218,7 @@ export function Sidebar({
   onDuplicateDocument,
   onImport,
   onImportMarkdown,
+  onImportPdf,
   onSettings,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -230,18 +235,14 @@ export function Sidebar({
   const recentDocs = useRecentDocuments(20);
   const folderTree = useFolderTree();
 
-  const isDark = theme === 'dark';
+  const systemDark = useSystemTheme();
+  const isDark = isDarkTheme(theme, systemDark);
 
   const hasFolders = folderTree && folderTree.length > 0;
 
   const toggleTheme = useCallback(() => {
     const newTheme = isDark ? 'light' : 'dark';
     setTheme(newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
     analytics.themeToggle(newTheme);
   }, [isDark, setTheme]);
 
@@ -322,7 +323,7 @@ export function Sidebar({
 
     // Apply search filter - search across ALL docs including folder docs
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
       // When searching, show all matching docs regardless of folder
       filtered = (docs).filter(
         (d) =>
@@ -359,20 +360,27 @@ export function Sidebar({
       </div>
 
       {/* Import Buttons */}
-      <div className="px-3 mb-2 flex gap-2">
+      <div className="px-3 mb-2 flex gap-1.5">
         <button
           onClick={handleImportMarkdown}
-          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
+          className="flex items-center justify-center gap-1.5 flex-[1.4] min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer text-xs font-medium"
         >
-          <FileCode className="w-3.5 h-3.5" />
-          <span>Markdown</span>
+          <FileCode className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Markdown</span>
         </button>
         <button
           onClick={onImport}
-          className="flex items-center justify-center gap-1.5 flex-1 h-8 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+          className="flex items-center justify-center gap-1.5 flex-1 min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
         >
-          <Import className="w-3.5 h-3.5" />
-          <span>HWP</span>
+          <Import className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">HWP</span>
+        </button>
+        <button
+          onClick={onImportPdf}
+          className="flex items-center justify-center gap-1.5 flex-1 min-w-0 h-8 px-2 rounded-lg bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer text-xs font-medium"
+        >
+          <FileText className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">PDF</span>
         </button>
       </div>
 
@@ -421,9 +429,9 @@ export function Sidebar({
 
       {/* Document List / Folder Tree */}
       <div className="flex-1 overflow-y-auto px-3">
-        {/* Folder Section - only show if folders exist */}
+        {/* Keep folder state mounted, but show only filtered results during search. */}
         {hasFolders && (
-          <>
+          <div hidden={Boolean(searchQuery.trim())}>
             <div className="flex items-center justify-between px-2.5 py-1">
               <span className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
                 폴더
@@ -453,7 +461,7 @@ export function Sidebar({
               />
             ))}
             <div className="mx-1 my-1.5 h-px bg-[var(--color-border)]" />
-          </>
+          </div>
         )}
 
         {/* Add folder button - always visible above document list */}
@@ -544,7 +552,7 @@ export function Sidebar({
             <img src="/logo.png" alt="MDView" className="w-10 h-10 rounded-xl shrink-0" />
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">마크다운 에디터</p>
-              <p className="text-xs text-[var(--color-text-muted)]">v0.1.0 (Beta)</p>
+              <p className="text-xs text-[var(--color-text-muted)]">v{packageInfo.version} (Beta)</p>
             </div>
           </div>
 
@@ -553,6 +561,9 @@ export function Sidebar({
             <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
               🔒 모든 문서는 서버에 전송되지 않으며, 개인 브라우저(IndexedDB)에만 저장됩니다.
             </p>
+            <a href="/guides/markdown-editor#document-storage" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs text-[var(--color-accent)] hover:underline">
+              저장한 문서가 보이지 않나요? (새 탭)
+            </a>
           </div>
 
           {/* Author */}

@@ -19,6 +19,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
           type="text"
           value={value}
           onChange={onChange}
+          aria-label="문서 검색"
           placeholder={placeholder}
           className="
             h-7 w-full

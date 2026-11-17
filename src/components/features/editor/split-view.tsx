@@ -1,6 +1,6 @@
 'use client';
 
-import { indentSourceTextarea } from '@/lib/source-indentation';
+import { indentSourceTextarea, shouldIndentSourceKey, SOURCE_KEYBOARD_HELP } from '@/lib/source-indentation';
 
 import React, { useCallback, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
@@ -107,9 +107,12 @@ export function SplitView({
     []
   );
 
+  const tabEscapeRef = useRef(false);
+  const keyboardHintId = React.useId();
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Tab') {
+      if (shouldIndentSourceKey(e, tabEscapeRef)) {
         e.preventDefault();
         const textarea = e.currentTarget;
         if (!indentSourceTextarea(textarea, e.shiftKey)) return;
@@ -169,11 +172,17 @@ export function SplitView({
             Markdown Source
           </span>
         </div>
+        <p id={keyboardHintId} className="shrink-0 px-4 py-1 text-xs leading-relaxed text-[var(--color-text-secondary)]">
+          {SOURCE_KEYBOARD_HELP}
+        </p>
         <textarea
           ref={textareaRef}
           defaultValue={content}
           onChange={handleSourceChange}
           onKeyDown={handleKeyDown}
+          onBlur={() => { tabEscapeRef.current = false; }}
+          aria-label="마크다운 소스"
+          aria-describedby={keyboardHintId}
           spellCheck={false}
           className="
             flex-1 w-full resize-none outline-none

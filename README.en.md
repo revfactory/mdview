@@ -9,7 +9,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)](https://www.typescriptlang.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6)](https://www.typescriptlang.org)
 
 [한국어](README.md) | **English**
 
@@ -29,8 +29,11 @@ The interface and these task guides are in Korean:
 - [Export Markdown as HWPX](https://mdview.kr/guides/markdown-to-hwpx)
 - [Save Markdown as PDF](https://mdview.kr/guides/markdown-to-pdf)
 - [Editor and local storage guide](https://mdview.kr/guides/markdown-editor)
+- [Markdown syntax reference: headings, lists, tables, and code](https://mdview.kr/guides/markdown-cheatsheet)
 
 Documents are stored in the current browser. Export important files as backups and check complex tables, images, and formatting after conversion. Export to the binary `.hwp` format is not supported.
+
+If saved documents are missing, check both [mdview.kr](https://mdview.kr/) and [www.mdview.kr](https://www.mdview.kr/) on the device and browser profile used to create them. The two addresses have separate storage and do not sync documents automatically. Do not clear site data while checking, and export important documents once you find them. See the [document storage and backup guide (Korean)](https://mdview.kr/guides/markdown-editor#document-storage).
 
 ## 📖 Overview
 
@@ -42,7 +45,7 @@ Three core differentiators:
 2. **⚡ Large Document Performance** — Web Worker parsing and pagination process long documents in chunks. Processing time and formatting fidelity depend on the file and device.
 3. **🧱 Block-Based Editing** — Notion-style slash commands and drag-and-drop block reordering.
 
-> ⚠️ Currently in 0.1.x pre-release. Minor version bumps may include breaking changes until 1.0.
+> ⚠️ Currently in 0.x pre-release. Minor version bumps may include breaking changes until 1.0.
 
 ## ✨ Features
 
@@ -51,6 +54,8 @@ Three core differentiators:
 - **Drag-and-drop** — Reorder blocks visually
 - **HWP/HWPX import, HWPX export** — Convert Korean Hangul Word documents to Markdown and export `.hwpx` files
 - **Markdown file I/O** — Open and save `.md` directly
+- **PDF viewer** — Open PDFs read-only with their original layout (page navigation, zoom, text selection/copy, original download), including Korean PDFs whose fonts are not embedded
+- **PDF → Markdown** — Infers headings, paragraphs and lists from font size and line spacing to create an editable document. Scanned image PDFs produce no text; tables and multi-column layouts need review
 - **PDF export** — Browser print/Save as PDF for non-chunked WYSIWYG documents
 - **Source / Split view** — Toggle between WYSIWYG and raw markdown
 - **Large document pagination** — Auto chunking for documents over 300KB
@@ -67,7 +72,7 @@ Three core differentiators:
 
 ### Prerequisites
 
-- Node.js 20 LTS or newer
+- Node.js 24 LTS (see `.nvmrc`, matching CI and production)
 - npm (or pnpm/yarn)
 
 ### Install & Run
@@ -93,7 +98,7 @@ npm run start
 | Area | Stack |
 |------|-------|
 | **Framework** | Next.js 16 + React 19 |
-| **Language** | TypeScript 5 (strict) |
+| **Language** | TypeScript 6 (strict) |
 | **Editor Core** | TipTap 3 (ProseMirror-based) |
 | **Styling** | Tailwind CSS 4 |
 | **Local DB** | Dexie.js 4 (IndexedDB) |
@@ -126,6 +131,7 @@ src/
 - [x] HWP/HWPX import & export
 - [x] Large document pagination
 - [x] PDF export
+- [x] PDF viewer & Markdown conversion
 - [x] Web app manifest
 
 ### v1.0 (Planned)
@@ -139,7 +145,7 @@ src/
 - [ ] Plugin system
 - [ ] Presentation mode (Marp-based)
 
-See [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md) `<future_considerations>` for details.
+See `<future_considerations>` in [`MDVIEW_SPEC.md`](MDVIEW_SPEC.md) for the initial ideas. That design document includes unimplemented features and performance targets. Use this README and the [usage guides](https://mdview.kr/guides) for currently supported behavior.
 
 ## 🤝 Contributing
 
