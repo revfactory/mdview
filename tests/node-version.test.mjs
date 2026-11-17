@@ -9,6 +9,18 @@ test('the shared development Node version stays on the supported production LTS'
   assert.equal(read('.nvmrc').trim(), '24');
 });
 
+test('Node type declarations match the shared runtime major and stay development-only', () => {
+  const major = read('.nvmrc').trim();
+  const manifest = JSON.parse(read('package.json'));
+  const lock = JSON.parse(read('package-lock.json'));
+  const range = manifest.devDependencies['@types/node'];
+  assert.match(range, new RegExp(`^\\^${major}(?:\\.\\d+){0,2}$`));
+  assert.equal(lock.packages[''].devDependencies['@types/node'], range);
+  assert.equal(lock.packages['node_modules/@types/node'].version.split('.')[0], major);
+  assert.equal(lock.packages['node_modules/@types/node'].dev, true);
+  assert.equal(manifest.dependencies['@types/node'], undefined);
+});
+
 // These workflows use named setup-node steps. Check every such step, rather
 // than accepting one matching line while another job still installs Node 20.
 for (const name of ['ci', 'release']) {
