@@ -30,3 +30,19 @@ test('invalid formulas remain visible and untrusted math does not create active 
   const untrusted = parser.parse('$\\href{javascript:alert(1)}{link}$');
   assert.doesNotMatch(untrusted, /<a\b/);
 });
+
+
+test('renderer exceptions keep hostile-looking formula text literal in both math modes', () => {
+  const isolated = {};
+  vm.runInNewContext(js, { exports: isolated, require: name => name === 'katex' ? {
+    renderToString() { throw new Error('synthetic rendering failure'); },
+  } : require(name) });
+  const failingParser = new Marked(isolated.markedMathExtension());
+  const formula = '<img src=x onerror=alert(1)>&"';
+  for (const markdown of [`$${formula}$`, `$$${formula}$$`]) {
+    const html = failingParser.parse(markdown);
+    assert.doesNotMatch(html, /<img\b|<script\b/);
+    assert.ok(html.includes('<code>&lt;img src=x onerror=alert(1)&gt;&amp;&quot;</code>'));
+    assert.ok(html.includes('data-math="&lt;img src=x onerror=alert(1)&gt;&amp;&quot;"'));
+  }
+});
