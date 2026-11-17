@@ -22,6 +22,7 @@ const sizeMap: Record<ModalSize, string> = {
 export function Modal({ open, onClose, title, size = 'md', children }: ModalProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Escape') onClose();
     },
     [onClose]
