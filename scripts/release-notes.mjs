@@ -7,7 +7,19 @@ export function releaseNotes(version, changelog) {
   const matches = sections.filter(section => section.startsWith(header));
   if (matches.length !== 1) throw new Error('Expected exactly one dated version section');
   const text = matches[0].replace(/\n---\s*$/, '').trim();
-  if (text.split('\n').length < 3) throw new Error('Release notes are empty');
+  const [title, ...lines] = text.split(/\r?\n/);
+  const date = title.slice(header.length);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Release date must be YYYY-MM-DD');
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+    throw new Error('Release date is invalid');
+  }
+  const body = lines.join('\n').replace(/<!--[\s\S]*?-->/g, '');
+  const hasContent = body.split('\n').some(line => {
+    const value = line.trim();
+    return value && !/^#{1,6}(?:\s|$)/.test(value) && !/^(?:[-*+]|\d+[.)])(?:\s+\[[ xX]\])?$/.test(value) && !/^(?:[-*_]\s*){3,}$/.test(value);
+  });
+  if (!hasContent) throw new Error('Release notes are empty');
   return text + '\n';
 }
 

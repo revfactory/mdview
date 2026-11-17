@@ -120,6 +120,8 @@ export function TocPanel({ editor }: TocPanelProps) {
 
   return (
     <div
+      inert={!tocOpen}
+      aria-hidden={!tocOpen}
       className="h-full border-l border-[var(--color-border)] bg-[var(--color-sidebar)] shrink-0 overflow-hidden"
       style={{
         width: tocOpen ? 240 : 0,

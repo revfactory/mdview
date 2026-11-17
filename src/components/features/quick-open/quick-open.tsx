@@ -61,6 +61,8 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
           setSelectedIndex(Math.max(selectedIndex - 1, 0));
           break;
         case 'Enter':
+          // A focused result owns its native Enter click, not the highlighted row.
+          if ((e.target as HTMLElement)?.closest('[data-quick-open-item]')) return;
           e.preventDefault();
           if (filtered[selectedIndex]) {
             handleSelect(filtered[selectedIndex].id);
@@ -97,6 +99,7 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
           <input
             ref={inputRef}
             type="text"
+            aria-label="문서 이름으로 검색"
             placeholder="문서 이름으로 검색..."
             value={query}
             onChange={(e) => {
@@ -134,6 +137,11 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
                 <FileText className={`w-4 h-4 shrink-0 ${index === selectedIndex ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`} />
                 <div className="flex-1 min-w-0">
                   <div className={`text-sm truncate ${index === selectedIndex ? 'text-[var(--color-accent)] font-medium' : 'text-[var(--color-text)]'}`}>
+                    {doc.kind === 'pdf' && (
+                      <span className="mr-1.5 rounded px-1 py-px align-[1px] text-[9px] font-semibold leading-none tracking-wide bg-[var(--color-danger)]/10 text-[var(--color-danger)]">
+                        PDF
+                      </span>
+                    )}
                     {doc.title || '제목 없음'}
                   </div>
                   {doc.excerpt && (

@@ -1,5 +1,7 @@
 version: 2
 updates:
+  # Leave labels unset so Dependabot can create its default labels automatically.
+  # Explicit labels must already exist and replace those defaults.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -27,8 +29,6 @@ updates:
           - "@types/*"
       dev-dependencies:
         dependency-type: development
-    labels:
-      - dependencies
     commit-message:
       prefix: chore
       include: scope
@@ -37,8 +37,5 @@ updates:
     directory: /
     schedule:
       interval: monthly
-    labels:
-      - dependencies
-      - github-actions
     commit-message:
       prefix: chore(actions)

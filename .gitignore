@@ -44,3 +44,5 @@ next-env.d.ts
 
 # harness internal workspace (intermediate artifacts)
 /_workspace
+# pdf.js runtime assets (copied by scripts/copy-pdfjs-assets.mjs)
+/public/pdfjs
