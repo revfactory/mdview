@@ -93,3 +93,12 @@ test('scanned or empty pages produce an empty string', () => {
 test('pages are separated by a blank line', () => {
   assert.equal(pdfPagesToMarkdown([page(['1쪽 내용']), page(['2쪽 내용'])]), '1쪽 내용\n\n2쪽 내용');
 });
+
+test('entity-looking PDF text remains literal through the Markdown renderer', async () => {
+  const { marked } = await import('marked');
+  for (const text of ['&lt;b&gt;문자&lt;/b&gt;', '&#65;', '&#x41;', '&amp;', 'A & B']) {
+    const md = pdfPagesToMarkdown([page([text])]);
+    const escapedHtml = text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    assert.equal(marked.parse(md), `<p>${escapedHtml}</p>\n`);
+  }
+});
