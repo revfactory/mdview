@@ -1,6 +1,6 @@
 'use client';
 
-import { indentSourceTextarea } from '@/lib/source-indentation';
+import { indentSourceTextarea, shouldIndentSourceKey, SOURCE_KEYBOARD_HELP } from '@/lib/source-indentation';
 
 import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { Editor } from '@/components/features/editor/editor';
@@ -80,9 +80,12 @@ export function PaginatedSplitView({
   );
 
   // Tab key handling in source textarea
+  const tabEscapeRef = useRef(false);
+  const keyboardHintId = React.useId();
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Tab') {
+      if (shouldIndentSourceKey(e, tabEscapeRef)) {
         e.preventDefault();
         const textarea = e.currentTarget;
         if (!indentSourceTextarea(textarea, e.shiftKey)) return;
@@ -173,11 +176,17 @@ export function PaginatedSplitView({
               ({currentPage + 1}/{totalChunks})
             </span>
           </div>
+          <p id={keyboardHintId} className="shrink-0 px-4 py-1 text-xs leading-relaxed text-[var(--color-text-secondary)]">
+            {SOURCE_KEYBOARD_HELP}
+          </p>
           <textarea
             ref={textareaRef}
             defaultValue={chunkMarkdown}
             onChange={handleSourceChange}
             onKeyDown={handleKeyDown}
+            onBlur={() => { tabEscapeRef.current = false; }}
+            aria-label="마크다운 소스"
+            aria-describedby={keyboardHintId}
             spellCheck={false}
             className="
               flex-1 w-full resize-none outline-none
