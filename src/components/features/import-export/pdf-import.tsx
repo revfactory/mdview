@@ -28,10 +28,18 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
   // 처리 중에 닫거나 다른 파일을 고르면 이전 결과를 버린다.
   const runRef = useRef(0);
 
-  useEffect(() => () => { runRef.current++; }, []);
+  const cancelTaskRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => {
+    runRef.current++;
+    cancelTaskRef.current?.();
+    cancelTaskRef.current = null;
+  }, []);
 
   const handleClose = useCallback(() => {
     runRef.current++;
+    cancelTaskRef.current?.();
+    cancelTaskRef.current = null;
     setSelectedFile(null);
     setIsProcessing(false);
     setIsDragOver(false);
@@ -41,6 +49,8 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
 
   const processFile = useCallback(async (file: File) => {
     const run = ++runRef.current;
+    cancelTaskRef.current?.();
+    cancelTaskRef.current = null;
     const metaError = validatePdfFileMeta(file);
     if (metaError) {
       setSelectedFile(null);
@@ -52,13 +62,28 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
     setIsProcessing(true);
 
     let task: import('@/lib/pdfjs').PDFDocumentLoadingTask | null = null;
+    let destroyed = false;
+    const destroyTask = () => {
+      if (!task || destroyed) return;
+      destroyed = true;
+      // Cancellation is best-effort cleanup; a rejected destroy must not become
+      // an unhandled rejection or replace the original import error.
+      try { void Promise.resolve(task.destroy()).catch(() => {}); } catch {}
+    };
+    cancelTaskRef.current = destroyTask;
     try {
       const head = new Uint8Array(await file.slice(0, PDF_HEADER_SEARCH_BYTES).arrayBuffer());
+      if (run !== runRef.current) return;
       if (!hasPdfHeader(head)) throw new Error('PDF 형식이 아닌 파일입니다. 확장자만 .pdf로 바뀐 파일인지 확인해 주세요.');
 
       const { openPdfDocument, readPdfExcerpt } = await import('@/lib/pdfjs');
-      task = await openPdfDocument(new Uint8Array(await file.arrayBuffer()));
+      if (run !== runRef.current) return;
+      const data = new Uint8Array(await file.arrayBuffer());
+      if (run !== runRef.current) return;
+      task = await openPdfDocument(data);
+      if (run !== runRef.current) return;
       const doc = await task.promise;
+      if (run !== runRef.current) return;
       const excerpt = await readPdfExcerpt(doc).catch(() => '');
       if (run !== runRef.current) return;
 
@@ -68,11 +93,13 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
     } catch (err) {
       if (run !== runRef.current) return;
       const { describePdfError } = await import('@/lib/pdfjs');
+      if (run !== runRef.current) return;
       const quota = err instanceof Error && err.name === 'QuotaExceededError';
       setError(quota ? '브라우저 저장 공간이 부족해 PDF를 보관하지 못했습니다. 사용하지 않는 문서를 지운 뒤 다시 시도해 주세요.' : describePdfError(err));
       setIsProcessing(false);
     } finally {
-      void task?.destroy();
+      if (cancelTaskRef.current === destroyTask) cancelTaskRef.current = null;
+      destroyTask();
     }
   }, [onImportComplete, handleClose]);
 

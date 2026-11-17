@@ -1,3 +1,30 @@
+export const SOURCE_KEYBOARD_HELP = 'Tab: 들여쓰기 · Shift+Tab: 내어쓰기 · Esc 후 Tab/Shift+Tab: 편집창 벗어나기';
+
+interface SourceKeyboardEvent {
+  key: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  nativeEvent?: { isComposing?: boolean; keyCode?: number };
+}
+
+/** Leave the next Tab to the browser after Escape; never edit during IME input. */
+export function shouldIndentSourceKey(event: SourceKeyboardEvent, escape: { current: boolean }): boolean {
+  if (event.nativeEvent?.isComposing || event.nativeEvent?.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey) {
+    escape.current = false;
+    return false;
+  }
+  if (event.key === 'Escape') {
+    escape.current = true;
+    return false;
+  }
+  // Shift may be pressed between Escape and a backwards Tab.
+  if (event.key === 'Shift') return false;
+  const allowNavigation = escape.current;
+  escape.current = false;
+  return event.key === 'Tab' && !allowNavigation;
+}
+
 interface SourceIndentation {
   value: string;
   selectionStart: number;

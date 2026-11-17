@@ -75,6 +75,8 @@ export function AppShell({ sidebar, children, focusMode = false }: AppShellProps
       }}
     >
       <aside
+        inert={!showSidebar}
+        aria-hidden={!showSidebar}
         className="h-screen overflow-hidden border-r border-[var(--color-border)] transition-opacity duration-300 ease-in-out"
         style={{ opacity: focusMode ? 0 : 1 }}
       >
