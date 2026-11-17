@@ -8,11 +8,11 @@ import { useUIStore } from '@/stores/ui-store';
 
 export type SaveStatus = 'saved' | 'saving' | 'idle' | 'error';
 
-const statusConfig: Record<SaveStatus, { icon: React.ElementType; text: string; color: string }> = {
-  saved: { icon: Cloud, text: '저장됨', color: 'text-[var(--color-success)]' },
-  saving: { icon: Loader2, text: '저장 중...', color: 'text-[var(--color-text-muted)]' },
-  idle: { icon: Check, text: '준비', color: 'text-[var(--color-text-muted)]' },
-  error: { icon: AlertCircle, text: '저장 오류', color: 'text-[var(--color-danger)]' },
+const statusConfig: Record<SaveStatus, { icon: React.ElementType; text: string; iconColor: string }> = {
+  saved: { icon: Cloud, text: '저장됨', iconColor: 'text-[var(--color-success)]' },
+  saving: { icon: Loader2, text: '저장 중...', iconColor: 'text-[var(--color-text-muted)]' },
+  idle: { icon: Check, text: '준비', iconColor: 'text-[var(--color-text-muted)]' },
+  error: { icon: AlertCircle, text: '저장 오류', iconColor: 'text-[var(--color-danger)]' },
 };
 
 export function StatusBar({ sourceContent }: { sourceContent?: string } = {}) {
@@ -30,7 +30,7 @@ export function StatusBar({ sourceContent }: { sourceContent?: string } = {}) {
   const StatusIcon = status.icon;
 
   return (
-    <div data-statusbar className="flex items-center justify-between h-7 px-3 sm:px-4 bg-[var(--color-surface)] border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)] shrink-0 select-none">
+    <div data-statusbar className="flex items-center justify-between h-7 px-3 sm:px-4 bg-[var(--color-surface)] border-t border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] shrink-0 select-none">
       {/* Left: Stats */}
       <div className="flex items-center gap-2 sm:gap-3">
         {sourceCounts && <span title="Markdown 문법과 공백을 포함한 원문 기준입니다. 단어는 공백으로 구분합니다.">원문</span>}
@@ -47,8 +47,8 @@ export function StatusBar({ sourceContent }: { sourceContent?: string } = {}) {
 
       {/* Right: Save status + Cursor position */}
       <div className="flex items-center gap-2 sm:gap-3">
-        <span className={`flex items-center gap-1 ${status.color}`}>
-          <StatusIcon className={`w-3 h-3 ${saveStatus === 'saving' ? 'animate-spin' : ''}`} />
+        <span className="flex items-center gap-1">
+          <StatusIcon aria-hidden="true" className={`w-3 h-3 ${status.iconColor} ${saveStatus === 'saving' ? 'animate-spin' : ''}`} />
           <span>{status.text}</span>
         </span>
         {!isMobile && (

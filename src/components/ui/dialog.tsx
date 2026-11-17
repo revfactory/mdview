@@ -12,6 +12,7 @@ interface DialogBaseProps {
 function DialogShell({ open, onClose, title, children }: DialogBaseProps & { children: React.ReactNode }) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Escape') onClose();
     },
     [onClose]
@@ -91,7 +92,10 @@ function PromptDialogContent({ open, onClose, onConfirm, title, placeholder, def
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+          if (e.key === 'Enter') handleSubmit();
+        }}
         placeholder={placeholder}
         className="w-full h-9 px-3 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/20 mb-4"
       />
