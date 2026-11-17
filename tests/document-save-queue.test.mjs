@@ -74,3 +74,52 @@ test('a failed snapshot cannot prevent an already queued newer save or its load'
   await b; await loading;
   assert.equal(calls, 2);
 });
+
+test('multiple load barriers follow the newest queued failure without affecting other documents', async () => {
+  const first = deferred(), second = deferred();
+  let calls = 0;
+  const failure = new Error('newest snapshot failed');
+  const q = createDocumentSaveQueue(id => id === 'a' ? (++calls === 1 ? first.promise : second.promise) : Promise.resolve());
+  const oldSave = q.enqueueDocumentSave('a', 'old', '');
+  const firstBarrier = q.awaitDocumentSaves('a');
+  const newSave = q.enqueueDocumentSave('a', 'new', '');
+  const secondBarrier = q.awaitDocumentSaves('a');
+  const checks = [newSave, firstBarrier, secondBarrier].map(p => assert.rejects(p, e => e === failure));
+  first.resolve(); await oldSave; await tick();
+  await q.enqueueDocumentSave('b', 'independent', '');
+  await q.awaitDocumentSaves('b');
+  second.reject(failure);
+  await Promise.all(checks);
+  await assert.rejects(q.awaitDocumentSaves('a'), e => e === failure);
+});
+
+test('a third snapshot appended during recovery keeps every loader waiting', async () => {
+  const gates = [deferred(), deferred(), deferred()];
+  let calls = 0, loaded = 0;
+  const q = createDocumentSaveQueue(() => gates[calls++].promise);
+  const a = q.enqueueDocumentSave('a', 'old', '');
+  const aRejected = assert.rejects(a, /first/);
+  const b = q.enqueueDocumentSave('a', 'retry', '');
+  const barriers = [q.awaitDocumentSaves('a'), q.awaitDocumentSaves('a')].map(p => p.then(() => loaded++));
+  gates[0].reject(new Error('first')); await aRejected; await tick();
+  const c = q.enqueueDocumentSave('a', 'latest', '');
+  gates[1].resolve(); await b; await tick();
+  assert.equal(loaded, 0);
+  gates[2].resolve(); await c; await Promise.all(barriers);
+  assert.equal(loaded, 2);
+  assert.equal(calls, 3);
+});
+
+test('settled old saves never remove a newer synchronous write failure', async () => {
+  const gate = deferred(); let calls = 0;
+  const failure = new Error('writer unavailable');
+  const q = createDocumentSaveQueue(() => {
+    if (++calls === 1) return gate.promise;
+    throw failure;
+  });
+  const oldSave = q.enqueueDocumentSave('a', 'old', '');
+  const newSave = q.enqueueDocumentSave('a', 'latest', '');
+  const rejected = assert.rejects(newSave, e => e === failure);
+  gate.resolve(); await oldSave; await rejected;
+  await assert.rejects(q.awaitDocumentSaves('a'), e => e === failure);
+});
