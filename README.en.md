@@ -25,6 +25,7 @@
 
 The interface and these task guides are in Korean:
 
+- [Convert PDF to Markdown (Korean guide)](https://mdview.kr/guides/pdf-to-markdown)
 - [Convert HWP/HWPX to Markdown](https://mdview.kr/guides/hwp-to-markdown)
 - [Export Markdown as HWPX](https://mdview.kr/guides/markdown-to-hwpx)
 - [Save Markdown as PDF](https://mdview.kr/guides/markdown-to-pdf)
