@@ -7,14 +7,14 @@ const js=ts.transpileModule(readFileSync(new URL('../src/components/features/imp
 const flush=()=>new Promise(r=>setImmediate(r));
 function deferred(){let resolve,reject;const promise=new Promise((r,j)=>{resolve=r;reject=j;});return{promise,resolve,reject};}
 function setup(){
- const states=[],updates=[];let cleanup=()=>{};
- const react={useState:initial=>{const i=states.length;states.push(initial);return[initial,v=>{states[i]=v;updates.push([i,v]);}];},useRef:current=>({current}),useCallback:fn=>fn,useEffect:fn=>{cleanup=fn()??(()=>{});}};
+ const states=[],updates=[];const cleanups=[];
+ const react={useState:initial=>{const i=states.length;states.push(initial);return[initial,v=>{states[i]=v;updates.push([i,v]);}];},useRef:current=>({current}),useCallback:fn=>fn,useEffect:fn=>{cleanups.push(fn()??(()=>{}));}};
  const jsx=(type,props)=>({type,props}),exports={};
  vm.runInNewContext(js,{exports,require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx}:{}});
  const root=exports.MarkdownImport({open:true,onClose(){},onImportComplete(){assert.fail('reading alone must never import');}});
  function find(node){if(!node||typeof node!=='object')return;if(Array.isArray(node))return node.map(find).find(Boolean);return node.type==='input'?node:find(node.props?.children);}
  const input=find(root);
- return{states,updates,close:root.props.onClose,unmount:()=>cleanup(),start:(name,read)=>{const target={files:[{name,size:10,text:()=>read.promise}],value:name};input.props.onChange({target});return target;}};
+ return{states,updates,close:root.props.onClose,unmount:()=>cleanups.forEach(fn=>fn()),start:(name,read)=>{const target={files:[{name,size:10,text:()=>read.promise}],value:name};input.props.onChange({target});return target;}};
 }
 test('closed Markdown read cannot repopulate dialog state',async()=>{
  const h=setup(),d=deferred();h.start('old.md',d);h.close();const count=h.updates.length;d.resolve('old text');await flush();assert.equal(h.updates.length,count);assert.equal(h.states[1],null);
