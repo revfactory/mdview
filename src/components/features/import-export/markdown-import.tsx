@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, FileText, CheckCircle, X } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,12 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Ignore obsolete file reads after replacement, close, or unmount.
+  const readRunRef = useRef(0);
+  useEffect(() => () => { readRunRef.current++; }, []);
+
   const handleClose = useCallback(() => {
+    readRunRef.current++;
     setSelectedFile(null);
     setContent(null);
     setIsDragOver(false);
@@ -29,8 +34,12 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
   }, [onClose]);
 
   const processFile = useCallback(async (file: File) => {
+    const run = ++readRunRef.current;
     const validExts = /\.(md|markdown|txt|mdx)$/i;
     if (!validExts.test(file.name)) {
+      setSelectedFile(null);
+      setContent(null);
+      setIsReading(false);
       setError('마크다운 파일(.md, .markdown, .txt, .mdx)만 지원합니다.');
       return;
     }
@@ -42,18 +51,21 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
 
     try {
       const text = await file.text();
+      if (run !== readRunRef.current) return;
       setContent(text);
     } catch {
+      if (run !== readRunRef.current) return;
       setError('파일을 읽는 중 오류가 발생했습니다.');
     } finally {
-      setIsReading(false);
+      if (run === readRunRef.current) setIsReading(false);
     }
   }, []);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) processFile(file);
+      e.target.value = '';
+      if (file) void processFile(file);
     },
     [processFile]
   );
@@ -63,7 +75,7 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
       e.preventDefault();
       setIsDragOver(false);
       const file = e.dataTransfer.files[0];
-      if (file) processFile(file);
+      if (file) void processFile(file);
     },
     [processFile]
   );
