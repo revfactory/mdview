@@ -56,8 +56,12 @@ function buildProtectedRanges(text: string): ProtectedRange[] {
       if (fenceStart === -1) {
         // 코드블록 시작
         fenceStart = offset;
-        fencePattern = fenceMatch[1][0]; // ` 또는 ~
-      } else if (trimmed.startsWith(fencePattern!.repeat(3)) && trimmed.replace(/`/g, '').replace(/~/g, '').trim() === '') {
+        fencePattern = fenceMatch[1]; // 시작 문자의 종류와 길이를 함께 보존
+      } else if (
+        fenceMatch[1][0] === fencePattern![0] &&
+        fenceMatch[1].length >= fencePattern!.length &&
+        /^[ \t\r]*$/.test(trimmed.slice(fenceMatch[1].length))
+      ) {
         // 코드블록 종료
         ranges.push({ start: fenceStart, end: offset + line.length });
         fenceStart = -1;
