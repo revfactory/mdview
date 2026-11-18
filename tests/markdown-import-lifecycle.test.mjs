@@ -35,3 +35,10 @@ test('file input resets for same-file retry; current failure and success remain 
 test('stale failure cannot stop a newer pending read or show its error',async()=>{
  const h=setup(),a=deferred(),b=deferred();h.start('old.md',a);h.start('new.md',b);a.reject(new Error('stale'));await flush();assert.equal(h.states[3],true);assert.equal(h.states[4],null);b.resolve('current');await flush();assert.equal(h.states[1],'current');
 });
+test('empty Markdown read explains why there is no preview and permits retry',async()=>{
+ const h=setup(),empty=deferred();h.start('empty.md',empty);empty.resolve('');await flush();assert.equal(h.states[1],null);assert.match(h.states[4],/텍스트 내용이 없습니다/);assert.equal(h.states[3],false);
+ const retry=deferred();h.start('empty.md',retry);retry.resolve('now has content');await flush();assert.equal(h.states[4],null);assert.equal(h.states[1],'now has content');
+});
+test('whitespace-only Markdown remains untouched rather than silently trimmed',async()=>{
+ const h=setup(),d=deferred();h.start('spacing.md',d);d.resolve('  \n');await flush();assert.equal(h.states[1],'  \n');assert.equal(h.states[4],null);
+});

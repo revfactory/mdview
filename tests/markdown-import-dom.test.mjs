@@ -57,3 +57,7 @@ for(const strict of [false,true]){
   await h.settle(old,'OBSOLETE');await h.reopen();assert.ok(h.container.querySelector('input'));assert.ok(!h.container.querySelector('pre'));assert.equal(h.imported.length,0);
  }));
 }
+test('empty-file feedback remains recoverable in the real dialog',async()=>mounted(false,async h=>{
+ const empty=deferred();await h.select('empty.md',empty);await h.settle(empty,'');assert.match(h.container.textContent,/텍스트 내용이 없습니다/);assert.ok(h.container.querySelector('input'));assert.ok(!h.container.querySelector('pre'));assert.equal(h.imported.length,0);
+ const retry=deferred();await h.select('empty.md',retry);await h.settle(retry,'RECOVERED');assert.equal(h.container.querySelector('pre').textContent,'RECOVERED');await h.confirm();assert.deepEqual(h.imported,[['RECOVERED','empty']]);
+}));

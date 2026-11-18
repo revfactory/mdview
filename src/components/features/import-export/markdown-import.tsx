@@ -52,6 +52,10 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
     try {
       const text = await file.text();
       if (run !== readRunRef.current) return;
+      if (text.length === 0) {
+        setError('파일에 텍스트 내용이 없습니다. 다른 파일을 선택하거나 새 문서를 만들어 주세요.');
+        return;
+      }
       setContent(text);
     } catch {
       if (run !== readRunRef.current) return;
