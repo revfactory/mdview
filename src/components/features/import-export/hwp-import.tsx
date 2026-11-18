@@ -90,6 +90,16 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
         {/* Drop zone - shown when no file is selected or after error */}
         {!isImporting && !result && (
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="HWP/HWPX 파일 선택"
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -97,6 +107,7 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
               flex flex-col items-center justify-center gap-3
               h-[200px] rounded-xl border-2 border-dashed
               transition-colors duration-200 cursor-pointer
+              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]
               ${
                 isDragOver
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
