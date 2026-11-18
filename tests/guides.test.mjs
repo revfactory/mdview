@@ -10,7 +10,7 @@ async function loadModule(path) {
 const { guides, getGuide, guideActionHref } = await loadModule('../src/lib/guides.ts');
 const { readEntryAction } = await loadModule('../src/lib/entry-actions.ts');
 test('every guide has a distinct URL, title and description', () => {
-  assert.equal(guides.length, 5);
+  assert.equal(guides.length, 6);
   for (const field of ['slug', 'title', 'description']) assert.equal(new Set(guides.map((guide) => guide[field])).size, guides.length);
   for (const guide of guides) assert.match(guide.slug, /^[a-z]+(?:-[a-z]+)*$/);
 });
@@ -52,3 +52,9 @@ for (const file of ['README.md', 'README.en.md']) {
     }
   });
 }
+
+test('PDF guide opens the PDF importer with an allowlisted source', () => {
+ const guide=getGuide('pdf-to-markdown'); assert.equal(guide.action,'import-pdf');
+ assert.equal(guideActionHref(guide),'/?action=import-pdf&source=pdf-to-markdown');
+ assert.match(JSON.stringify(guide), /OCR/); assert.match(JSON.stringify(guide), /100MB/);
+});
