@@ -45,3 +45,9 @@ test('missing parent and gapped page records conservatively keep legacy join',()
 test('empty and single-page exports remain unchanged',()=>withDb(async(db,api)=>{
  assert.equal(await api.getAllChunksMarkdown('absent'),'');await api.saveChunks('single',[{index:0,markdown:' \n한글😀\n'}]);assert.equal(await api.getAllChunksMarkdown('single'),' \n한글😀\n');
 }));
+test('exact comparison rejects a mere source prefix and preserves legacy fallback',()=>withDb(async(db,api)=>{
+ await db.documents.add({id:'target',content:'left right EXTRA'});await api.saveChunks('target',[{index:0,markdown:'left '},{index:1,markdown:'right'}]);assert.equal(await api.getAllChunksMarkdown('target'),'left \nright');
+}));
+test('exact offsets use UTF-16 units without normalizing stored Unicode',()=>withDb(async(db,api)=>{
+ const content='한😀e\u0301끝';await db.documents.add({id:'target',content});await api.saveChunks('target',[{index:0,markdown:'한\ud83d'},{index:1,markdown:'\ude00e\u0301끝'}]);assert.equal(await api.getAllChunksMarkdown('target'),content);
+}));

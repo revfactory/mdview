@@ -92,18 +92,19 @@ export async function getAllChunksMarkdown(docId: string): Promise<string> {
       .equals(docId)
       .sortBy('chunkIndex');
     const document = await db.documents.get(docId);
-    const joined = chunks.map((chunk) => chunk.markdown).join('');
+    const source = document?.content;
+    let offset = 0;
+    const matchesSource = typeof source === 'string' && chunks.length > 0 &&
+      chunks.every((chunk, index) => {
+        if (chunk.chunkIndex !== index || !source.startsWith(chunk.markdown, offset)) return false;
+        offset += chunk.markdown.length;
+        return true;
+      }) && offset === source.length;
 
     // Splitter output already contains its original boundary whitespace. Only
     // omit extra separators when the saved source proves exact continuity.
     // Independently edited or legacy pages keep their existing join behavior.
-    if (
-      chunks.length > 0 &&
-      chunks.every((chunk, index) => chunk.chunkIndex === index) &&
-      document?.content === joined
-    ) {
-      return joined;
-    }
+    if (matchesSource) return source;
     return chunks.map((chunk) => chunk.markdown).join('\n');
   });
 }
