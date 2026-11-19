@@ -86,12 +86,26 @@ export async function updateChunk(
  * 전체 청크 마크다운 병합 (내보내기용)
  */
 export async function getAllChunksMarkdown(docId: string): Promise<string> {
-  const chunks = await db.chunks
-    .where('docId')
-    .equals(docId)
-    .sortBy('chunkIndex');
+  return db.transaction('r', db.documents, db.chunks, async () => {
+    const chunks = await db.chunks
+      .where('docId')
+      .equals(docId)
+      .sortBy('chunkIndex');
+    const document = await db.documents.get(docId);
+    const joined = chunks.map((chunk) => chunk.markdown).join('');
 
-  return chunks.map((c) => c.markdown).join('\n');
+    // Splitter output already contains its original boundary whitespace. Only
+    // omit extra separators when the saved source proves exact continuity.
+    // Independently edited or legacy pages keep their existing join behavior.
+    if (
+      chunks.length > 0 &&
+      chunks.every((chunk, index) => chunk.chunkIndex === index) &&
+      document?.content === joined
+    ) {
+      return joined;
+    }
+    return chunks.map((chunk) => chunk.markdown).join('\n');
+  });
 }
 
 /**
