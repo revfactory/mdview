@@ -72,15 +72,15 @@ Three core differentiators:
 
 ### Prerequisites
 
-- Node.js 24 LTS (see `.nvmrc`, matching CI and production)
-- npm (or pnpm/yarn)
+- Node.js 24 LTS recommended (CI uses the version in `.nvmrc`)
+- npm (included with Node.js)
 
 ### Install & Run
 
 ```bash
 git clone https://github.com/revfactory/mdview.git
 cd mdview
-npm install
+npm ci
 npm run dev
 ```
 
