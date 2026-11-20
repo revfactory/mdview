@@ -21,6 +21,27 @@ function getTurndownService(): TurndownService {
 
   service.use(gfm);
 
+  // GFM pipes delimit cells even inside inline code. Escape cell content only,
+  // before the table plugin adds structural delimiters.
+  service.addRule('tableCellPipes', {
+    filter: ['th', 'td'],
+    replacement: (content, node) => {
+      const prefix = node.previousSibling ? ' ' : '| ';
+      return `${prefix}${content.replace(/\|/g, '\\|')} |`;
+    },
+  });
+
+  // A backslash immediately before a pipe in code cannot be represented by
+  // simply adding one escape: GFM splits even backslash runs. Preserve HTML
+  // for this rare table rather than silently alter code or lose adjacent cells.
+  service.addRule('tableCodeBackslashPipes', {
+    filter: (node) => node.nodeName === 'TABLE' &&
+      Array.from((node as HTMLElement).querySelectorAll('code')).some(
+        (code) => /\\\|/.test(code.textContent || '')
+      ),
+    replacement: (_content, node) => `\n\n${(node as HTMLElement).outerHTML}\n\n`,
+  });
+
   // Underline -> custom marker
   service.addRule('underline', {
     filter: ['u'],
@@ -210,3 +231,4 @@ export function markdownToHtmlAsync(md: string): Promise<string> {
 export function htmlToMarkdownAsync(html: string): Promise<string> {
   return Promise.resolve(htmlToMarkdown(html));
 }
+
