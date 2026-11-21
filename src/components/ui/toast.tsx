@@ -20,10 +20,12 @@ export function ToastContainer() {
   const toasts = useToastStore((s) => s.toasts);
   const { actions } = useToastStore();
 
-  if (toasts.length === 0) return null;
-
   return (
     <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+      {/* Keep the live region mounted so new messages are announced without moving focus. */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="false" aria-relevant="additions">
+        {toasts.map(({ id, message }) => <div key={id}>{message}</div>)}
+      </div>
       {toasts.map((toast) => {
         const Icon = iconMap[toast.type];
         return (
