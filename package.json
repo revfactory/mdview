@@ -73,7 +73,7 @@
     "flexsearch": "^0.8.212",
     "jszip": "^3.10.1",
     "katex": "^0.19.1",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.76.0",
     "marked": "^18.0.4",
     "nanoid": "^6.0.2",
     "next": "16.4.6",
