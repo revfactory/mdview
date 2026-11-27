@@ -33,19 +33,22 @@ import { useEditorStore } from '@/stores/editor-store';
 interface EditorProps {
   content: string;
   onChange?: (markdown: string, html: string) => void;
+  onVisualEdit?: (editor: NonNullable<ReturnType<typeof useEditor>>) => void;
   editable?: boolean;
   sourceContent?: string;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
 }
 
-export function Editor({ content, onChange, editable = true, onEditorReady, sourceContent }: EditorProps) {
+export function Editor({ content, onChange, onVisualEdit, editable = true, onEditorReady, sourceContent }: EditorProps) {
   const { actions } = useEditorStore();
   const [initialContent] = useState(content);
   const initialContentRef = useRef(content);
   const onChangeRef = useRef(onChange);
+  const onVisualEditRef = useRef(onVisualEdit);
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
-  }, [onChange]);
+    onVisualEditRef.current = onVisualEdit;
+  }, [onChange, onVisualEdit]);
   const markdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const editRevision = useRef(0);
@@ -117,6 +120,8 @@ export function Editor({ content, onChange, editable = true, onEditorReady, sour
     content: initialContent || '<p></p>',
     onUpdate: ({ editor: ed }) => {
       if (!ed.isEditable) return;
+      // A page switch may arrive before the debounced serialization.
+      onVisualEditRef.current?.(ed);
       const revision = ++editRevision.current;
       const html = ed.getHTML();
 
