@@ -9,6 +9,17 @@
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-11-28
+
+### Changed
+- PDF 변환 가이드에서 변환 전후 예시를 바로 비교할 수 있습니다. (#133)
+
+### Fixed
+- PDF를 마크다운으로 변환할 때 페이지 위아래의 숫자만 있는 줄도 남깁니다. 합계나 문서번호를 페이지 번호로 간주해 버리지 않습니다. (#132)
+- 대용량 마크다운에서 읽기만 하며 페이지를 넘겨도 저장 원문이 바뀌지 않고, 수정하지 않은 문서는 불필요한 줄바꿈 없이 내보냅니다. (#102)
+- 긴 백틱이나 물결표로 감싼 코드 블록 안의 짧거나 혼합된 기호를 종료로 오인해 코드 중간에서 페이지를 나누지 않습니다. 기존 문서는 자동으로 다시 나누지 않습니다. (#101)
+- 키보드로 빠른 문서 열기를 실행하면 문서 영역으로 포커스가 이어집니다. (#105)
+
 ## [0.3.10] - 2026-11-27
 
 ### Changed
@@ -434,7 +445,9 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.9...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.11...HEAD
+[0.3.11]: https://github.com/revfactory/mdview/compare/v0.3.10...v0.3.11
+[0.3.10]: https://github.com/revfactory/mdview/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/revfactory/mdview/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/revfactory/mdview/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/revfactory/mdview/compare/v0.3.6...v0.3.7
