@@ -356,6 +356,12 @@ export default function Home() {
     [openImportedDocument]
   );
 
+  const handlePasteMarkdown = useCallback(async (markdown: string) => {
+    await openImportedDocument(markdown, '붙여넣은 문서');
+    useUIStore.getState().actions.setViewMode('wysiwyg');
+    analytics.pasteMarkdown();
+  }, [openImportedDocument]);
+
   const handlePdfImportComplete = useCallback(
     async ({ file, title, pageCount, excerpt }: PdfImportResult) => {
       const source = pdfImportSource ?? 'direct';
@@ -531,7 +537,7 @@ export default function Home() {
                   )
                 )
               ) : (
-                <WelcomePanel onStart={(action) => handleStart(action, 'home')} />
+                <WelcomePanel onStart={(action) => handleStart(action, 'home')} onPasteMarkdown={handlePasteMarkdown} />
               )}
             </div>
 
