@@ -123,3 +123,60 @@ test('React removes and restores inert on the same mounted panel when visibility
     else delete globalThis.IS_REACT_ACT_ENVIRONMENT;
   }
 });
+
+test('outline exposes only the current heading as scroll position changes', async () => {
+  const window = domino.createWindow('<!doctype html><div id="root"></div><div class="overflow-y-auto"><div id="editor"></div></div>');
+  const { document } = window;
+  const editorDom = document.getElementById('editor');
+  const scrollParent = editorDom.parentElement;
+  scrollParent.getBoundingClientRect = () => ({ top: 100 });
+  const nodes = new Map();
+  const editor = {
+    state: { doc: { descendants(fn) { fixture.forEach(h => fn({ type: { name: 'heading' }, attrs: { level: h.level }, textContent: h.text }, h.pos)); } } },
+    view: { dom: editorDom, nodeDOM: pos => nodes.get(pos) ?? null },
+  };
+  const state = { tocOpen: true, actions: { toggleToc() {} } };
+  const overrides = {
+    '@/stores/ui-store': { useUIStore: selector => selector(state) },
+    '@tiptap/react': { useEditorState: ({ editor, selector }) => selector({ editor }) },
+  };
+  const context = { exports: {}, HTMLElement: window.HTMLElement, require: name => overrides[name] ?? require(name) };
+  vm.runInNewContext(code, context);
+  const { TocPanel } = context.exports;
+  const globals = { window, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  const container = document.getElementById('root');
+  const root = createRoot(container);
+  const current = () => Array.from(container.querySelectorAll('nav [aria-current]'), el => [el.textContent, el.getAttribute('aria-current')]);
+  const scroll = async tops => {
+    fixture.forEach(({ pos }, index) => {
+      const node = nodes.get(pos) ?? document.createElement('h2');
+      node.getBoundingClientRect = () => ({ top: tops[index] });
+      nodes.set(pos, node);
+    });
+    await act(async () => scrollParent.dispatchEvent(new window.Event('scroll')));
+  };
+  try {
+    await act(async () => root.render(React.createElement(TocPanel, { editor })));
+    const buttons = Array.from(container.querySelectorAll('nav button'));
+    assert.equal(buttons.length, 3);
+    assert.deepEqual(current(), [], 'no rendered heading has been found yet');
+
+    await scroll([90, 500, 700]);
+    assert.deepEqual(current(), [['첫 번째 제목', 'location']]);
+    await scroll([-200, 110, 550]);
+    assert.deepEqual(current(), [['두 번째 제목', 'location']]);
+    assert.equal(buttons[0].hasAttribute('aria-current'), false);
+    assert.equal(container.querySelectorAll('nav button')[1], buttons[1], 'preserve the same native buttons');
+
+    await act(async () => root.render(React.createElement(TocPanel, { editor: null })));
+    assert.deepEqual(current(), [], 'no current item after the document clears');
+  } finally {
+    await act(async () => root.unmount());
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  }
+});

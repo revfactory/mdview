@@ -158,6 +158,7 @@ export function TocPanel({ editor }: TocPanelProps) {
                   <button
                     key={`${heading.pos}-${idx}`}
                     onClick={() => handleClickHeading(heading)}
+                    aria-current={isActive ? 'location' : undefined}
                     className={`
                       text-left w-full py-1.5 pr-3 rounded-md transition-all duration-150 cursor-pointer
                       ${heading.level === 1 ? 'text-[13px] font-medium' : 'text-[12px]'}
