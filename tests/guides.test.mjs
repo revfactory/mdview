@@ -58,3 +58,11 @@ test('PDF guide opens the PDF importer with an allowlisted source', () => {
  assert.equal(guideActionHref(guide),'/?action=import-pdf&source=pdf-to-markdown');
  assert.match(JSON.stringify(guide), /OCR/); assert.match(JSON.stringify(guide), /100MB/);
 });
+
+test('the canonical HWP guide exposes HWPX support and opens the same browser importer', () => {
+  const guide = getGuide('hwp-to-markdown');
+  assert.match(guide.title, /HWP·HWPX/);
+  assert.match(guide.description, /\.hwpx/);
+  assert.match(guide.actionLabel, /HWP·HWPX/);
+  assert.equal(guideActionHref(guide), '/?action=import-hwp&source=hwp-to-markdown');
+});

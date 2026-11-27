@@ -109,13 +109,13 @@ export default function Home() {
 
   const handleStart = useCallback((action: EntryAction, source: EntrySource) => {
     analytics.startAction(action, source);
-    if (action === 'import-hwp') setHwpImportOpen(true);
-    if (action === 'import-markdown') setMdImportOpen(true);
-    if (action === 'import-pdf') {
+    if (action === 'import-hwp' || action === 'import-markdown' || action === 'import-pdf') {
       const ui = useUIStore.getState();
-      // The mobile overlay otherwise sits over the file chooser's drop area.
+      // An open mobile sidebar would cover the file chooser's drop area.
       if (ui.isMobile) ui.actions.closeSidebar();
-      setPdfImportSource(source);
+      if (action === 'import-hwp') setHwpImportOpen(true);
+      else if (action === 'import-markdown') setMdImportOpen(true);
+      else setPdfImportSource(source);
     }
     if (action === 'new' || action === 'sample') {
       useUIStore.getState().actions.setViewMode('wysiwyg');
@@ -411,8 +411,8 @@ export default function Home() {
           onToggleFavorite={handleToggleFavorite}
           onDeleteDocument={handleDeleteDocument}
           onDuplicateDocument={handleDuplicateDocument}
-          onImport={() => setHwpImportOpen(true)}
-          onImportMarkdown={() => setMdImportOpen(true)}
+          onImport={() => handleStart('import-hwp', 'direct')}
+          onImportMarkdown={() => handleStart('import-markdown', 'direct')}
           onImportPdf={() => handleStart('import-pdf', 'direct')}
         />
       }
