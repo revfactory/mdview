@@ -23,6 +23,7 @@
 
 설치나 회원가입 없이 [MDView 에디터 열기](https://mdview.kr/). HWP·HWPX를 가져오고, Markdown 또는 HWPX 파일로 내보낼 수 있습니다.
 
+- [PDF를 마크다운으로 변환하고 편집하기](https://mdview.kr/guides/pdf-to-markdown)
 - [HWP·HWPX를 마크다운으로 변환](https://mdview.kr/guides/hwp-to-markdown)
 - [마크다운을 한글 HWPX로 내보내기](https://mdview.kr/guides/markdown-to-hwpx)
 - [마크다운을 PDF로 저장하기](https://mdview.kr/guides/markdown-to-pdf)
