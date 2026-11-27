@@ -1,4 +1,4 @@
-import type { EntryAction, EntrySource } from './entry-actions';
+import { ENTRY_SOURCES, type EntryAction, type EntrySource } from './entry-actions';
 
 type GtagEvent = {
   action: string;
@@ -25,6 +25,14 @@ export function trackEvent({ action, category, label, value }: GtagEvent) {
   });
 }
 
+function trackFileAction(action: 'import' | 'convert', label: 'hwp' | 'markdown' | 'pdf', source?: EntrySource) {
+  const params = { event_category: 'file', event_label: label };
+  // Reject arbitrary values at the telemetry boundary; unknown sources remain unlabelled.
+  gtag('event', action, source && ENTRY_SOURCES.includes(source)
+    ? { ...params, entry_source: source }
+    : params);
+}
+
 // Document
 export const analytics = {
   // Fixed values only. Never include document names, contents, URLs, or raw search parameters.
@@ -44,17 +52,23 @@ export const analytics = {
     trackEvent({ action: 'open', category: 'document' }),
 
   // Import / Export
-  importMarkdown: () =>
-    trackEvent({ action: 'import', category: 'file', label: 'markdown' }),
+  importMarkdown: (source?: EntrySource) =>
+    trackFileAction('import', 'markdown', source),
 
-  importHwp: () =>
-    trackEvent({ action: 'import', category: 'file', label: 'hwp' }),
+  pasteMarkdown: (source: EntrySource = 'home') =>
+    gtag('event', 'markdown_paste_complete', { entry_source: ENTRY_SOURCES.includes(source) ? source : 'direct' }),
 
-  importPdf: () =>
-    trackEvent({ action: 'import', category: 'file', label: 'pdf' }),
+  importHwp: (source?: EntrySource) =>
+    trackFileAction('import', 'hwp', source),
 
-  convertPdf: () =>
-    trackEvent({ action: 'convert', category: 'file', label: 'pdf' }),
+  importPdf: (source: EntrySource) =>
+    trackFileAction('import', 'pdf', source),
+
+  convertPdf: (source?: EntrySource) =>
+    trackFileAction('convert', 'pdf', source),
+
+  pdfExampleComplete: () =>
+    gtag('event', 'pdf_example_complete', {}),
 
   exportMarkdown: () =>
     trackEvent({ action: 'export', category: 'file', label: 'markdown' }),

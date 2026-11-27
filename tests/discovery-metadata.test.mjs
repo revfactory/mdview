@@ -4,6 +4,8 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
+import JSZip from 'jszip';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -22,8 +24,11 @@ function load(path, overrides = {}) {
 const guideModule = load('../src/lib/guides.ts');
 const guideImports = { '@/lib/guides': guideModule, 'next/link': 'a' };
 const notFound = new Error('not found');
+const { PdfGuideExample } = load('../src/app/guides/pdf-guide-example.tsx', {
+  '@/lib/analytics': { analytics: { pdfExampleComplete() { throw new Error('static rendering must not emit a completion'); } } },
+});
 const detail = load('../src/app/guides/[slug]/page.tsx', {
-  ...guideImports, 'next/navigation': { notFound() { throw notFound; } },
+  ...guideImports, '../pdf-guide-example': { PdfGuideExample }, 'next/navigation': { notFound() { throw notFound; } },
 });
 const index = load('../src/app/guides/page.tsx', guideImports);
 const root = load('../src/app/layout.tsx', {
@@ -166,5 +171,34 @@ test('linked web manifest uses existing square icons with accurate declared dime
     assert.equal(icon.type, 'image/png');
     assert.equal(width, height);
     assert.equal(icon.sizes, `${width}x${height}`, `${icon.src}: inaccurate manifest size`);
+  }
+});
+
+test('only the PDF guide exposes the interactive sample while its original static comparison remains in HTML', async () => {
+  const pdf = renderToStaticMarkup(await detail.default(params('pdf-to-markdown')));
+  assert.match(pdf, /id="conversion-example"/);
+  assert.match(pdf, /검토한 초안을 금요일 오후까지 공유합니다/);
+  assert.match(pdf, /예제 PDF 변환해 보기/);
+  assert.match(pdf, /role="status"/);
+  assert.equal((pdf.match(/href="\/\?action=import-pdf(?:&amp;|&)source=pdf-to-markdown"/g) ?? []).length, 3);
+  assert.equal(asset('/examples/pdf-to-markdown-sample.pdf').subarray(0, 5).toString('ascii'), '%PDF-');
+  for (const { slug } of guideModule.guides.filter(guide => guide.slug !== 'pdf-to-markdown')) {
+    assert.doesNotMatch(renderToStaticMarkup(await detail.default(params(slug))), /예제 PDF 변환해 보기/);
+  }
+});
+
+test('the HWPX guide has a static downloadable example beside the personal workflow', async () => {
+  const markup = renderToStaticMarkup(await detail.default(params('markdown-to-hwpx')));
+  assert.match(markup, /href="#chatgpt-to-hwpx"/);
+  assert.match(markup, /id="chatgpt-to-hwpx"[\s\S]*?href="\/examples\/mdview-meeting-sample\.hwpx" download=""[\s\S]*?href="\/\?action=paste-markdown&amp;source=markdown-to-hwpx"/);
+  const zip = await JSZip.loadAsync(asset('/examples/mdview-meeting-sample.hwpx'), { checkCRC32: true });
+  assert.equal((await zip.file('mimetype').async('string')).trim(), 'application/hwp+zip');
+  const body = await zip.file('Contents/section0.xml').async('string');
+  assert.match(body, /<hp:tbl\b/);
+  for (const value of ['주간 회의록', '결정 사항', '초안 검토 후 공유', '할 일', '기한', '초안 정리', '금요일']) {
+    assert.ok(body.includes(value), `expected sample text: ${value}`);
+  }
+  for (const { slug } of guideModule.guides.filter(guide => guide.slug !== 'markdown-to-hwpx')) {
+    assert.doesNotMatch(renderToStaticMarkup(await detail.default(params(slug))), /mdview-meeting-sample\.hwpx/);
   }
 });

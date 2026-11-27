@@ -9,7 +9,7 @@ import { ko } from 'date-fns/locale';
 interface QuickOpenProps {
   open: boolean;
   onClose: () => void;
-  onSelectDocument: (id: string) => void;
+  onSelectDocument: (id: string, viaKeyboard: boolean) => void;
 }
 
 export function QuickOpen(props: QuickOpenProps) {
@@ -21,6 +21,7 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
   const [requestedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef(true);
   const documents = useDocuments();
 
   const filtered = (documents ?? []).filter((doc) =>
@@ -30,8 +31,14 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
   const selectedIndex = Math.min(requestedIndex, Math.max(0, filtered.length - 1));
 
   useEffect(() => {
+    const previousFocus = document.activeElement;
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      if (restoreFocus.current && previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+        previousFocus.focus();
+      }
+    };
   }, []);
 
   // Scroll selected item into view
@@ -42,8 +49,10 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
   }, [selectedIndex]);
 
   const handleSelect = useCallback(
-    (id: string) => {
-      onSelectDocument(id);
+    (id: string, viaKeyboard: boolean) => {
+      // Selection hands focus to the document flow instead of the opener.
+      restoreFocus.current = false;
+      onSelectDocument(id, viaKeyboard);
       onClose();
     },
     [onSelectDocument, onClose]
@@ -53,6 +62,18 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
     (e: React.KeyboardEvent) => {
       if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
       switch (e.key) {
+        case 'Tab': {
+          if (e.altKey || e.ctrlKey || e.metaKey) return;
+          const first = inputRef.current;
+          if (!first) return;
+          const items = listRef.current?.querySelectorAll<HTMLButtonElement>('[data-quick-open-item]');
+          const last = items?.item(items.length - 1) ?? first;
+          if (e.shiftKey ? e.target === first : e.target === last) {
+            e.preventDefault();
+            (e.shiftKey ? last : first).focus();
+          }
+          break;
+        }
         case 'ArrowDown':
           e.preventDefault();
           setSelectedIndex(Math.min(selectedIndex + 1, Math.max(0, filtered.length - 1)));
@@ -66,11 +87,12 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
           if ((e.target as HTMLElement)?.closest('[data-quick-open-item]')) return;
           e.preventDefault();
           if (filtered[selectedIndex]) {
-            handleSelect(filtered[selectedIndex].id);
+            handleSelect(filtered[selectedIndex].id, true);
           }
           break;
         case 'Escape':
           e.preventDefault();
+          e.stopPropagation();
           onClose();
           break;
       }
@@ -128,7 +150,7 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
               <button
                 key={doc.id}
                 data-quick-open-item
-                onClick={() => handleSelect(doc.id)}
+                onClick={(event) => handleSelect(doc.id, event.detail === 0)}
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={`
                   w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-100 cursor-pointer

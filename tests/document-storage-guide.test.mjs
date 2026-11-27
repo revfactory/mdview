@@ -23,6 +23,7 @@ const guideModule = loadSource(read('../src/lib/guides.ts'));
 const { default: GuidePage } = loadSource(read('../src/app/guides/[slug]/page.tsx'), {
   '@/lib/guides': guideModule,
   'next/link': ({ children, ...props }) => React.createElement('a', props, children),
+  '../pdf-guide-example': { PdfGuideExample: 'figure' },
   'next/navigation': { notFound() { throw new Error('not found'); } },
 });
 const renderGuide = async slug => renderToStaticMarkup(await GuidePage({ params: Promise.resolve({ slug }) }));
@@ -66,7 +67,11 @@ test('other guides retain their anchors and same-origin editor actions without r
   for (const guide of guideModule.guides.filter(value => value.slug !== 'markdown-editor')) {
     const html = await renderGuide(guide.slug);
     assert.doesNotMatch(html, /id="document-storage"|href="https:\/\/(?:www\.)?mdview\.kr\//);
-    for (const [index] of guide.sections.entries()) assert.ok(html.includes(`id="section-${index}"`));
+    for (const [index, section] of guide.sections.entries()) assert.ok(html.includes(`id="${section.id ?? `section-${index}`}"`));
+    if (guide.slug === 'markdown-to-hwpx') {
+      for (const index of [0, 1, 2]) assert.ok(html.includes(`id="section-${index}"`));
+      assert.ok(html.includes('id="chatgpt-to-hwpx"'));
+    }
     assert.ok(html.includes(`href="/?action=${guide.action}&amp;source=${guide.slug}"`));
   }
 });

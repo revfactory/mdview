@@ -62,3 +62,17 @@ test('headerless tables remain HTML and non-table pipes are unchanged', () => {
   assert.equal(api.htmlToMarkdown(html), html);
   assert.equal(api.htmlToMarkdown('<p>outside | table <code>A|B</code></p>'), 'outside | table `A|B`');
 });
+
+test('a backslash-pipe code span preserves only the code as fixed HTML, not its input attributes or the table', () => {
+  const original = table('<code class="sample-code">한글 &amp; &lt;값&gt; \\| &#34; *literal*</code>');
+  const md = api.htmlToMarkdown(original);
+  assert.match(md, /^\| Name \| Value \|/);
+  assert.match(md, /<code>한글 &#38; &#60;값&#62; &#92;&#124; &#34; &#42;literal&#42;<\/code>/);
+  assert.doesNotMatch(md, /<table|class="sample-code"/);
+  assert.deepEqual(cells(api.markdownToHtml(md)), cells(original));
+});
+
+test('adjacent cells stay intact across mixed backslash runs and multiple separators', () => {
+  const original = table(['|', 'A \\|B', 'C \\\\|D', '끝||'].join(' '), '제목|별칭');
+  assert.deepEqual(cells(api.markdownToHtml(api.htmlToMarkdown(original))), cells(original));
+});

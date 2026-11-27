@@ -52,3 +52,15 @@ test('merged cells decode numeric XML entities once and keep markup inert', asyn
   assert.match(content, /한글 &lt;b&gt;텍스트&lt;\/b&gt; &amp;lt; &amp;#x110000;/);
   assert.doesNotMatch(content, /<b>/);
 });
+
+test('HWPX table keeps an encoded inline code cell and neighboring numeric cell', async () => {
+  const markdown = [
+    '| 항목 | 수량 |', '| --- | --- |',
+    '| <code>홀짝 &#92;&#124; &#42;값&#42; &#38;lt&#59;</code> | 137 |',
+  ].join('\n');
+  const zip = await JSZip.loadAsync(await generate(markdown));
+  const xml = await zip.file('Contents/section0.xml').async('text');
+  assert.match(xml, /홀짝 \\\| \*값\* &amp;lt;/);
+  assert.match(xml, /홀짝[^<]*<\/hp:t>[\s\S]*?<\/hp:tc>[\s\S]*?<hp:tc\b[\s\S]*?<hp:t>137<\/hp:t>/);
+  assert.doesNotMatch(xml, /&amp;#(?:92|124|42);/);
+});

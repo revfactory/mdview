@@ -5,6 +5,28 @@ import { markedMathExtension, markedFootnoteExtension } from './marked-extension
 
 let turndownInstance: TurndownService | null = null;
 
+function isInTableCell(node: Node): boolean {
+  for (let parent = node.parentNode; parent; parent = parent.parentNode) {
+    if (parent.nodeName === 'TD' || parent.nodeName === 'TH') return true;
+    if (parent.nodeName === 'TABLE') return false;
+  }
+  return false;
+}
+
+function escapeTableCellPipes(content: string): string {
+  if (!content.includes('|')) return content;
+  const parts: string[] = [];
+  let start = 0;
+  for (let pipe = content.indexOf('|'); pipe !== -1; pipe = content.indexOf('|', start)) {
+    let backslashStart = pipe;
+    while (backslashStart > start && content[backslashStart - 1] === '\\') backslashStart--;
+    parts.push(content.slice(start, pipe), (pipe - backslashStart) % 2 === 0 ? '\\|' : '|');
+    start = pipe + 1;
+  }
+  parts.push(content.slice(start));
+  return parts.join('');
+}
+
 function getTurndownService(): TurndownService {
   if (turndownInstance) return turndownInstance;
 
@@ -21,25 +43,30 @@ function getTurndownService(): TurndownService {
 
   service.use(gfm);
 
-  // GFM pipes delimit cells even inside inline code. Escape cell content only,
-  // before the table plugin adds structural delimiters.
+  // Marked splits GFM cells on unescaped pipes even inside backtick code.
+  // Turndown already escaped ordinary text backslashes; add a separator
+  // escape only when the converted cell has an even backslash run.
   service.addRule('tableCellPipes', {
     filter: ['th', 'td'],
     replacement: (content, node) => {
       const prefix = node.previousSibling ? ' ' : '| ';
-      return `${prefix}${content.replace(/\|/g, '\\|')} |`;
+      return prefix + escapeTableCellPipes(content) + ' |';
     },
   });
 
-  // A backslash immediately before a pipe in code cannot be represented by
-  // simply adding one escape: GFM splits even backslash runs. Preserve HTML
-  // for this rare table rather than silently alter code or lose adjacent cells.
+  // A literal backslash before a pipe in code can be mistaken for the
+  // separator escape. Render only that code span as fixed HTML with escaped
+  // text; do not copy table markup or input-derived attributes.
   service.addRule('tableCodeBackslashPipes', {
-    filter: (node) => node.nodeName === 'TABLE' &&
-      Array.from((node as HTMLElement).querySelectorAll('code')).some(
-        (code) => /\\\|/.test(code.textContent || '')
-      ),
-    replacement: (_content, node) => `\n\n${(node as HTMLElement).outerHTML}\n\n`,
+    filter: (node) => node.nodeName === 'CODE' &&
+      !node.textContent?.includes('\n') &&
+      /\\\|/.test(node.textContent ?? '') && isInTableCell(node),
+    replacement: (_content, node) => {
+      const value = (node.textContent ?? '').replace(/[\x21-\x2f\x3a-\x40\x5b-\x60\x7b-\x7e]/g, (char) =>
+        '&#' + char.charCodeAt(0) + ';'
+      );
+      return '<code>' + value + '</code>';
+    },
   });
 
   // Underline -> custom marker
@@ -231,4 +258,3 @@ export function markdownToHtmlAsync(md: string): Promise<string> {
 export function htmlToMarkdownAsync(html: string): Promise<string> {
   return Promise.resolve(htmlToMarkdown(html));
 }
-
