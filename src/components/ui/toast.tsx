@@ -21,7 +21,8 @@ export function ToastContainer() {
   const { actions } = useToastStore();
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+    // Leave the bottom page navigator reachable while mobile feedback is visible.
+    <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
       {/* Keep the live region mounted so new messages are announced without moving focus. */}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="false" aria-relevant="additions">
         {toasts.map(({ id, message }) => <div key={id}>{message}</div>)}
