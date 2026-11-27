@@ -91,3 +91,16 @@ test('the existing editor guide adds a same-origin file action without changing 
   assert.deepEqual(readEntryAction(url.searchParams), { action: 'import-markdown', source: guide.slug });
   assert.ok(guides.filter(({ slug }) => slug !== guide.slug).every(other => guideMarkdownImportHref(other) === undefined));
 });
+
+test('PDF guide adds a static before/after example without changing old anchors or import', () => {
+  const guide = getGuide('pdf-to-markdown');
+  assert.equal(guide.previewSectionId, 'conversion-example');
+  assert.deepEqual(guide.sections.slice(0, 3).map(({ id }, index) => id ?? `section-${index}`),
+    ['section-0', 'section-1', 'section-2']);
+  const example = guide.sections.find(section => section.id === guide.previewSectionId);
+  assert.match(example.comparison.before, /금요일\n오후까지/);
+  assert.match(example.comparison.after, /^# 회의 메모\n\n/);
+  assert.match(example.comparison.after, /금요일 오후까지/);
+  assert.match(example.comparison.after, /확인한 항목 수: 48$/);
+  assert.ok(guides.filter(other => other !== guide).every(other => other.previewSectionId === undefined));
+});

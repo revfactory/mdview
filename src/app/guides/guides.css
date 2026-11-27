@@ -53,6 +53,10 @@
 .guide-bullets { list-style: disc; padding-left: 22px; margin-top: 16px; }
 .guide-bullets li + li { margin-top: 12px; }
 .guide-code { max-width: 100%; overflow-x: auto; padding: 24px; background: var(--color-code-bg); border: 1px solid var(--color-border); border-radius: 10px; font-size: 14px; line-height: 1.85; margin-bottom: 20px; }
+.guide-comparison { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr)); gap: 14px; margin-bottom: 20px; }
+.guide-comparison figure { min-width: 0; margin: 0; padding: 14px 16px; background: var(--color-code-bg); border: 1px solid var(--color-border); border-radius: 10px; }
+.guide-comparison figcaption { margin-bottom: 10px; color: var(--color-text-secondary); font-size: 13px; font-weight: 650; }
+.guide-comparison pre { font-size: 14px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .guide-question + .guide-question { margin-top: 24px; }
 .guide-bottom-cta { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--color-border); }
 .guide-bottom-cta h2 { font-size: 22px; font-weight: 700; margin-bottom: 18px; }
