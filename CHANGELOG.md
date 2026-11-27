@@ -9,9 +9,15 @@
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-11-27
+
 ### Changed
-- 마크다운 → HWPX 가이드에서 복사한 AI 답변을 바로 붙여넣어 편집하고 한글 문서로 저장할 수 있습니다. 표를 유지하려면 화면의 표를 선택하기보다 마크다운 원문을 복사하세요. 기존 .md 파일 열기는 그대로 유지됩니다.
-- HWP·HWPX와 마크다운 파일 가져오기가 성공하면 기존 완료 이벤트에 미리 정해진 진입 경로만 기록합니다. 파일명이나 본문은 기록하지 않습니다.
+- 마크다운 → HWPX 가이드에서 복사한 AI 답변을 바로 붙여넣어 편집하고 한글 문서로 저장할 수 있습니다. 표가 필요하면 화면에 보이는 표가 아니라 마크다운 원문을 사용하세요. (#124, #125)
+- HWP·HWPX와 마크다운 가져오기가 완료되면 미리 정한 진입 경로만 집계합니다. 파일명이나 본문은 기록하지 않습니다. (#125)
+
+### Fixed
+- 한글·마크다운 가져오기에서 저장에 실패하면 복사할 수 있게 원문을 남기고, 같은 확인에서 중복 저장을 막습니다. HWP/HWPX 파일을 키보드로 선택할 수 있고, 닫은 Markdown 창으로 오래된 읽기 결과가 돌아오지 않습니다. (#98, #99, #100)
+- PDF 파일을 저장할 공간이 부족할 때 사이트 데이터 삭제 대신 백업을 먼저 안내합니다. PDF 텍스트 추출이 실패하거나 중단되어도 작업 중인 페이지의 리소스를 정리합니다. (#96, #97)
 
 ## [0.3.8] - 2026-11-27
 
@@ -418,7 +424,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/revfactory/mdview/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/revfactory/mdview/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/revfactory/mdview/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/revfactory/mdview/compare/v0.3.5...v0.3.6
