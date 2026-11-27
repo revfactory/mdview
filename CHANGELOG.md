@@ -9,11 +9,14 @@
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-11-27
+
 ### Changed
-- 한글 변환 가이드에 HWPX 지원과 휴대폰에서 파일을 고르는 방법을 더 명확히 안내합니다.
+- 한글 변환 가이드에 HWPX 지원과 휴대폰에서 파일을 고르는 방법을 더 명확히 안내합니다. (#119)
 
 ### Fixed
-- 모바일 사이드바가 HWP·HWPX 및 마크다운 파일 선택을 가리지 않도록 수정했습니다.
+- 모바일 사이드바가 HWP·HWPX 및 마크다운 파일 선택을 가리지 않도록 수정했습니다. (#119)
+- PDF 변환이나 문서 분할 결과를 화면 읽기 도구가 인식할 수 있게 알립니다. (#106)
 
 ## [0.3.6] - 2026-11-27
 
@@ -402,7 +405,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.7...HEAD
+[0.3.7]: https://github.com/revfactory/mdview/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/revfactory/mdview/compare/v0.3.5...v0.3.6
 [0.2.13]: https://github.com/revfactory/mdview/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/revfactory/mdview/compare/v0.2.11...v0.2.12
