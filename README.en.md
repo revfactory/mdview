@@ -17,13 +17,13 @@
 
 ## 🖼 Use MDView online
 
-[Open the MDView editor](https://mdview.kr/?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=editor) without installation or an account. Import HWP/HWPX files, then export Markdown or HWPX.
+[Open the MDView editor](https://mdview.kr/) without installation or an account. Import HWP/HWPX files, then export Markdown or HWPX.
 
 The interface and these task guides are in Korean:
 
-- [Try converting the sample PDF](https://mdview.kr/guides/pdf-to-markdown?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=pdf_example#conversion-example). Check the output in your browser before opening your own PDF.
+- [Convert PDF to Markdown](https://mdview.kr/guides/pdf-to-markdown) or [try the sample PDF first](https://mdview.kr/guides/pdf-to-markdown#conversion-example), without opening a file of your own.
 - [Convert HWP/HWPX to Markdown](https://mdview.kr/guides/hwp-to-markdown)
-- [Download the HWPX example](https://mdview.kr/guides/markdown-to-hwpx?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=hwpx_example#chatgpt-to-hwpx). See the output first, then paste your own Markdown to export.
+- [Export Markdown as HWPX](https://mdview.kr/guides/markdown-to-hwpx) or [download the editable example first](https://mdview.kr/guides/markdown-to-hwpx#chatgpt-to-hwpx).
 - [Save Markdown as PDF](https://mdview.kr/guides/markdown-to-pdf)
 - [Editor and local storage guide](https://mdview.kr/guides/markdown-editor)
 - [Markdown syntax reference: headings, lists, tables, and code](https://mdview.kr/guides/markdown-cheatsheet)
