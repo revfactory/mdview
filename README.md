@@ -70,15 +70,15 @@
 
 ### 사전 요구사항
 
-- Node.js 24 LTS (`.nvmrc` 기준, CI·운영 환경과 동일)
-- npm (또는 pnpm/yarn)
+- Node.js 24 LTS 권장 (CI에서 `.nvmrc`의 버전을 사용)
+- npm (Node.js에 포함)
 
 ### 설치 및 실행
 
 ```bash
 git clone https://github.com/revfactory/mdview.git
 cd mdview
-npm install
+npm ci
 npm run dev
 ```
 
