@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getGuide, guideActionHref, guides, GUIDE_SITE_URL } from '@/lib/guides';
+import { getGuide, guideActionHref, guidePasteHref, guides, GUIDE_SITE_URL } from '@/lib/guides';
 interface GuidePageProps { params: Promise<{ slug: string }> }
 export const dynamicParams = false;
 export function generateStaticParams() { return guides.map(({ slug }) => ({ slug })); }
@@ -21,8 +21,9 @@ export default async function GuidePage({ params }: GuidePageProps) {
   const { slug } = await params;
   const guide = getGuide(slug);
   if (!guide) notFound();
-  const pasteLink = guide.slug === 'markdown-editor' ? (
-    <Link className="guide-button guide-button-secondary" href="/?action=paste-markdown&source=markdown-editor">마크다운 붙여넣기<span aria-hidden="true">↗</span></Link>
+  const pasteHref = guidePasteHref(guide);
+  const pasteLink = pasteHref ? (
+    <Link className="guide-button guide-button-secondary" href={pasteHref}>{guide.pasteLabel}<span aria-hidden="true">↗</span></Link>
   ) : null;
   const breadcrumbs = {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',

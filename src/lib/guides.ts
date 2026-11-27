@@ -17,6 +17,7 @@ export interface Guide {
   outcome: string;
   action: 'import-hwp' | 'import-markdown' | 'import-pdf' | 'new';
   actionLabel: string;
+  pasteLabel?: string;
   steps: { title: string; text: string }[];
   sections: GuideSection[];
   questions: { question: string; answer: string }[];
@@ -73,12 +74,13 @@ export const guides: Guide[] = [
   },
   {
     slug: 'markdown-to-hwpx', title: '마크다운을 HWPX 한글 문서로 내보내기',
-    description: '마크다운을 편집 가능한 HWPX로 변환하는 순서와 용지·글꼴·여백 설정. HWP와 HWPX의 차이, 외부 이미지 제한과 제출 전 검토 항목을 알아보세요.',
+    description: 'ChatGPT 답변이나 .md 파일을 MDView에서 편집하고 한글에서 열 수 있는 .hwpx로 저장하세요. 가입 없이 브라우저에서 변환하며, 표·수식·이미지는 내보낸 파일에서 확인하세요.',
     eyebrow: '작성한 내용을 한글 문서로',
-    summary: '마크다운으로 쓴 보고서나 회의록을 한글에서 다시 편집하려면 HWPX로 내보낼 수 있습니다. 변환 후에는 받는 사람이 사용하는 한글 프로그램에서 결과를 열어 검토하세요.',
-    outcome: '.md → 용지·글꼴 설정 → .hwpx', action: 'import-markdown', actionLabel: '마크다운 파일 가져오기',
+    summary: 'ChatGPT 등에서 복사한 마크다운 답변이나 직접 쓴 보고서를 편집 가능한 한글 문서(.hwpx)로 바꿀 수 있습니다. 별도의 파일을 먼저 만들거나 가입할 필요 없이 브라우저에서 편집하고 내보내세요.',
+    outcome: '텍스트 붙여넣기 또는 .md 열기 → 편집·검토 → .hwpx', action: 'import-markdown', actionLabel: '마크다운 파일 가져오기',
+    pasteLabel: '복사한 마크다운 붙여넣기',
     steps: [
-      { title: '마크다운 불러오기', text: '마크다운 가져오기로 .md 파일을 열거나 새 문서의 소스 보기에 내용을 붙여 넣습니다. 제목, 목록, 표를 확인하고 문서 이름을 정하세요.' },
+      { title: '복사한 답변 붙여넣기 또는 파일 열기', text: '마크다운 원문을 복사해 마크다운 붙여넣기를 누르고 편집을 시작하세요. 이미 .md 파일이 있다면 기존 파일 가져오기를 사용하세요. 제목, 목록, 표를 확인하고 문서 이름을 정합니다.' },
       { title: 'HWPX 내보내기 열기', text: '에디터의 내보내기에서 한글 (.hwpx)을 선택합니다. 문서 내용을 먼저 확인한 뒤 용지 크기, 글꼴, 여백을 설정하세요.' },
       { title: '용지와 글꼴 설정', text: 'A4·Letter·B5 중 용지를 고르고, 맑은 고딕·바탕·돋움 중 글꼴을 선택합니다. 여백은 기본 20mm, 좁게 12mm, 넓게 30mm 중 고를 수 있습니다.' },
       { title: '다운로드한 파일 다시 열기', text: '내보내기를 누르면 .hwpx 파일이 다운로드됩니다. 한글 또는 HWPX를 지원하는 프로그램에서 열어 페이지 나눔, 표, 그림, 글꼴을 검토한 다음 전달하세요.' },
@@ -87,9 +89,10 @@ export const guides: Guide[] = [
       { title: '.hwp와 .hwpx를 구분하세요', paragraphs: ['MDView에서 생성하는 파일은 ZIP/XML 기반의 .hwpx입니다. 기존 바이너리 형식인 .hwp 파일을 생성하는 기능은 아닙니다. 파일 이름의 확장자를 바꾸는 것으로 두 형식을 변환할 수는 없습니다.', '제출처가 .hwp만 받는다면 HWPX를 지원하는 한글 프로그램에서 열고, 제출처가 요구하는 형식으로 다시 저장해야 합니다. 제출처의 지원 형식을 먼저 확인하면 재작업을 줄일 수 있습니다.'] },
       { title: '외부 이미지 주소는 내보내기에 포함되지 않습니다', paragraphs: ['HWPX 생성기는 PNG·JPEG·GIF·WebP의 base64 data URL 이미지를 처리합니다. https:// 주소로 연결된 외부 이미지 등은 HWPX에 임베딩되지 않습니다. 에디터 화면에 그림이 보여도 내려받은 문서에는 없을 수 있으므로 반드시 확인하세요.', '이미지의 원래 비율이나 복잡한 배치가 그대로 재현된다고 가정하지 마세요. 중요한 도표는 한글 프로그램에서 삽입하거나 크기와 위치를 다시 맞추는 것이 안전합니다.'] },
       { title: '제출 전 확인 목록', bullets: ['제목 단계와 목록 번호가 의미를 유지하는지 확인합니다.', '표의 병합 셀, 긴 문장, 숫자·단위가 누락되거나 잘리지 않았는지 확인합니다.', '수식, 다이어그램, 복잡한 인라인 서식은 원본과 비교합니다. 화면에 보이는 모든 표현이 HWPX로 동일하게 변환되는 것은 아닙니다.', '글꼴이 설치되지 않은 환경에서는 줄바꿈과 페이지 수가 달라질 수 있습니다.', '편집용 .md와 결과 .hwpx를 모두 보관해 수정 요청에 대비하세요.'] },
+      { id: 'chatgpt-to-hwpx', title: 'ChatGPT 답변을 한글 파일로 옮기기', code: '# 주간 회의록\n\n## 결정 사항\n- 초안 검토 후 공유\n\n| 할 일 | 기한 |\n| --- | --- |\n| 초안 정리 | 금요일 |', paragraphs: ['이 예제를 복사해 시험하거나 AI 답변의 마크다운 원문을 붙여넣으세요. 붙여넣은 내용에 제목이나 표의 마크다운 표시가 없다면 AI에 마크다운 원문으로 다시 보여 달라고 요청할 수 있습니다.', '글 전체가 코드 블록으로 보이면 바깥쪽 백틱 세 개만 확인해 제거하세요. 본문 속 코드 예제는 그대로 두고, 인용·수치·표와 수식은 다운로드한 한글 파일에서 확인하세요.'] },
     ],
     questions: [
-      { question: 'AI가 작성한 마크다운도 변환할 수 있나요?', answer: '일반 마크다운 텍스트라면 소스 보기에 붙여 넣어 편집할 수 있습니다. 내용 전체를 감싼 불필요한 코드 펜스는 제거하고, 사실·인용·표의 수치는 별도로 확인한 뒤 내보내세요.' },
+      { question: 'AI가 작성한 마크다운도 변환할 수 있나요?', answer: '일반 마크다운 텍스트라면 이 가이드의 붙여넣기 버튼으로 새 문서를 만든 다음 내보내기 → 한글 (.hwpx)을 선택하세요. 기존 문서는 바뀌지 않습니다. 제출처가 .hwp만 받는다면 아래아한글에서 .hwpx를 연 뒤 필요한 형식으로 저장하세요.' },
       { question: '한글의 원본 서식을 완벽하게 유지하나요?', answer: '아닙니다. 마크다운의 내용을 HWPX 문서로 구성하는 기능이며, 기존 한글 서식 파일이나 모든 고급 개체를 재현하는 기능은 아닙니다. 정해진 제출 양식이 있다면 결과를 해당 양식에 맞게 검토·수정하세요.' },
     ], related: ['hwp-to-markdown', 'markdown-to-pdf'],
   },
@@ -121,6 +124,7 @@ export const guides: Guide[] = [
     eyebrow: '문법보다 내용에 집중하기',
     summary: '마크다운은 짧은 기호로 제목, 목록, 링크를 표현하는 텍스트 형식입니다. MDView에서는 화면에서 바로 편집하는 WYSIWYG 모드와 문법을 직접 쓰는 소스 보기를 오가며 작성할 수 있습니다.',
     outcome: '새 문서 → 제목·목록·표 작성 → .md 백업', action: 'new', actionLabel: '새 마크다운 문서 만들기',
+    pasteLabel: '마크다운 붙여넣기',
     steps: [
       { title: '새 문서와 제목 만들기', text: '새 문서 만들기를 눌러 처음부터 작성하세요. 복사한 마크다운이나 아래 예제는 마크다운 붙여넣기를 눌러 새 문서로 열 수 있습니다.' },
       { title: '편한 보기 모드 선택', text: 'WYSIWYG 모드는 문법 기호 대신 편집 결과를 보여 줍니다. 소스 보기에서는 마크다운 텍스트를 직접 수정할 수 있고, 넓은 화면의 분할 보기에서는 원문과 결과를 나란히 확인할 수 있습니다.' },
@@ -186,3 +190,6 @@ export const guides: Guide[] = [
 ];
 export function getGuide(slug: string): Guide | undefined { return guides.find((guide) => guide.slug === slug); }
 export function guideActionHref(guide: Guide): string { return `/?action=${guide.action}&source=${guide.slug}`; }
+export function guidePasteHref(guide: Guide): string | undefined {
+  return guide.pasteLabel ? `/?action=paste-markdown&source=${guide.slug}` : undefined;
+}
