@@ -25,9 +25,9 @@ export function trackEvent({ action, category, label, value }: GtagEvent) {
   });
 }
 
-function trackPdfAction(action: 'import' | 'convert', source?: EntrySource) {
-  const params = { event_category: 'file', event_label: 'pdf' };
-  // Reject unknown values at the telemetry boundary; do not guess a source for a reopened PDF.
+function trackFileAction(action: 'import' | 'convert', label: 'hwp' | 'markdown' | 'pdf', source?: EntrySource) {
+  const params = { event_category: 'file', event_label: label };
+  // Reject arbitrary values at the telemetry boundary; unknown sources remain unlabelled.
   gtag('event', action, source && ENTRY_SOURCES.includes(source)
     ? { ...params, entry_source: source }
     : params);
@@ -52,20 +52,20 @@ export const analytics = {
     trackEvent({ action: 'open', category: 'document' }),
 
   // Import / Export
-  importMarkdown: () =>
-    trackEvent({ action: 'import', category: 'file', label: 'markdown' }),
+  importMarkdown: (source?: EntrySource) =>
+    trackFileAction('import', 'markdown', source),
 
   pasteMarkdown: (source: EntrySource = 'home') =>
     gtag('event', 'markdown_paste_complete', { entry_source: ENTRY_SOURCES.includes(source) ? source : 'direct' }),
 
-  importHwp: () =>
-    trackEvent({ action: 'import', category: 'file', label: 'hwp' }),
+  importHwp: (source?: EntrySource) =>
+    trackFileAction('import', 'hwp', source),
 
   importPdf: (source: EntrySource) =>
-    trackPdfAction('import', source),
+    trackFileAction('import', 'pdf', source),
 
   convertPdf: (source?: EntrySource) =>
-    trackPdfAction('convert', source),
+    trackFileAction('convert', 'pdf', source),
 
   exportMarkdown: () =>
     trackEvent({ action: 'export', category: 'file', label: 'markdown' }),

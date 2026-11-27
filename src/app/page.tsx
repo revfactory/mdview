@@ -48,8 +48,8 @@ export default function Home() {
   const focusMode = useUIStore((s) => s.focusMode);
   const isMobile = useUIStore((s) => s.isMobile);
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
-  const [hwpImportOpen, setHwpImportOpen] = useState(false);
-  const [mdImportOpen, setMdImportOpen] = useState(false);
+  const [hwpImportSource, setHwpImportSource] = useState<EntrySource | null>(null);
+  const [mdImportSource, setMdImportSource] = useState<EntrySource | null>(null);
   const [pdfImportSource, setPdfImportSource] = useState<EntrySource | null>(null);
   // Match conversions to their PDF in the current tab only. IDs never reach analytics.
   const pdfSourceByDocument = useRef(new Map<string, EntrySource>());
@@ -115,8 +115,8 @@ export default function Home() {
       const ui = useUIStore.getState();
       // An open mobile sidebar would cover the file chooser's drop area.
       if (ui.isMobile) ui.actions.closeSidebar();
-      if (action === 'import-hwp') setHwpImportOpen(true);
-      else if (action === 'import-markdown') setMdImportOpen(true);
+      if (action === 'import-hwp') setHwpImportSource(source);
+      else if (action === 'import-markdown') setMdImportSource(source);
       else setPdfImportSource(source);
     }
     if (action === 'paste-markdown') {
@@ -348,19 +348,17 @@ export default function Home() {
   const handleImportComplete = useCallback(
     async (importedContent: string, title: string) => {
       await openImportedDocument(importedContent, title);
-      setHwpImportOpen(false);
-      analytics.importHwp();
+      analytics.importHwp(hwpImportSource ?? undefined);
     },
-    [openImportedDocument]
+    [openImportedDocument, hwpImportSource]
   );
 
   const handleMdImportComplete = useCallback(
     async (importedContent: string, title: string) => {
       await openImportedDocument(importedContent, title);
-      setMdImportOpen(false);
-      analytics.importMarkdown();
+      analytics.importMarkdown(mdImportSource ?? undefined);
     },
-    [openImportedDocument]
+    [openImportedDocument, mdImportSource]
   );
 
   const handlePasteMarkdown = useCallback(async (markdown: string, source: EntrySource = 'home') => {
@@ -566,14 +564,14 @@ export default function Home() {
       </div>
 
       <HwpImport
-        open={hwpImportOpen}
-        onClose={() => setHwpImportOpen(false)}
+        open={hwpImportSource !== null}
+        onClose={() => setHwpImportSource(null)}
         onImportComplete={handleImportComplete}
       />
 
       <MarkdownImport
-        open={mdImportOpen}
-        onClose={() => setMdImportOpen(false)}
+        open={mdImportSource !== null}
+        onClose={() => setMdImportSource(null)}
         onImportComplete={handleMdImportComplete}
       />
 
