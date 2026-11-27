@@ -13,19 +13,15 @@
 
 **한국어** | [English](README.en.md)
 
-<br />
-
-<img src="public/banner.png" alt="MDView Banner" width="800" />
-
 </div>
 
 ## 🖼 온라인에서 바로 사용하기
 
-설치나 회원가입 없이 [MDView 에디터 열기](https://mdview.kr/). HWP·HWPX를 가져오고, Markdown 또는 HWPX 파일로 내보낼 수 있습니다.
+설치나 회원가입 없이 [MDView 에디터 열기](https://mdview.kr/?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=editor). HWP·HWPX를 가져오고, Markdown 또는 HWPX 파일로 내보낼 수 있습니다.
 
-- [PDF를 마크다운으로 변환하고 편집하기](https://mdview.kr/guides/pdf-to-markdown)
+- [예제 PDF를 마크다운으로 변환해 보기](https://mdview.kr/guides/pdf-to-markdown?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=pdf_example#conversion-example): 내 파일 없이 브라우저에서 변환 결과를 확인할 수 있습니다.
 - [HWP·HWPX를 마크다운으로 변환](https://mdview.kr/guides/hwp-to-markdown)
-- [마크다운을 한글 HWPX로 내보내기](https://mdview.kr/guides/markdown-to-hwpx)
+- [편집 가능한 한글 HWPX 예제 내려받기](https://mdview.kr/guides/markdown-to-hwpx?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=hwpx_example#chatgpt-to-hwpx): 예제를 확인한 뒤 내 마크다운을 붙여넣어 한글 파일로 저장하세요.
 - [마크다운을 PDF로 저장하기](https://mdview.kr/guides/markdown-to-pdf)
 - [에디터 사용법과 로컬 저장 안내](https://mdview.kr/guides/markdown-editor)
 - [마크다운 문법 모음: 제목·목록·표·코드 예제](https://mdview.kr/guides/markdown-cheatsheet)
@@ -33,6 +29,10 @@
 문서는 현재 브라우저에 저장됩니다. 중요한 문서는 파일로 백업하고, 복잡한 표·이미지·서식은 변환 후 확인하세요. HWP 바이너리(`.hwp`)로 내보내는 기능은 제공하지 않습니다.
 
 저장한 문서가 보이지 않으면 작성했던 기기·브라우저 프로필에서 [mdview.kr](https://mdview.kr/)과 [www.mdview.kr](https://www.mdview.kr/)을 확인하세요. 두 주소는 문서를 따로 저장하며 자동으로 동기화하지 않습니다. 확인 전에 사이트 데이터를 지우지 말고, 문서를 찾으면 파일로 백업하세요. [문서 찾기와 안전한 백업 안내](https://mdview.kr/guides/markdown-editor#document-storage)를 참고하세요.
+
+<div align="center">
+  <img src="public/banner.png" alt="MDView Banner" width="800" />
+</div>
 
 ## 📖 소개
 

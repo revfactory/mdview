@@ -13,21 +13,17 @@
 
 [한국어](README.md) | **English**
 
-<br />
-
-<img src="public/banner.png" alt="MDView Banner" width="800" />
-
 </div>
 
 ## 🖼 Use MDView online
 
-[Open the MDView editor](https://mdview.kr/) without installation or an account. Import HWP/HWPX files, then export Markdown or HWPX.
+[Open the MDView editor](https://mdview.kr/?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=editor) without installation or an account. Import HWP/HWPX files, then export Markdown or HWPX.
 
 The interface and these task guides are in Korean:
 
-- [Convert PDF to Markdown (Korean guide)](https://mdview.kr/guides/pdf-to-markdown)
+- [Try converting the sample PDF](https://mdview.kr/guides/pdf-to-markdown?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=pdf_example#conversion-example). Check the output in your browser before opening your own PDF.
 - [Convert HWP/HWPX to Markdown](https://mdview.kr/guides/hwp-to-markdown)
-- [Export Markdown as HWPX](https://mdview.kr/guides/markdown-to-hwpx)
+- [Download the HWPX example](https://mdview.kr/guides/markdown-to-hwpx?utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=hwpx_example#chatgpt-to-hwpx). See the output first, then paste your own Markdown to export.
 - [Save Markdown as PDF](https://mdview.kr/guides/markdown-to-pdf)
 - [Editor and local storage guide](https://mdview.kr/guides/markdown-editor)
 - [Markdown syntax reference: headings, lists, tables, and code](https://mdview.kr/guides/markdown-cheatsheet)
@@ -35,6 +31,10 @@ The interface and these task guides are in Korean:
 Documents are stored in the current browser. Export important files as backups and check complex tables, images, and formatting after conversion. Export to the binary `.hwp` format is not supported.
 
 If saved documents are missing, check both [mdview.kr](https://mdview.kr/) and [www.mdview.kr](https://www.mdview.kr/) on the device and browser profile used to create them. The two addresses have separate storage and do not sync documents automatically. Do not clear site data while checking, and export important documents once you find them. See the [document storage and backup guide (Korean)](https://mdview.kr/guides/markdown-editor#document-storage).
+
+<div align="center">
+  <img src="public/banner.png" alt="MDView Banner" width="800" />
+</div>
 
 ## 📖 Overview
 
