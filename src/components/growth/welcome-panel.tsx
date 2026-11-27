@@ -9,6 +9,7 @@ interface WelcomePanelProps { onStart: (action: EntryAction) => void; }
 const guides = [
   { href: '/guides/hwp-to-markdown', title: 'HWP·HWPX → 마크다운', description: '한글 파일을 열고, 편집 가능한 문서로 정리하기' },
   { href: '/guides/markdown-to-hwpx', title: '마크다운 → 한글 HWPX', description: '작성한 글을 한글에서 열 수 있는 파일로 내보내기' },
+  { href: '/guides/pdf-to-markdown', title: 'PDF → 마크다운', description: '텍스트가 있는 PDF를 열고 편집 가능한 마크다운으로 변환하기' },
   { href: '/guides/markdown-to-pdf', title: '마크다운 → PDF', description: '미리보기를 확인하고 브라우저에서 PDF로 저장하기' },
   { href: '/guides/markdown-editor', title: '마크다운 에디터 사용법', description: '문법을 몰라도 시작하는 편집과 자동저장 안내' },
 ];
