@@ -11,6 +11,7 @@ export interface DocumentItemProps {
   title: string;
   excerpt: string;
   kind?: DocumentKind;
+  isChunked?: boolean;
   updatedAt: Date;
   isFavorite: boolean;
   isActive: boolean;
@@ -25,6 +26,7 @@ export function DocumentItem({
   title,
   excerpt,
   kind,
+  isChunked,
   updatedAt,
   isFavorite,
   isActive,
@@ -58,7 +60,7 @@ export function DocumentItem({
 
     if (onDuplicate) {
       items.push({
-        label: '복제',
+        label: isChunked && kind !== 'pdf' ? '저장된 페이지 복제' : '복제',
         icon: Copy,
         onClick: () => onDuplicate(id),
       });
@@ -79,7 +81,7 @@ export function DocumentItem({
     }
 
     return items;
-  }, [id, isFavorite, onToggleFavorite, onDuplicate, onDelete]);
+  }, [id, isFavorite, isChunked, kind, onToggleFavorite, onDuplicate, onDelete]);
 
   return (
     <div

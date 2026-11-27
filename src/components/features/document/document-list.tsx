@@ -46,6 +46,7 @@ export function DocumentList({
           title={doc.title}
           excerpt={doc.excerpt}
           kind={doc.kind}
+          isChunked={doc.isChunked}
           updatedAt={doc.updatedAt}
           isFavorite={doc.isFavorite}
           isActive={activeDocumentId === doc.id}
