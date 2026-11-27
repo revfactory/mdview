@@ -4,15 +4,17 @@ import Link from 'next/link';
 import { ArrowRight, FilePlus2, FileText, FolderOpen, FileType2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { EntryAction } from '@/lib/entry-actions';
+import { PasteMarkdownForm } from './paste-markdown-form';
 
-interface WelcomePanelProps { onStart: (action: EntryAction) => void; }
+interface WelcomePanelProps { onStart: (action: EntryAction) => void; onPasteMarkdown: (markdown: string) => Promise<void>; }
 const guides = [
   { href: '/guides/hwp-to-markdown', title: 'HWP·HWPX → 마크다운', description: '한글 파일을 열고, 편집 가능한 문서로 정리하기' },
   { href: '/guides/markdown-to-hwpx', title: '마크다운 → 한글 HWPX', description: '작성한 글을 한글에서 열 수 있는 파일로 내보내기' },
+  { href: '/guides/pdf-to-markdown', title: 'PDF → 마크다운', description: '텍스트가 있는 PDF를 열고 편집 가능한 마크다운으로 변환하기' },
   { href: '/guides/markdown-to-pdf', title: '마크다운 → PDF', description: '미리보기를 확인하고 브라우저에서 PDF로 저장하기' },
   { href: '/guides/markdown-editor', title: '마크다운 에디터 사용법', description: '문법을 몰라도 시작하는 편집과 자동저장 안내' },
 ];
-export function WelcomePanel({ onStart }: WelcomePanelProps) {
+export function WelcomePanel({ onStart, onPasteMarkdown }: WelcomePanelProps) {
   return (
     <section className="mx-auto flex w-full max-w-3xl flex-col px-5 py-8 sm:px-10 sm:py-12" aria-labelledby="welcome-title">
       <p className="mb-3 text-sm font-medium text-[var(--color-accent)]">MDView · 무료 온라인 마크다운 에디터</p>
@@ -25,6 +27,7 @@ export function WelcomePanel({ onStart }: WelcomePanelProps) {
         <Button variant="secondary" icon={FilePlus2} onClick={() => onStart('new')}>새 문서 만들기</Button>
       </div>
       <button className="mt-4 w-fit cursor-pointer text-sm text-[var(--color-accent)] underline underline-offset-4" onClick={() => onStart('sample')}>파일 없이 샘플 문서로 체험하기</button>
+      <PasteMarkdownForm onCreate={onPasteMarkdown} />
       <div className="mt-7 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-xs leading-6 text-[var(--color-text-secondary)]">문서는 현재 브라우저에 자동저장됩니다. 브라우저 데이터 삭제나 다른 기기·주소로 이동하기 전에 파일로 내보내세요. 복잡한 표와 서식은 변환 후 확인이 필요합니다.</div>
       <div className="mt-10 flex items-center justify-between gap-3"><h2 className="text-base font-semibold">하려는 작업에 맞춰 시작하기</h2><Link href="/guides" className="text-xs text-[var(--color-accent)] underline underline-offset-4">전체 사용법</Link></div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">{guides.map((guide) => (

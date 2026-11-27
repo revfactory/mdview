@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import * as CFB from 'cfb';
-import pako from 'pako';
+import { inflate, inflateRaw } from 'pako';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -233,11 +233,11 @@ function extractBinDataImages(
       // Try decompression if it looks compressed
       if (isCompressed || (rawData.length > 2 && (rawData[0] & 0x0f) === 0x08)) {
         try {
-          const decompressed = pako.inflate(rawData);
+          const decompressed = inflate(rawData);
           rawData = decompressed;
         } catch {
           try {
-            const decompressed = pako.inflateRaw(rawData);
+            const decompressed = inflateRaw(rawData);
             rawData = decompressed;
           } catch {
             // Use raw data as-is (might not be compressed)
@@ -900,10 +900,10 @@ function parseHwpBinary(
 
     if (isCompressed) {
       try {
-        sectionData = pako.inflate(raw);
+        sectionData = inflate(raw);
       } catch {
         try {
-          sectionData = pako.inflateRaw(raw);
+          sectionData = inflateRaw(raw);
         } catch {
           warnings.push(`섹션 ${si} 압축 해제 실패, 원본 데이터 사용`);
           sectionData = raw;

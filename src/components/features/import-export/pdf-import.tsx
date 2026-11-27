@@ -95,7 +95,7 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
       const { describePdfError } = await import('@/lib/pdfjs');
       if (run !== runRef.current) return;
       const quota = err instanceof Error && err.name === 'QuotaExceededError';
-      setError(quota ? '브라우저 저장 공간이 부족해 PDF를 보관하지 못했습니다. 사용하지 않는 문서를 지운 뒤 다시 시도해 주세요.' : describePdfError(err));
+      setError(quota ? '브라우저 저장 공간이 부족해 PDF를 보관하지 못했습니다. 먼저 중요한 기존 문서를 파일로 내보내 백업하세요. 백업을 확인한 뒤 불필요한 문서만 삭제하고 다시 시도해 주세요. 사이트 데이터는 지우지 마세요.' : describePdfError(err));
       setIsProcessing(false);
     } finally {
       if (cancelTaskRef.current === destroyTask) cancelTaskRef.current = null;

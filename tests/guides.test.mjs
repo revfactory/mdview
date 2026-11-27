@@ -7,10 +7,10 @@ async function loadModule(path) {
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 }
-const { guides, getGuide, guideActionHref } = await loadModule('../src/lib/guides.ts');
+const { guides, getGuide, guideActionHref, guideMarkdownImportHref, guidePasteHref } = await loadModule('../src/lib/guides.ts');
 const { readEntryAction } = await loadModule('../src/lib/entry-actions.ts');
 test('every guide has a distinct URL, title and description', () => {
-  assert.equal(guides.length, 5);
+  assert.equal(guides.length, 6);
   for (const field of ['slug', 'title', 'description']) assert.equal(new Set(guides.map((guide) => guide[field])).size, guides.length);
   for (const guide of guides) assert.match(guide.slug, /^[a-z]+(?:-[a-z]+)*$/);
 });
@@ -52,3 +52,55 @@ for (const file of ['README.md', 'README.en.md']) {
     }
   });
 }
+
+test('PDF guide opens the PDF importer with an allowlisted source', () => {
+ const guide=getGuide('pdf-to-markdown'); assert.equal(guide.action,'import-pdf');
+ assert.equal(guideActionHref(guide),'/?action=import-pdf&source=pdf-to-markdown');
+ assert.match(JSON.stringify(guide), /OCR/); assert.match(JSON.stringify(guide), /100MB/);
+});
+
+test('the canonical HWP guide exposes HWPX support and opens the same browser importer', () => {
+  const guide = getGuide('hwp-to-markdown');
+  assert.match(guide.title, /HWP·HWPX/);
+  assert.match(guide.description, /\.hwpx/);
+  assert.match(guide.actionLabel, /HWP·HWPX/);
+  assert.equal(guideActionHref(guide), '/?action=import-hwp&source=hwp-to-markdown');
+});
+
+test('the HWPX and editor guides allow paste without replacing their original actions', () => {
+  for (const [slug, original] of [['markdown-to-hwpx', 'import-markdown'], ['markdown-editor', 'new']]) {
+    const guide = getGuide(slug);
+    assert.equal(guide.action, original);
+    const href = guidePasteHref(guide);
+    assert.match(href, /^\/\?/);
+    assert.deepEqual(readEntryAction(new URL(href, 'https://www.mdview.kr').searchParams), { action: 'paste-markdown', source: slug });
+  }
+  assert.equal(guidePasteHref(getGuide('hwp-to-markdown')), undefined);
+  assert.match(getGuide('markdown-to-hwpx').description, /ChatGPT/);
+  assert.ok(getGuide('markdown-to-hwpx').sections.some(section => section.id === 'chatgpt-to-hwpx' && section.code.includes('| 할 일 |')));
+});
+
+test('the existing editor guide adds a same-origin file action without changing other guides or section anchors', () => {
+  const guide = getGuide('markdown-editor');
+  assert.match(guide.title, /\.md 파일 열기/);
+  assert.equal(guide.action, 'new');
+  assert.equal(guide.sections[3].id, 'document-storage');
+  assert.equal(guide.sections.at(-1).id, 'open-markdown');
+  const url = new URL(guideMarkdownImportHref(guide), 'https://mdview.kr');
+  assert.equal(url.origin, 'https://mdview.kr');
+  assert.deepEqual(readEntryAction(url.searchParams), { action: 'import-markdown', source: guide.slug });
+  assert.ok(guides.filter(({ slug }) => slug !== guide.slug).every(other => guideMarkdownImportHref(other) === undefined));
+});
+
+test('PDF guide adds a static before/after example without changing old anchors or import', () => {
+  const guide = getGuide('pdf-to-markdown');
+  assert.equal(guide.previewSectionId, 'conversion-example');
+  assert.deepEqual(guide.sections.slice(0, 3).map(({ id }, index) => id ?? `section-${index}`),
+    ['section-0', 'section-1', 'section-2']);
+  const example = guide.sections.find(section => section.id === guide.previewSectionId);
+  assert.match(example.comparison.before, /금요일\n오후까지/);
+  assert.match(example.comparison.after, /^# 회의 메모\n\n/);
+  assert.match(example.comparison.after, /금요일 오후까지/);
+  assert.match(example.comparison.after, /확인한 항목 수: 48$/);
+  assert.ok(guides.filter(other => other !== guide).every(other => other.previewSectionId === undefined));
+});
