@@ -49,7 +49,9 @@ export default function Home() {
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
   const [hwpImportOpen, setHwpImportOpen] = useState(false);
   const [mdImportOpen, setMdImportOpen] = useState(false);
-  const [pdfImportOpen, setPdfImportOpen] = useState(false);
+  const [pdfImportSource, setPdfImportSource] = useState<EntrySource | null>(null);
+  // Match conversions to their PDF in the current tab only. IDs never reach analytics.
+  const pdfSourceByDocument = useRef(new Map<string, EntrySource>());
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
   const [preparingExport, setPreparingExport] = useState(false);
   const preparingExportRef = useRef(false);
@@ -109,7 +111,7 @@ export default function Home() {
     analytics.startAction(action, source);
     if (action === 'import-hwp') setHwpImportOpen(true);
     if (action === 'import-markdown') setMdImportOpen(true);
-    if (action === 'import-pdf') setPdfImportOpen(true);
+    if (action === 'import-pdf') setPdfImportSource(source);
     if (action === 'new' || action === 'sample') {
       useUIStore.getState().actions.setViewMode('wysiwyg');
       void (action === 'new' ? handleNewDocument() : handleSampleDocument());
@@ -161,6 +163,7 @@ export default function Home() {
     async (id: string) => {
       try {
         await deleteDocument(id);
+        pdfSourceByDocument.current.delete(id);
         analytics.documentDelete();
         if (activeDocumentId === id) {
           // 삭제 후 남은 문서가 있으면 선택, 없으면 빈 상태 표시
@@ -350,22 +353,25 @@ export default function Home() {
 
   const handlePdfImportComplete = useCallback(
     async ({ file, title, pageCount, excerpt }: PdfImportResult) => {
+      const source = pdfImportSource ?? 'direct';
       const id = await createPdfDocument({ title, file, fileName: file.name, pageCount, excerpt });
+      pdfSourceByDocument.current.set(id, source);
       actions.setActiveDocument(id);
-      analytics.importPdf();
+      analytics.importPdf(source);
       if (useUIStore.getState().isMobile) {
         useUIStore.getState().actions.closeSidebar();
       }
     },
-    [actions]
+    [actions, pdfImportSource]
   );
 
   const activePdfTitle = activeDocument?.title ?? '';
   const activePdfFolderId = activeDocument?.folderId ?? null;
   const handlePdfConvert = useCallback(
     async (markdown: string) => {
+      const source = activeDocumentId ? pdfSourceByDocument.current.get(activeDocumentId) : undefined;
       const importedChunks = await openImportedDocument(markdown, activePdfTitle || '제목 없음', activePdfFolderId);
-      analytics.convertPdf();
+      analytics.convertPdf(source);
       if (importedChunks === null) {
         const { useToastStore } = await import('@/stores/toast-store');
         useToastStore.getState().actions.addToast(
@@ -374,7 +380,7 @@ export default function Home() {
         );
       }
     },
-    [openImportedDocument, activePdfTitle, activePdfFolderId]
+    [openImportedDocument, activeDocumentId, activePdfTitle, activePdfFolderId]
   );
 
   useKeyboardShortcuts({
@@ -402,7 +408,7 @@ export default function Home() {
           onDuplicateDocument={handleDuplicateDocument}
           onImport={() => setHwpImportOpen(true)}
           onImportMarkdown={() => setMdImportOpen(true)}
-          onImportPdf={() => setPdfImportOpen(true)}
+          onImportPdf={() => handleStart('import-pdf', 'direct')}
         />
       }
       focusMode={focusMode}
@@ -554,8 +560,8 @@ export default function Home() {
       />
 
       <PdfImport
-        open={pdfImportOpen}
-        onClose={() => setPdfImportOpen(false)}
+        open={pdfImportSource !== null}
+        onClose={() => setPdfImportSource(null)}
         onImportComplete={handlePdfImportComplete}
       />
 
