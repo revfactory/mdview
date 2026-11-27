@@ -443,14 +443,19 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
 }
 
 function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
+  const namedEntities: Readonly<Record<string, string>> = {
+    amp: '&', lt: '<', gt: '>', quot: '"', nbsp: ' ',
+  };
+  // Decode once after removing markup. The printable ASCII range also
+  // covers literal code cells encoded by the Markdown converter.
+  return html.replace(/<[^>]+>/g, '').replace(
+    /&(amp|lt|gt|quot|nbsp|#\d{1,3});/g,
+    (entity, name: string) => {
+      if (name[0] !== '#') return namedEntities[name] ?? entity;
+      const value = Number(name.slice(1));
+      return value >= 32 && value <= 126 ? String.fromCharCode(value) : entity;
+    },
+  );
 }
 
 function escapeXml(str: string): string {
