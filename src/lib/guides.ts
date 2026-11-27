@@ -6,6 +6,7 @@ export interface GuideSection {
   paragraphs?: string[];
   bullets?: string[];
   code?: string;
+  comparison?: { before: string; after: string };
   links?: { href: string; label: string }[];
 }
 export interface Guide {
@@ -19,6 +20,7 @@ export interface Guide {
   actionLabel: string;
   pasteLabel?: string;
   importMarkdownLabel?: string;
+  previewSectionId?: string;
   steps: { title: string; text: string }[];
   sections: GuideSection[];
   questions: { question: string; answer: string }[];
@@ -27,11 +29,11 @@ export interface Guide {
 export const guides: Guide[] = [
   {
     slug: 'pdf-to-markdown', title: 'PDF를 마크다운으로 변환하고 편집하는 방법',
-    description: 'PDF 원본 열기부터 마크다운 변환·편집·파일 저장까지. 스캔 PDF의 OCR 제한, 표·이미지·읽기 순서 점검과 브라우저 저장 주의사항을 안내합니다.',
+    description: '텍스트 PDF를 브라우저에서 마크다운으로 변환하고 .md로 저장하세요. 변환 전후 예시와 스캔 PDF의 OCR·표·이미지 변환 제한을 확인할 수 있습니다.',
     eyebrow: 'PDF 내용을 편집 가능한 문서로',
     summary: 'PDF를 열면 먼저 원본 모양 그대로 읽을 수 있습니다. 내용을 수정하거나 다른 문서에 활용하려면 별도로 마크다운 변환을 실행하세요. 변환 결과는 원본과 비교한 뒤 사용합니다.',
     outcome: '.pdf 원본 열기 → 텍스트 변환 → 검토·편집 → .md 백업',
-    action: 'import-pdf', actionLabel: 'PDF 파일 열기',
+    action: 'import-pdf', actionLabel: 'PDF 파일 열기', previewSectionId: 'conversion-example',
     steps: [
       { title: '원본을 보관하고 PDF 열기', text: '아래 버튼으로 PDF 열기 창을 띄우고 파일을 선택하거나 끌어다 놓습니다. 현재 파일 크기 제한은 100MB입니다. 브라우저에 보관되더라도 원본 PDF는 별도 파일로 유지하세요.' },
       { title: '읽기 전용 원본에서 변환 시작', text: 'PDF가 열리면 페이지를 확인하고 상단의 “마크다운으로 변환”을 누릅니다. 파일을 여는 것과 편집 가능한 문서로 변환하는 것은 별도 단계입니다.' },
@@ -42,6 +44,18 @@ export const guides: Guide[] = [
       { title: '스캔 PDF와 텍스트 PDF는 다릅니다', paragraphs: ['현재 변환은 PDF에 들어 있는 텍스트를 추출합니다. 종이를 촬영하거나 스캔한 이미지를 문자로 인식하는 OCR 기능은 제공하지 않습니다. 글자를 찾지 못하면 스캔 PDF를 변환할 수 없다는 안내가 표시됩니다.', '텍스트와 스캔 이미지가 섞인 PDF는 일부 글자만 추출될 수 있습니다. 변환이 끝났다는 사실만으로 모든 페이지의 내용이 포함됐다고 판단하지 마세요. 필요한 경우 별도의 OCR 도구를 이용하고, 민감한 파일을 외부 서비스에 올리기 전 해당 서비스의 처리 방식을 확인하세요.'] },
       { title: '표·이미지·레이아웃은 원본과 비교하세요', bullets: ['글자 크기와 위치 등을 바탕으로 제목·문단·목록을 추정하므로 제목 단계나 줄바꿈을 수정해야 할 수 있습니다.', '표를 셀 구조가 유지된 마크다운 표로 변환하거나 그림을 함께 추출하는 기능은 아닙니다. 표와 도표는 원본을 보며 별도로 정리하세요.', '여러 단의 본문, 머리글·바닥글, 각주, 수식은 순서나 표현이 달라질 수 있습니다. 계약·수치·인용처럼 정확성이 중요한 내용은 직접 대조하세요.'] },
       { title: '열리지 않거나 저장이 실패할 때', bullets: ['암호로 보호된 PDF는 현재 열 수 없습니다. 열 권한이 있다면 원래 프로그램에서 보호를 해제한 사본을 준비하세요.', '확장자만 .pdf로 바꾼 파일은 PDF가 아닙니다. 원본 프로그램에서 정상적으로 열리는지와 파일 크기가 제한 이내인지 확인하세요.', '저장 공간이 부족하면 먼저 중요한 기존 문서를 파일로 백업하세요. 사이트 데이터 전체를 지우면 브라우저에 보관된 문서도 사라질 수 있습니다. 변환을 반복하기 전 문서 목록에 결과가 이미 생겼는지도 확인하세요.'] },
+      {
+        id: 'conversion-example',
+        title: 'PDF 마크다운 변환 전후 예시',
+        comparison: {
+          before: '회의 메모\n\n검토한 초안을 금요일\n오후까지 공유합니다.\n\n확인한 항목 수:\n48',
+          after: '# 회의 메모\n\n검토한 초안을 금요일 오후까지 공유합니다.\n\n확인한 항목 수: 48',
+        },
+        paragraphs: [
+          '이 예시에서는 글자 크기가 큰 제목을 마크다운 제목으로 표시하고, 지면에서 끊긴 본문을 한 문장으로 합쳤습니다. 숫자 48도 결과에 남았습니다. 실제 문서에서는 줄바꿈이나 인쇄 쪽 번호가 남을 수 있습니다.',
+          '파일을 열기 전에는 이렇게 변환 결과를 살펴볼 수 있습니다. 내 파일을 변환할 때는 PDF 파일을 서버에 업로드하지 않고 브라우저에서 텍스트를 추출합니다. 스캔 이미지에서 글자를 인식하는 OCR은 지원하지 않습니다.',
+        ],
+      },
     ],
     questions: [
       { question: 'PDF를 열면 바로 편집할 수 있나요?', answer: '아니요. PDF 원본은 읽기 전용으로 열립니다. 상단의 “마크다운으로 변환”을 실행하면 편집할 새 문서를 만듭니다. 원본 PDF 자체의 글자나 배치를 수정하는 PDF 편집기는 아닙니다.' },
