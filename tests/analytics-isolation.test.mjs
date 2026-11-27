@@ -138,3 +138,18 @@ test('successful Markdown paste uses only known entry sources', () => {
     ['event', 'markdown_paste_complete', { entry_source: 'direct' }],
   ]);
 });
+
+test('HWP/HWPX and Markdown import completion retain the existing event and reject arbitrary source text', () => {
+  const calls = [];
+  const { analytics } = load({ gtag(...args) { calls.push(args); } });
+  analytics.importHwp('hwp-to-markdown');
+  analytics.importHwp('private-draft.hwpx');
+  analytics.importMarkdown('markdown-to-hwpx');
+  analytics.importMarkdown();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    ['event', 'import', { event_category: 'file', event_label: 'hwp', entry_source: 'hwp-to-markdown' }],
+    ['event', 'import', { event_category: 'file', event_label: 'hwp' }],
+    ['event', 'import', { event_category: 'file', event_label: 'markdown', entry_source: 'markdown-to-hwpx' }],
+    ['event', 'import', { event_category: 'file', event_label: 'markdown' }],
+  ]);
+});
