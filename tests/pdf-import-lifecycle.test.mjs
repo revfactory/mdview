@@ -8,11 +8,12 @@ const source = readFileSync(new URL('../src/components/features/import-export/pd
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
-function setup({ opening, excerpt, destroyRejects = false } = {}) {
+function setup({ opening, excerpt, destroyRejects = false, importError } = {}) {
   let unmount, destroyed = 0, opened = 0, imported = 0;
+  const stateUpdates = [];
   const loading = deferred();
   const task = { promise: loading.promise, destroy() { destroyed++; return destroyRejects ? Promise.reject(new Error('cleanup failed')) : Promise.resolve(); } };
-  const react = { useState: initial => [initial, () => {}], useRef: current => ({ current }), useCallback: fn => fn, useEffect: fn => { unmount = fn(); } };
+  const react = { useState: initial => [initial, value => stateUpdates.push(value)], useRef: current => ({ current }), useCallback: fn => fn, useEffect: fn => { unmount = fn(); } };
   const jsx = (type, props) => ({ type, props });
   const exports = {};
   vm.runInNewContext(js, { exports, Error, Promise, require(name) {
@@ -22,11 +23,11 @@ function setup({ opening, excerpt, destroyRejects = false } = {}) {
     if (name === '@/lib/pdfjs') return { openPdfDocument: async () => { opened++; return opening ? opening.promise : task; }, readPdfExcerpt: async () => excerpt ? excerpt.promise : 'text', describePdfError: () => 'error' };
     return {};
   } });
-  const root = exports.PdfImport({ open: true, onClose() {}, onImportComplete: async () => { imported++; } });
+  const root = exports.PdfImport({ open: true, onClose() {}, onImportComplete: async () => { imported++; if (importError) throw importError; } });
   function find(node) { if (!node || typeof node !== 'object') return; if (Array.isArray(node)) return node.map(find).find(Boolean); return node.type === 'input' ? node : find(node.props?.children); }
   const input = find(root);
   const file = { name: 'test.pdf', size: 10, slice: () => ({ arrayBuffer: async () => new ArrayBuffer(1) }), arrayBuffer: async () => new ArrayBuffer(1) };
-  return { start: (f = file) => input.props.onChange({ target: { files: [f], value: 'test.pdf' } }), close: root.props.onClose, unmount: () => unmount(), counts: () => ({ destroyed, opened, imported }), loading, task, file };
+  return { stateUpdates, start: (f = file) => input.props.onChange({ target: { files: [f], value: 'test.pdf' } }), close: root.props.onClose, unmount: () => unmount(), counts: () => ({ destroyed, opened, imported }), loading, task, file };
 }
 
 test('closing a pending PDF load destroys immediately and ignores late completion', async () => {
@@ -54,4 +55,18 @@ test('closing during file read does not start PDF loading', async () => {
 test('successful import commits once and disposes once', async () => {
   const h = setup(); h.start(); await flush(); h.loading.resolve({ numPages: 1 }); await flush();
   assert.deepEqual(h.counts(), { destroyed: 1, opened: 1, imported: 1 });
+});
+
+// Exercise the real async import catch branch, not only the source string.
+test('quota failure prioritizes backup and warns against clearing site data', async () => {
+  const error = new Error('quota'); error.name = 'QuotaExceededError';
+  const h = setup({ importError: error });
+  h.start(); await flush(); h.loading.resolve({ numPages: 1 }); await flush();
+  const message = h.stateUpdates.find(value => typeof value === 'string' && value.includes('저장 공간'));
+  assert.ok(message);
+  assert.match(message, /먼저.*백업/);
+  assert.match(message, /사이트 데이터.*지우지 마세요/);
+  assert.ok(message.indexOf('백업') < message.indexOf('삭제'));
+  assert.equal(h.counts().imported, 1);
+  assert.equal(h.counts().destroyed, 1);
 });

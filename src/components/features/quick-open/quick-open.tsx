@@ -9,7 +9,7 @@ import { ko } from 'date-fns/locale';
 interface QuickOpenProps {
   open: boolean;
   onClose: () => void;
-  onSelectDocument: (id: string) => void;
+  onSelectDocument: (id: string, viaKeyboard: boolean) => void;
 }
 
 export function QuickOpen(props: QuickOpenProps) {
@@ -49,10 +49,10 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
   }, [selectedIndex]);
 
   const handleSelect = useCallback(
-    (id: string) => {
+    (id: string, viaKeyboard: boolean) => {
       // Selection hands focus to the document flow instead of the opener.
       restoreFocus.current = false;
-      onSelectDocument(id);
+      onSelectDocument(id, viaKeyboard);
       onClose();
     },
     [onSelectDocument, onClose]
@@ -87,11 +87,12 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
           if ((e.target as HTMLElement)?.closest('[data-quick-open-item]')) return;
           e.preventDefault();
           if (filtered[selectedIndex]) {
-            handleSelect(filtered[selectedIndex].id);
+            handleSelect(filtered[selectedIndex].id, true);
           }
           break;
         case 'Escape':
           e.preventDefault();
+          e.stopPropagation();
           onClose();
           break;
       }
@@ -149,7 +150,7 @@ function QuickOpenContent({ onClose, onSelectDocument }: QuickOpenProps) {
               <button
                 key={doc.id}
                 data-quick-open-item
-                onClick={() => handleSelect(doc.id)}
+                onClick={(event) => handleSelect(doc.id, event.detail === 0)}
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={`
                   w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-100 cursor-pointer

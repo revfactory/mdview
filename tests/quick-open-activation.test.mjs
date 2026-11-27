@@ -66,10 +66,11 @@ async function mounted(run, documents = fixtures) {
   const root = createRoot(container);
   const selected = [];
   let closed = 0;
+  const activationModes = [];
   const render = async (open = true) => {
     await act(async () => root.render(React.createElement(QuickOpen, {
       open,
-      onSelectDocument: id => { selected.push(id); newEditor.focus(); },
+      onSelectDocument: (id, viaKeyboard) => { selected.push(id); activationModes.push(viaKeyboard); newEditor.focus(); },
       onClose: () => { closed++; },
     })));
     for (const [id, fn] of frames) {
@@ -93,7 +94,7 @@ async function mounted(run, documents = fixtures) {
   };
   try {
     await render();
-    await run({ container, selected, closed: () => closed, render, key, activate, opener, newEditor, focus: () => focused,
+    await run({ container, selected, activationModes, closed: () => closed, render, key, activate, opener, newEditor, focus: () => focused,
       input: () => container.querySelector('input'),
       buttons: () => Array.from(container.querySelectorAll('[data-quick-open-item]')),
     });
@@ -228,10 +229,11 @@ test('Escape cancellation restores opener focus when the modal closes', async ()
 });
 
 test('document selection does not steal the new editor focus when the modal closes', async () => {
-  await mounted(async ({ input, key, render, selected, focus, newEditor }) => {
+  await mounted(async ({ input, key, render, selected, activationModes, focus, newEditor }) => {
     await key(input(), 'Enter');
     await render(false);
     assert.deepEqual(selected, ['0']);
+    assert.deepEqual(activationModes, [true]);
     assert.equal(focus(), newEditor);
   });
 });
