@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Toolbar } from '@/components/layout/toolbar';
@@ -58,6 +58,8 @@ export default function Home() {
   const preparingExportRef = useRef(false);
   const [pasteSource, setPasteSource] = useState<EntrySource | null>(null);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
+  const editorRegion = useRef<HTMLDivElement>(null);
+  const focusAfterQuickOpen = useRef(false);
 
   const activeDocument = useDocument(activeDocumentId);
   // 페이지 로드 시 가장 최근 문서 자동 선택
@@ -158,6 +160,18 @@ export default function Home() {
     },
     [actions]
   );
+
+  const handleQuickOpenSelect = useCallback((id: string, viaKeyboard: boolean) => {
+    focusAfterQuickOpen.current = viaKeyboard;
+    handleSelectDocument(id);
+  }, [handleSelectDocument]);
+
+  useLayoutEffect(() => {
+    if (quickOpenOpen || !focusAfterQuickOpen.current) return;
+    focusAfterQuickOpen.current = false;
+    // Do not steal focus if another component already supplied a destination.
+    if (document.activeElement === document.body) editorRegion.current?.focus({ preventScroll: true });
+  }, [quickOpenOpen]);
 
   const handleToggleFavorite = useCallback(async (id: string) => {
     try {
@@ -429,7 +443,7 @@ export default function Home() {
       }
       focusMode={focusMode}
     >
-      <div className="flex h-full overflow-hidden">
+      <div ref={editorRegion} role="region" aria-label="문서 작업 영역" tabIndex={-1} className="flex h-full overflow-hidden">
         {isPdf && activeDocumentId ? (
           <PdfViewer
             key={activeDocumentId}
@@ -600,7 +614,7 @@ export default function Home() {
       <QuickOpen
         open={quickOpenOpen}
         onClose={() => setQuickOpenOpen(false)}
-        onSelectDocument={handleSelectDocument}
+        onSelectDocument={handleQuickOpenSelect}
       />
 
       <ToastContainer />
