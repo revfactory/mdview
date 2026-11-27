@@ -79,8 +79,12 @@ export async function readPageText(page: PDFPageProxy): Promise<PdfPageText> {
 /** 첫 페이지 글자로 문서 목록에 보일 미리보기 문구를 만든다. 스캔본이면 빈 문자열. */
 export async function readPdfExcerpt(doc: PDFDocumentProxy, maxLength = 160): Promise<string> {
   const page = await doc.getPage(1);
-  const { items } = await readPageText(page);
-  page.cleanup();
+  let items: PdfTextItem[];
+  try {
+    ({ items } = await readPageText(page));
+  } finally {
+    page.cleanup();
+  }
   const text = items
     .map((item) => item.str + (item.hasEOL ? ' ' : ''))
     .join('')
@@ -99,8 +103,14 @@ export async function extractPdfMarkdown(doc: PDFDocumentProxy, { onProgress, si
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
     if (signal?.aborted) throw new DOMException('변환이 취소되었습니다.', 'AbortError');
     const page = await doc.getPage(pageNumber);
-    pages.push(await readPageText(page));
-    page.cleanup();
+    try {
+      if (signal?.aborted) throw new DOMException('변환이 취소되었습니다.', 'AbortError');
+      const text = await readPageText(page);
+      if (signal?.aborted) throw new DOMException('변환이 취소되었습니다.', 'AbortError');
+      pages.push(text);
+    } finally {
+      page.cleanup();
+    }
     onProgress?.(pageNumber, doc.numPages);
   }
   return pdfPagesToMarkdown(pages);
