@@ -18,6 +18,7 @@ export interface Guide {
   action: 'import-hwp' | 'import-markdown' | 'import-pdf' | 'new';
   actionLabel: string;
   pasteLabel?: string;
+  importMarkdownLabel?: string;
   steps: { title: string; text: string }[];
   sections: GuideSection[];
   questions: { question: string; answer: string }[];
@@ -119,14 +120,15 @@ export const guides: Guide[] = [
     ], related: ['markdown-editor', 'markdown-to-hwpx'],
   },
   {
-    slug: 'markdown-editor', title: '온라인 마크다운 에디터로 첫 문서 작성하기',
-    description: 'MDView에서 마크다운을 처음 쓰는 방법. WYSIWYG·소스·분할 보기, 제목·목록·표 문법, 브라우저 자동저장과 파일 백업을 예제로 익혀보세요.',
+    slug: 'markdown-editor', title: '온라인 마크다운 에디터: .md 파일 열기와 편집',
+    description: 'README.md나 받은 마크다운 파일을 설치 없이 브라우저에서 열어 제목·표·코드를 확인하세요. 원문 보기, 새 문서 작성, .md 내보내기와 백업도 안내합니다.',
     eyebrow: '문법보다 내용에 집중하기',
-    summary: '마크다운은 짧은 기호로 제목, 목록, 링크를 표현하는 텍스트 형식입니다. MDView에서는 화면에서 바로 편집하는 WYSIWYG 모드와 문법을 직접 쓰는 소스 보기를 오가며 작성할 수 있습니다.',
-    outcome: '새 문서 → 제목·목록·표 작성 → .md 백업', action: 'new', actionLabel: '새 마크다운 문서 만들기',
+    summary: '받은 .md 파일이나 다운로드한 README.md를 열면 제목, 목록, 표를 읽기 좋은 형태로 볼 수 있습니다. 소스 보기에서 원문을 확인하거나, 새 문서를 만들어 화면에서 바로 편집할 수도 있습니다.',
+    outcome: '.md 파일 열기 또는 새로 작성 → 원문·서식 확인 → .md 백업', action: 'new', actionLabel: '새 마크다운 문서 만들기',
     pasteLabel: '마크다운 붙여넣기',
+    importMarkdownLabel: '.md 파일 열기',
     steps: [
-      { title: '새 문서와 제목 만들기', text: '새 문서 만들기를 눌러 처음부터 작성하세요. 복사한 마크다운이나 아래 예제는 마크다운 붙여넣기를 눌러 새 문서로 열 수 있습니다.' },
+      { title: '파일 열기 또는 새로 시작하기', text: '.md 파일 열기를 누르고 기기에서 파일을 골라 확인을 누르세요. 파일이 없다면 새 문서를 만들거나, 복사한 마크다운을 붙여넣어 시작할 수 있습니다.' },
       { title: '편한 보기 모드 선택', text: 'WYSIWYG 모드는 문법 기호 대신 편집 결과를 보여 줍니다. 소스 보기에서는 마크다운 텍스트를 직접 수정할 수 있고, 넓은 화면의 분할 보기에서는 원문과 결과를 나란히 확인할 수 있습니다.' },
       { title: '짧은 예제로 시작', text: '소스 보기에 아래 예제를 넣어 보고 WYSIWYG 모드로 전환하세요. 제목, 목록, 링크, 표가 어떻게 표시되는지 확인한 다음 본인의 내용으로 바꿔 봅니다.' },
       { title: '자동저장 확인 후 파일 백업', text: '편집 내용은 사용하는 브라우저의 로컬 저장소에 저장됩니다. 중요한 문서는 내보내기의 마크다운 (.md)으로 파일도 내려받으세요. 다른 기기에서 작업하려면 그 파일을 가져오면 됩니다.' },
@@ -150,6 +152,14 @@ export const guides: Guide[] = [
           '확인하기 전에 브라우저의 사이트 데이터를 지우거나 브라우저 프로필을 초기화하지 마세요. 시크릿 창에서 작성했다면 그 창도 닫지 마세요.',
           '문서를 찾으면 저장 상태를 확인하고 중요한 문서를 마크다운 (.md) 파일로 내려받으세요. 문서를 새 주소로 옮겨야 한다면 파일을 가져온 뒤 본문과 이미지가 유지되는지 확인하고, 원래 문서도 그대로 보관하세요.',
           '자주 쓰는 주소를 북마크해 같은 브라우저 프로필에서 다시 여세요. 이미 삭제된 브라우저 데이터는 이 안내로 복원되지 않습니다.',
+        ],
+      },
+      {
+        id: 'open-markdown',
+        title: 'README.md나 받은 마크다운 파일을 열 때',
+        paragraphs: [
+          '휴대폰에서는 파일 선택 창에서 다운로드 폴더를 확인하세요. 파일을 열면 현재 브라우저의 문서 목록에 편집 가능한 사본이 추가됩니다. 내려받은 원본 파일은 덮어쓰지 않습니다.',
+          '표, 코드 블록 또는 목록이 원본과 다르게 보이면 소스 보기에서 기호를 확인하세요. 특히 README.md의 상대 경로 이미지나 링크는 원래 저장소처럼 연결되지 않을 수 있으니 필요한 경우 원래 저장소에서 확인하세요.',
         ],
       },
     ],
@@ -192,4 +202,7 @@ export function getGuide(slug: string): Guide | undefined { return guides.find((
 export function guideActionHref(guide: Guide): string { return `/?action=${guide.action}&source=${guide.slug}`; }
 export function guidePasteHref(guide: Guide): string | undefined {
   return guide.pasteLabel ? `/?action=paste-markdown&source=${guide.slug}` : undefined;
+}
+export function guideMarkdownImportHref(guide: Guide): string | undefined {
+  return guide.importMarkdownLabel ? `/?action=import-markdown&source=${guide.slug}` : undefined;
 }
