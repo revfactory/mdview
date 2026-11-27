@@ -125,3 +125,12 @@ test('real storage failure still rejects and does not emit a success event', asy
   await assert.rejects(run('새 폴더'), (error) => error === failure);
   assert.equal(events, 0);
 });
+
+test('successful Markdown paste uses only the fixed home label', () => {
+  const calls = [];
+  const { analytics } = load({ gtag(...args) { calls.push(args); } });
+  analytics.pasteMarkdown('# private draft');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    ['event', 'markdown_paste_complete', { entry_source: 'home' }],
+  ]);
+});
