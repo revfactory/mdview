@@ -9,12 +9,14 @@
 
 ## [Unreleased]
 
-### Changed
-
-- 마크다운 에디터 가이드에서 새 문서 작성과 별도로 기존 마크다운을 붙여넣어 편집할 수 있습니다.
+## [0.3.8] - 2026-11-27
 
 ### Added
-- 첫 화면에서 마크다운 텍스트를 붙여넣어 파일 없이 편집 문서를 만들 수 있습니다.
+- 첫 화면에서 마크다운 텍스트를 붙여넣어 파일 없이 편집 문서를 만들 수 있습니다. (#121)
+
+### Changed
+- 마크다운 에디터 가이드에서 새로 쓰거나 기존 마크다운을 붙여넣어 편집할 수 있습니다. 저장된 기존 문서는 바꾸지 않습니다. (#122)
+- Tailwind Merge를 3.7.1로 업데이트했습니다. (#112)
 
 ## [0.3.7] - 2026-11-27
 
@@ -412,7 +414,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.7...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.8...HEAD
+[0.3.8]: https://github.com/revfactory/mdview/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/revfactory/mdview/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/revfactory/mdview/compare/v0.3.5...v0.3.6
 [0.2.13]: https://github.com/revfactory/mdview/compare/v0.2.12...v0.2.13
