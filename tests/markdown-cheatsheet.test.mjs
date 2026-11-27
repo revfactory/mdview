@@ -42,6 +42,7 @@ vm.runInNewContext(worker, { self, exports: {}, require: name => {
 } });
 const { default: GuidePage } = loadSource(read('../src/app/guides/[slug]/page.tsx'), {
   '@/lib/guides': guideModule, 'next/link': 'a',
+  '../pdf-guide-example': { PdfGuideExample: 'figure' },
   'next/navigation': { notFound() { throw new Error('unexpected missing guide'); } },
 });
 const renderGuide = async slug => renderToStaticMarkup(await GuidePage({ params: Promise.resolve({ slug }) }));

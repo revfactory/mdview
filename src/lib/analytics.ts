@@ -67,6 +67,9 @@ export const analytics = {
   convertPdf: (source?: EntrySource) =>
     trackFileAction('convert', 'pdf', source),
 
+  pdfExampleComplete: () =>
+    gtag('event', 'pdf_example_complete', {}),
+
   exportMarkdown: () =>
     trackEvent({ action: 'export', category: 'file', label: 'markdown' }),
 
