@@ -34,6 +34,9 @@
 .guide-outcome { font-size: 14px; color: var(--color-text-secondary); margin-block: 22px; }
 .guide-button { display: inline-flex; align-items: center; justify-content: center; gap: 24px; min-height: 48px; padding: 13px 22px; border-radius: 8px; background: var(--color-accent); color: var(--color-bg); font-size: 15px; font-weight: 700; text-decoration: none; line-height: 1.5; }
 .guide-button:hover { background: var(--color-accent-hover); }
+.guide-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.guide-button-secondary { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); }
+.guide-button-secondary:hover { background: var(--color-surface-hover); }
 .guide-article-layout { border-top: 1px solid var(--color-border); padding-top: 44px; display: grid; grid-template-columns: 235px minmax(0, 1fr); gap: 60px; }
 .guide-toc { align-self: start; position: sticky; top: 28px; display: flex; flex-direction: column; gap: 15px; font-size: 13px; line-height: 1.65; }
 .guide-toc p { font-weight: 700; margin-bottom: 5px; }

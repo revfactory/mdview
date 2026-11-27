@@ -55,8 +55,8 @@ export const analytics = {
   importMarkdown: () =>
     trackEvent({ action: 'import', category: 'file', label: 'markdown' }),
 
-  pasteMarkdown: () =>
-    gtag('event', 'markdown_paste_complete', { entry_source: 'home' }),
+  pasteMarkdown: (source: EntrySource = 'home') =>
+    gtag('event', 'markdown_paste_complete', { entry_source: ENTRY_SOURCES.includes(source) ? source : 'direct' }),
 
   importHwp: () =>
     trackEvent({ action: 'import', category: 'file', label: 'hwp' }),

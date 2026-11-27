@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Toolbar } from '@/components/layout/toolbar';
 import { StatusBar } from '@/components/layout/status-bar';
+import { PasteMarkdownDialog } from '@/components/growth/paste-markdown-form';
 import { WelcomePanel } from '@/components/growth/welcome-panel';
 import { readEntryAction, type EntryAction, type EntrySource } from '@/lib/entry-actions';
 import { Editor } from '@/components/features/editor/editor';
@@ -55,6 +56,7 @@ export default function Home() {
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
   const [preparingExport, setPreparingExport] = useState(false);
   const preparingExportRef = useRef(false);
+  const [pasteSource, setPasteSource] = useState<EntrySource | null>(null);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
 
   const activeDocument = useDocument(activeDocumentId);
@@ -116,6 +118,11 @@ export default function Home() {
       if (action === 'import-hwp') setHwpImportOpen(true);
       else if (action === 'import-markdown') setMdImportOpen(true);
       else setPdfImportSource(source);
+    }
+    if (action === 'paste-markdown') {
+      const ui = useUIStore.getState();
+      if (ui.isMobile) ui.actions.closeSidebar();
+      setPasteSource(source);
     }
     if (action === 'new' || action === 'sample') {
       useUIStore.getState().actions.setViewMode('wysiwyg');
@@ -356,10 +363,10 @@ export default function Home() {
     [openImportedDocument]
   );
 
-  const handlePasteMarkdown = useCallback(async (markdown: string) => {
+  const handlePasteMarkdown = useCallback(async (markdown: string, source: EntrySource = 'home') => {
     await openImportedDocument(markdown, '붙여넣은 문서');
     useUIStore.getState().actions.setViewMode('wysiwyg');
-    analytics.pasteMarkdown();
+    analytics.pasteMarkdown(source);
   }, [openImportedDocument]);
 
   const handlePdfImportComplete = useCallback(
@@ -569,6 +576,16 @@ export default function Home() {
         onClose={() => setMdImportOpen(false)}
         onImportComplete={handleMdImportComplete}
       />
+
+      {pasteSource !== null && (
+        <PasteMarkdownDialog
+          onCancel={() => setPasteSource(null)}
+          onCreate={async (markdown) => {
+            await handlePasteMarkdown(markdown, pasteSource);
+            setPasteSource(null);
+          }}
+        />
+      )}
 
       <PdfImport
         open={pdfImportSource !== null}
