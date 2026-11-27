@@ -26,6 +26,7 @@ export function PaginatedEditor({
     isPageLoading,
     pageChanging,
     editorRef,
+    markVisualEdit,
     handlePageChange,
     handleChange,
   } = usePaginatedChunks(documentId, totalChunks);
@@ -59,6 +60,7 @@ export function PaginatedEditor({
             key={`${documentId}-${currentPage}`}
             content={chunkHtml}
             onChange={handleChange}
+            onVisualEdit={markVisualEdit}
             onEditorReady={handleEditorReady}
           />
         </div>

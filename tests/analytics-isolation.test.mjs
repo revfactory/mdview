@@ -9,8 +9,17 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
 
+const entryModule = { exports: {} };
+const entrySource = readFileSync(new URL('../src/lib/entry-actions.ts', import.meta.url), 'utf8');
+vm.runInNewContext(ts.transpileModule(entrySource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText, entryModule);
+
 function load(window) {
-  const context = { exports: {} };
+  const context = { exports: {}, require(path) {
+    assert.equal(path, './entry-actions');
+    return entryModule.exports;
+  } };
   if (window !== undefined) context.window = window;
   vm.runInNewContext(compiled, context);
   return context.exports;
@@ -51,6 +60,21 @@ test('normal event payload and receiver remain unchanged', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
     ['event', 'save', { event_category: 'test', event_label: 'fixed', value: 3 }],
     ['event', 'editor_start', { entry_action: 'new', entry_source: 'home' }],
+  ]);
+});
+
+test('PDF completion preserves existing event names and only accepts fixed entry sources', () => {
+  const calls = [];
+  const { analytics } = load({ gtag(...args) { calls.push(args); } });
+  analytics.importPdf('pdf-to-markdown');
+  analytics.convertPdf('pdf-to-markdown');
+  analytics.convertPdf();
+  analytics.convertPdf('private-filename.pdf');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    ['event', 'import', { event_category: 'file', event_label: 'pdf', entry_source: 'pdf-to-markdown' }],
+    ['event', 'convert', { event_category: 'file', event_label: 'pdf', entry_source: 'pdf-to-markdown' }],
+    ['event', 'convert', { event_category: 'file', event_label: 'pdf' }],
+    ['event', 'convert', { event_category: 'file', event_label: 'pdf' }],
   ]);
 });
 
@@ -100,4 +124,32 @@ test('real storage failure still rejects and does not emit a success event', asy
   const run = folderCallback(async () => { throw failure; }, analytics);
   await assert.rejects(run('새 폴더'), (error) => error === failure);
   assert.equal(events, 0);
+});
+
+test('successful Markdown paste uses only known entry sources', () => {
+  const calls = [];
+  const { analytics } = load({ gtag(...args) { calls.push(args); } });
+  analytics.pasteMarkdown();
+  analytics.pasteMarkdown('markdown-editor');
+  analytics.pasteMarkdown('# private draft');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    ['event', 'markdown_paste_complete', { entry_source: 'home' }],
+    ['event', 'markdown_paste_complete', { entry_source: 'markdown-editor' }],
+    ['event', 'markdown_paste_complete', { entry_source: 'direct' }],
+  ]);
+});
+
+test('HWP/HWPX and Markdown import completion retain the existing event and reject arbitrary source text', () => {
+  const calls = [];
+  const { analytics } = load({ gtag(...args) { calls.push(args); } });
+  analytics.importHwp('hwp-to-markdown');
+  analytics.importHwp('private-draft.hwpx');
+  analytics.importMarkdown('markdown-to-hwpx');
+  analytics.importMarkdown();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    ['event', 'import', { event_category: 'file', event_label: 'hwp', entry_source: 'hwp-to-markdown' }],
+    ['event', 'import', { event_category: 'file', event_label: 'hwp' }],
+    ['event', 'import', { event_category: 'file', event_label: 'markdown', entry_source: 'markdown-to-hwpx' }],
+    ['event', 'import', { event_category: 'file', event_label: 'markdown' }],
+  ]);
 });

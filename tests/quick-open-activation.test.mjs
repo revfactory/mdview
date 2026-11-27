@@ -18,8 +18,25 @@ const fixtures = ['Beta', 'Alpha'].map((title, index) => ({
 }));
 
 async function mounted(run, documents = fixtures) {
-  const window = domino.createWindow('<!doctype html><html><body><div id="root"></div></body></html>');
+  const window = domino.createWindow('<!doctype html><html><body><button id="opener">Open</button><button id="new-editor">Editor</button><div id="root"></div></body></html>');
   window.HTMLElement.prototype.scrollIntoView = () => {};
+  const opener = window.document.getElementById('opener');
+  const newEditor = window.document.getElementById('new-editor');
+  let focused = opener;
+  Object.defineProperty(window.document, 'activeElement', { get: () => focused });
+  // Domino does not model native focus; record only the component's focus calls.
+  const withFocus = element => {
+    Object.defineProperty(element, 'focus', { value: () => { focused = element; } });
+    return element;
+  };
+  withFocus(opener);
+  withFocus(newEditor);
+  const createElement = window.document.createElement.bind(window.document);
+  Object.defineProperty(window.document, 'createElement', {
+    value: (...args) => withFocus(createElement(...args)),
+  });
+  let nextFrame = 0;
+  const frames = new Map();
   // Initialize ReactDOM against the modern DOM fixture, not its legacy IE
   // input-event fallback selected when imported without window/document.
   window.document.oninput = null;
@@ -34,7 +51,12 @@ async function mounted(run, documents = fixtures) {
     'date-fns': { formatDistanceToNow: () => '지금' },
     'date-fns/locale': {},
   };
-  const context = { exports: {}, requestAnimationFrame() { return 1; }, cancelAnimationFrame() {},
+  const context = {
+    exports: {},
+    document: window.document,
+    HTMLElement: window.HTMLElement,
+    requestAnimationFrame(fn) { frames.set(++nextFrame, fn); return nextFrame; },
+    cancelAnimationFrame(id) { frames.delete(id); },
     require: name => name in overrides ? overrides[name] : require(name),
   };
   vm.runInNewContext(code, context);
@@ -44,14 +66,22 @@ async function mounted(run, documents = fixtures) {
   const root = createRoot(container);
   const selected = [];
   let closed = 0;
+  const activationModes = [];
   const render = async (open = true) => {
     await act(async () => root.render(React.createElement(QuickOpen, {
-      open, onSelectDocument: id => selected.push(id), onClose: () => { closed++; },
+      open,
+      onSelectDocument: (id, viaKeyboard) => { selected.push(id); activationModes.push(viaKeyboard); newEditor.focus(); },
+      onClose: () => { closed++; },
     })));
+    for (const [id, fn] of frames) {
+      frames.delete(id);
+      fn();
+    }
   };
-  const key = async (target, value) => {
+  const key = async (target, value, modifiers = {}) => {
     const event = new window.Event('keydown', { bubbles: true, cancelable: true });
     Object.defineProperty(event, 'key', { value });
+    for (const [name, value] of Object.entries(modifiers)) Object.defineProperty(event, name, { value });
     await act(async () => target.dispatchEvent(event));
     return event;
   };
@@ -64,7 +94,7 @@ async function mounted(run, documents = fixtures) {
   };
   try {
     await render();
-    await run({ container, selected, closed: () => closed, render, key, activate,
+    await run({ container, selected, activationModes, closed: () => closed, render, key, activate, opener, newEditor, focus: () => focused,
       input: () => container.querySelector('input'),
       buttons: () => Array.from(container.querySelectorAll('[data-quick-open-item]')),
     });
@@ -159,4 +189,51 @@ test('Enter with no results does not select or close', async () => {
     assert.deepEqual(selected, []);
     assert.equal(closed(), 0);
   }, []);
+});
+
+
+test('Tab wraps only at the last result and Shift+Tab wraps at the search field', async () => {
+  await mounted(async ({ input, buttons, key, focus }) => {
+    assert.equal(focus(), input());
+    assert.equal((await key(input(), 'Tab')).defaultPrevented, false);
+    assert.equal((await key(buttons()[0], 'Tab')).defaultPrevented, false);
+    assert.equal((await key(buttons().at(-1), 'Tab')).defaultPrevented, true);
+    assert.equal(focus(), input());
+    assert.equal((await key(input(), 'Tab', { shiftKey: true })).defaultPrevented, true);
+    assert.equal(focus(), buttons().at(-1));
+    assert.equal((await key(buttons().at(-1), 'Tab', { shiftKey: true })).defaultPrevented, false);
+  });
+});
+
+test('no results keep focus in the search field without intercepting modified Tab shortcuts', async () => {
+  await mounted(async ({ input, key, focus }) => {
+    assert.equal(focus(), input());
+    for (const modifiers of [{}, { shiftKey: true }]) {
+      assert.equal((await key(input(), 'Tab', modifiers)).defaultPrevented, true);
+      assert.equal(focus(), input());
+    }
+    for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+      assert.equal((await key(input(), 'Tab', { [modifier]: true })).defaultPrevented, false);
+    }
+  }, []);
+});
+
+test('Escape cancellation restores opener focus when the modal closes', async () => {
+  await mounted(async ({ input, key, render, focus, opener, closed }) => {
+    assert.equal(focus(), input());
+    await key(input(), 'Escape');
+    assert.equal(closed(), 1);
+    await render(false);
+    assert.equal(focus()?.id, opener.id);
+  });
+});
+
+test('document selection does not steal the new editor focus when the modal closes', async () => {
+  await mounted(async ({ input, key, render, selected, activationModes, focus, newEditor }) => {
+    await key(input(), 'Enter');
+    await render(false);
+    assert.deepEqual(selected, ['0']);
+    assert.deepEqual(activationModes, [true]);
+    assert.equal(focus(), newEditor);
+  });
 });

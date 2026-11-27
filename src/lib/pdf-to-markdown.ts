@@ -41,16 +41,12 @@ interface Block {
 
 const BULLET_GLYPH = /^([•●○◦▪▫■□◆◇▶▷►‣⁃∙ㆍ])\s*(.*)$/;
 const BULLET_ASCII = /^([-–*·])\s+(.*)$/;
-const PAGE_NUMBER_PATTERNS = [
-  /^[-–—]?\s*\d{1,4}\s*[-–—]?$/,
-  /^\d{1,4}\s*\/\s*\d{1,4}$/,
-  /^(?:page|p\.)\s*\d{1,4}(?:\s*(?:of|\/)\s*\d{1,4})?$/i,
-  /^\d{1,4}\s*(?:쪽|페이지)$/,
-];
 const MAX_HEADING_LENGTH = 100;
 
 export function pdfPagesToMarkdown(pages: PdfPageText[]): string {
-  const pageLines = pages.map((page) => stripPageNumbers(buildLines(page.items)));
+  // PDF text extraction does not identify page-number fields. Preserve ambiguous
+  // numeric lines, including at the beginning and end of a page.
+  const pageLines = pages.map((page) => buildLines(page.items));
   const bodySize = dominantFontSize(pageLines.flat());
   const sections: string[] = [];
 
@@ -124,18 +120,6 @@ function buildLines(items: PdfTextItem[]): Line[] {
   }
   flush();
   return lines;
-}
-
-function isPageNumber(text: string): boolean {
-  return PAGE_NUMBER_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-/** 페이지 맨 위·맨 아래에 홀로 놓인 쪽 번호를 지운다. */
-function stripPageNumbers(lines: Line[]): Line[] {
-  const result = [...lines];
-  if (result.length && isPageNumber(result[result.length - 1].text)) result.pop();
-  if (result.length && isPageNumber(result[0].text)) result.shift();
-  return result;
 }
 
 function dominantFontSize(lines: Line[]): number {

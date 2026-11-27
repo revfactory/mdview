@@ -49,12 +49,21 @@ test('items on the same baseline form one line with spaces only across real gaps
   assert.equal(pdfPagesToMarkdown([{ items }]), 'Hello world!');
 });
 
-test('removes lone page numbers at the top or bottom of a page but keeps numbers in body text', () => {
+test('preserves numeric IDs, totals and ratios at page boundaries', () => {
   const md = pdfPagesToMarkdown([
-    page(['- 1 -', '본문 A', '2024년 매출은 15억 원입니다.', '1 / 2']),
-    page(['본문 B', 'Page 2 of 2']),
+    page(['2751', '접수 번호는 위에, 집계 결과는 아래에 있습니다.', '48']),
+    page(['달성 비율', '1 / 2']),
   ]);
-  assert.equal(md, '본문 A 2024년 매출은 15억 원입니다.\n\n본문 B');
+  assert.equal(md, '2751 접수 번호는 위에, 집계 결과는 아래에 있습니다. 48\n\n달성 비율 1 / 2');
+});
+
+test('keeps a page containing only a numeric value', () => {
+  assert.equal(pdfPagesToMarkdown([page(['7092'])]), '7092');
+});
+
+test('keeps apparent page markers because they cannot be distinguished from source content', () => {
+  const md = pdfPagesToMarkdown([page(['- 1 -', '본문', 'Page 1 of 2'])]);
+  assert.equal(md, '- 1 - 본문 Page 1 of 2');
 });
 
 test('rejoins English words hyphenated across lines', () => {
