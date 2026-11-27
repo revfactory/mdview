@@ -53,7 +53,15 @@ export default async function GuidePage({ params }: GuidePageProps) {
                   <figure><figcaption>PDF 원본의 글줄 (예시)</figcaption><pre>{section.comparison.before}</pre></figure>
                   <PdfGuideExample preview={section.comparison.after} />
                 </div>
-              )}{section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.comparison && <div className="guide-example-own"><Link className="guide-button guide-button-secondary" href={guideActionHref(guide)}>내 PDF 열기<span aria-hidden="true">↗</span></Link></div>}{section.links && <ul className="guide-bullets">{section.links.map((link) => <li key={link.href}><a href={link.href} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] underline underline-offset-4">{link.label} (새 탭)</a></li>)}</ul>}{section.bullets && <ul className="guide-bullets">{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}</section>)}
+              )}{section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.sampleOutput && (
+                <div className="guide-example-own">
+                  <p>위 예제를 MDView로 내보낸 파일입니다. 한글에서 열어 표의 ‘금요일’을 바꿔 보고, 내 문서에 적용할 때는 아래에서 원문을 붙여넣으세요.</p>
+                  <div className="guide-actions">
+                    <a className="guide-button guide-button-secondary" href={section.sampleOutput.href} download>{section.sampleOutput.label}</a>
+                    {pasteLink}
+                  </div>
+                </div>
+              )}{section.comparison && <div className="guide-example-own"><Link className="guide-button guide-button-secondary" href={guideActionHref(guide)}>내 PDF 열기<span aria-hidden="true">↗</span></Link></div>}{section.links && <ul className="guide-bullets">{section.links.map((link) => <li key={link.href}><a href={link.href} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] underline underline-offset-4">{link.label} (새 탭)</a></li>)}</ul>}{section.bullets && <ul className="guide-bullets">{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}</section>)}
             <section id="questions" className="guide-section"><h2>자주 묻는 질문</h2>{guide.questions.map((item) => <div key={item.question} className="guide-question"><h3>{item.question}</h3><p>{item.answer}</p></div>)}</section>
             <aside className="guide-note"><h2>브라우저에서 처리하고, 중요한 문서는 따로 백업하세요</h2><p>MDView의 HWP·HWPX 변환은 브라우저에서 실행되고, 편집 문서는 브라우저의 로컬 저장소에 저장됩니다. 외부 이미지 주소를 포함하면 해당 서버로 이미지 요청이 발생할 수 있고, 사이트는 외부 글꼴과 방문 통계 서비스를 사용합니다. 로컬 저장은 클라우드 백업을 의미하지 않으므로 중요한 문서는 파일로 내려받아 보관하세요.</p></aside>
             <div className="guide-bottom-cta"><h2>이제 문서로 직접 해보세요</h2><div className="guide-actions"><Link className="guide-button" href={guideActionHref(guide)}>{guide.actionLabel}<span aria-hidden="true">↗</span></Link>{importLink}{pasteLink}</div></div>

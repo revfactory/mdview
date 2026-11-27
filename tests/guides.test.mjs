@@ -102,5 +102,6 @@ test('PDF guide adds a static before/after example without changing old anchors 
   assert.match(example.comparison.after, /^# 회의 메모\n\n/);
   assert.match(example.comparison.after, /금요일 오후까지/);
   assert.match(example.comparison.after, /확인한 항목 수: 48$/);
-  assert.ok(guides.filter(other => other !== guide).every(other => other.previewSectionId === undefined));
+  assert.equal(getGuide('markdown-to-hwpx').previewSectionId, 'chatgpt-to-hwpx');
+  assert.ok(guides.filter(({ slug }) => !['pdf-to-markdown', 'markdown-to-hwpx'].includes(slug)).every(other => other.previewSectionId === undefined));
 });
