@@ -22,6 +22,7 @@ import { QuickOpen } from '@/components/features/quick-open/quick-open';
 import { ToastContainer } from '@/components/ui/toast';
 import { useEditorStore } from '@/stores/editor-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useToastStore } from '@/stores/toast-store';
 import { useEditorManager } from '@/hooks/use-editor';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { SourceEditor } from '@/components/features/editor/source-editor';
@@ -34,6 +35,7 @@ import {
   createPdfDocument,
   updateDocument,
   deleteDocument,
+  duplicateSavedPages,
   updateContent,
 } from '@/db/documents';
 import type { Editor as TipTapEditor } from '@tiptap/react';
@@ -224,6 +226,12 @@ export default function Home() {
           });
           actions.setActiveDocument(newId);
           analytics.documentDuplicate();
+        } else if (doc?.isChunked) {
+          await duplicateSavedPages(id);
+          // Leave the original editor mounted: an edit still in progress is
+          // deliberately not part of this saved snapshot.
+          useToastStore.getState().actions.addToast('저장된 페이지를 복제했습니다. 문서 목록에서 복사본을 열 수 있습니다.', 'success');
+          analytics.documentDuplicate();
         } else if (doc) {
           const newId = await createDocument({
             title: `${doc.title} (복사본)`,
@@ -237,6 +245,7 @@ export default function Home() {
         }
       } catch (error) {
         console.error('Failed to duplicate document:', error);
+        useToastStore.getState().actions.addToast('문서를 복제하지 못했습니다. 다시 시도해 주세요.', 'error');
       }
     },
     [actions]
