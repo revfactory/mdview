@@ -9,14 +9,16 @@
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-11-27
+
 ### Added
-- 문서명과 내용 없이, PDF 가져오기·변환 완료에 들어온 경로만 집계합니다. 다시 연 PDF의 진입 경로는 추정하지 않습니다.
+- 문서명과 내용 없이, PDF 가져오기·변환 완료에 들어온 경로만 집계합니다. 다시 연 PDF의 진입 경로는 추정하지 않습니다. (#117)
 
 ### Changed
-- 첫 화면에서 PDF를 편집 가능한 마크다운으로 변환하는 사용법을 바로 열 수 있습니다.
+- 첫 화면에서 PDF를 편집 가능한 마크다운으로 변환하는 사용법을 바로 열 수 있습니다. (#116)
 
 ### Fixed
-- 모바일 사이드바에서 PDF 가져오기를 열면 파일 선택창을 가리지 않도록 사이드바를 닫습니다.
+- 모바일 사이드바에서 PDF 가져오기를 열면 파일 선택창을 가리지 않도록 사이드바를 닫습니다. (#117)
 
 ## [0.3.5] - 2026-11-27
 
@@ -394,7 +396,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.2.13...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/revfactory/mdview/compare/v0.3.5...v0.3.6
 [0.2.13]: https://github.com/revfactory/mdview/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/revfactory/mdview/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/revfactory/mdview/compare/v0.2.10...v0.2.11
