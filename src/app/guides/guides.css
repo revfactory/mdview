@@ -82,3 +82,31 @@
 }
 @media (prefers-reduced-motion: reduce) { .guide-shell { scroll-behavior: auto; } }
 @media print { .guide-shell { height: auto; overflow: visible; } .guide-header, .guide-toc, .guide-button, .guide-related, .guide-footer { display: none; } .guide-article-layout { display: block; } }
+
+.guide-example-button {
+  margin: 0.65rem 0 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  color: var(--color-text);
+  background: var(--color-bg);
+  text-align: left;
+  cursor: pointer;
+}
+.guide-example-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.guide-example-button[aria-disabled="true"] {
+  cursor: default;
+}
+.guide-section .guide-example-status {
+  margin: 0.3rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.825rem;
+}
+.guide-example-status:empty {
+  margin: 0;
+}
+.guide-example-own { margin: 1rem 0 0; }
+@media print { .guide-example-button, .guide-example-status { display: none; } }

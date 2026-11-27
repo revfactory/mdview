@@ -23,6 +23,7 @@ const guideModule = loadSource(read('../src/lib/guides.ts'));
 const { default: GuidePage } = loadSource(read('../src/app/guides/[slug]/page.tsx'), {
   '@/lib/guides': guideModule,
   'next/link': ({ children, ...props }) => React.createElement('a', props, children),
+  '../pdf-guide-example': { PdfGuideExample: 'figure' },
   'next/navigation': { notFound() { throw new Error('not found'); } },
 });
 const renderGuide = async slug => renderToStaticMarkup(await GuidePage({ params: Promise.resolve({ slug }) }));
