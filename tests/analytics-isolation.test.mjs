@@ -126,11 +126,15 @@ test('real storage failure still rejects and does not emit a success event', asy
   assert.equal(events, 0);
 });
 
-test('successful Markdown paste uses only the fixed home label', () => {
+test('successful Markdown paste uses only known entry sources', () => {
   const calls = [];
   const { analytics } = load({ gtag(...args) { calls.push(args); } });
+  analytics.pasteMarkdown();
+  analytics.pasteMarkdown('markdown-editor');
   analytics.pasteMarkdown('# private draft');
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
     ['event', 'markdown_paste_complete', { entry_source: 'home' }],
+    ['event', 'markdown_paste_complete', { entry_source: 'markdown-editor' }],
+    ['event', 'markdown_paste_complete', { entry_source: 'direct' }],
   ]);
 });
