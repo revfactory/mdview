@@ -66,7 +66,11 @@ test('other guides retain their anchors and same-origin editor actions without r
   for (const guide of guideModule.guides.filter(value => value.slug !== 'markdown-editor')) {
     const html = await renderGuide(guide.slug);
     assert.doesNotMatch(html, /id="document-storage"|href="https:\/\/(?:www\.)?mdview\.kr\//);
-    for (const [index] of guide.sections.entries()) assert.ok(html.includes(`id="section-${index}"`));
+    for (const [index, section] of guide.sections.entries()) assert.ok(html.includes(`id="${section.id ?? `section-${index}`}"`));
+    if (guide.slug === 'markdown-to-hwpx') {
+      for (const index of [0, 1, 2]) assert.ok(html.includes(`id="section-${index}"`));
+      assert.ok(html.includes('id="chatgpt-to-hwpx"'));
+    }
     assert.ok(html.includes(`href="/?action=${guide.action}&amp;source=${guide.slug}"`));
   }
 });

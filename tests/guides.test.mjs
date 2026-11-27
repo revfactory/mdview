@@ -7,7 +7,7 @@ async function loadModule(path) {
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 }
-const { guides, getGuide, guideActionHref } = await loadModule('../src/lib/guides.ts');
+const { guides, getGuide, guideActionHref, guidePasteHref } = await loadModule('../src/lib/guides.ts');
 const { readEntryAction } = await loadModule('../src/lib/entry-actions.ts');
 test('every guide has a distinct URL, title and description', () => {
   assert.equal(guides.length, 6);
@@ -65,4 +65,17 @@ test('the canonical HWP guide exposes HWPX support and opens the same browser im
   assert.match(guide.description, /\.hwpx/);
   assert.match(guide.actionLabel, /HWP·HWPX/);
   assert.equal(guideActionHref(guide), '/?action=import-hwp&source=hwp-to-markdown');
+});
+
+test('the HWPX and editor guides allow paste without replacing their original actions', () => {
+  for (const [slug, original] of [['markdown-to-hwpx', 'import-markdown'], ['markdown-editor', 'new']]) {
+    const guide = getGuide(slug);
+    assert.equal(guide.action, original);
+    const href = guidePasteHref(guide);
+    assert.match(href, /^\/\?/);
+    assert.deepEqual(readEntryAction(new URL(href, 'https://www.mdview.kr').searchParams), { action: 'paste-markdown', source: slug });
+  }
+  assert.equal(guidePasteHref(getGuide('hwp-to-markdown')), undefined);
+  assert.match(getGuide('markdown-to-hwpx').description, /ChatGPT/);
+  assert.ok(getGuide('markdown-to-hwpx').sections.some(section => section.id === 'chatgpt-to-hwpx' && section.code.includes('| 할 일 |')));
 });
