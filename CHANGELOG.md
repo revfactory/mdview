@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.16] - 2026-11-28
+
+### Added
+- 복사한 답변에 제목 행이 있는 단순 표가 들어 있다면 붙여넣기 창에서 ‘복사한 표 살리기’를 선택할 수 있습니다. 일반 텍스트 붙여넣기는 그대로이며, 병합 셀이나 이미 마크다운으로 작성된 표는 자동으로 바꾸지 않습니다. (#147)
+
 ## [0.3.15] - 2026-11-28
 
 ### Fixed
@@ -473,7 +478,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.15...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.16...HEAD
+[0.3.16]: https://github.com/revfactory/mdview/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/revfactory/mdview/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/revfactory/mdview/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/revfactory/mdview/compare/v0.3.12...v0.3.13
