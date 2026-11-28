@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-11-28
+
+### Fixed
+- HWPX로 내보낼 때 표의 각 셀이 올바른 행과 열에 기록됩니다. 병합된 셀이 차지하는 칸도 반영하며, 가이드에서 내려받는 예제 파일에도 같은 수정을 적용했습니다. (#143)
+
 ## [0.3.13] - 2026-11-28
 
 ### Changed
@@ -463,7 +468,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.13...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.14...HEAD
+[0.3.14]: https://github.com/revfactory/mdview/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/revfactory/mdview/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/revfactory/mdview/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/revfactory/mdview/compare/v0.3.10...v0.3.11
