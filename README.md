@@ -19,8 +19,8 @@
 
 설치나 회원가입 없이 [MDView 에디터 열기](https://mdview.kr/). HWP·HWPX를 가져오고, Markdown 또는 HWPX 파일로 내보낼 수 있습니다.
 
-- [PDF를 마크다운으로 변환하기](https://mdview.kr/guides/pdf-to-markdown) · [내 파일 없이 예제로 변환해 보기](https://mdview.kr/guides/pdf-to-markdown#conversion-example)
-- [HWP·HWPX를 마크다운으로 변환](https://mdview.kr/guides/hwp-to-markdown)
+- **PDF → 마크다운**: [PDF 파일 바로 열기](https://mdview.kr/?action=import-pdf&utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=pdf_quick_open) · [변환 방법](https://mdview.kr/guides/pdf-to-markdown) · [예제로 먼저 써보기](https://mdview.kr/guides/pdf-to-markdown#conversion-example)
+- **HWP·HWPX → 마크다운**: [한글 파일 바로 열기](https://mdview.kr/?action=import-hwp&utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=hwp_quick_open) · [변환 방법](https://mdview.kr/guides/hwp-to-markdown)
 - [마크다운을 한글 HWPX로 내보내기](https://mdview.kr/guides/markdown-to-hwpx) · [편집 가능한 한글 HWPX 예제 내려받기](https://mdview.kr/guides/markdown-to-hwpx#chatgpt-to-hwpx)
 - [마크다운을 PDF로 저장하기](https://mdview.kr/guides/markdown-to-pdf)
 - [에디터 사용법과 로컬 저장 안내](https://mdview.kr/guides/markdown-editor)
