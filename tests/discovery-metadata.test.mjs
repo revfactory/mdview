@@ -194,7 +194,9 @@ test('the HWPX guide has a static downloadable example beside the personal workf
   const zip = await JSZip.loadAsync(asset('/examples/mdview-meeting-sample.hwpx'), { checkCRC32: true });
   assert.equal((await zip.file('mimetype').async('string')).trim(), 'application/hwp+zip');
   const body = await zip.file('Contents/section0.xml').async('string');
-  assert.match(body, /<hp:tbl\b/);
+  assert.match(body, /<hp:tbl ha:rowCnt="2" ha:colCnt="2"/);
+  assert.deepEqual([...body.matchAll(/<hp:cellAddr ha:colAddr="(\d+)" ha:rowAddr="(\d+)"\/>/g)]
+    .map(([, col, row]) => [Number(row), Number(col)]), [[0, 0], [0, 1], [1, 0], [1, 1]]);
   for (const value of ['주간 회의록', '결정 사항', '초안 검토 후 공유', '할 일', '기한', '초안 정리', '금요일']) {
     assert.ok(body.includes(value), `expected sample text: ${value}`);
   }

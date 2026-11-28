@@ -72,8 +72,13 @@ interface HwpTableCell {
   rowspan: number;
 }
 
+interface PositionedTableCell extends HwpTableCell {
+  row: number;
+  col: number;
+}
+
 interface HwpTable {
-  rows: HwpTableCell[][];
+  rows: PositionedTableCell[][];
   colCount: number;
 }
 
@@ -101,46 +106,66 @@ interface HwpParagraph {
 }
 
 function parseHtmlTable(tableHtml: string): HwpTable {
-  const rows: HwpTableCell[][] = [];
-  const trPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let trMatch: RegExpExecArray | null;
-
-  while ((trMatch = trPattern.exec(tableHtml)) !== null) {
-    const rowHtml = trMatch[1];
+  const groups: HwpTableCell[][][] = [[]];
+  // Treat consecutive ungrouped rows as one implicit group. A zero rowspan
+  // extends through the last row of its own group, not through the entire table.
+  const rowOrBoundary = /<\/?(?:thead|tbody|tfoot)\b[^>]*>|<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  for (const [, rowHtml] of tableHtml.matchAll(rowOrBoundary)) {
+    const group = groups[groups.length - 1];
+    if (rowHtml === undefined) {
+      if (group.length) groups.push([]);
+      continue;
+    }
     const cells: HwpTableCell[] = [];
-    const tdPattern = /<(?:td|th)([^>]*)>([\s\S]*?)<\/(?:td|th)>/gi;
-    let tdMatch: RegExpExecArray | null;
-
-    while ((tdMatch = tdPattern.exec(rowHtml)) !== null) {
-      const attrs = tdMatch[1];
-      const cellText = stripHtml(tdMatch[2]).trim();
-
-      const colspanMatch = attrs.match(/colspan\s*=\s*["']?(\d+)["']?/i);
-      const rowspanMatch = attrs.match(/rowspan\s*=\s*["']?(\d+)["']?/i);
-
-      cells.push({
-        text: cellText,
-        colspan: colspanMatch ? parseInt(colspanMatch[1], 10) : 1,
-        rowspan: rowspanMatch ? parseInt(rowspanMatch[1], 10) : 1,
-      });
+    const tdPattern = /<(?:td|th)\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/(?:td|th)>/gi;
+    for (const [, attrs, cellHtml] of rowHtml.matchAll(tdPattern)) {
+      let colspan = 1;
+      let rowspan = 1;
+      for (const [, name, double, single, unquoted] of attrs.matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+)))?/g)) {
+        const value = (double ?? single ?? unquoted ?? '').match(/^\s*\+?(\d+)/);
+        if (!value) continue;
+        if (name.toLowerCase() === 'colspan') colspan = Math.min(Number(value[1]) || 1, 1000);
+        if (name.toLowerCase() === 'rowspan') rowspan = Math.min(Number(value[1]), 65534);
+      }
+      cells.push({ text: stripHtml(cellHtml).trim(), colspan, rowspan });
     }
+    group.push(cells);
+  }
 
-    if (cells.length > 0) {
-      rows.push(cells);
+  return layoutTableRows(groups);
+}
+
+function layoutTableRows(groups: HwpTableCell[][][]): HwpTable {
+  const rows: PositionedTableCell[][] = [];
+  let colCount = 1;
+  for (const group of groups) {
+    // Store occupied column intervals only, not a full row × column grid.
+    let active: { start: number; end: number; endRow: number }[] = [];
+    for (const [groupRow, cells] of group.entries()) {
+      const row = rows.length;
+      active = active.filter(span => span.endRow > row);
+      const additions: typeof active = [];
+      let col = 0;
+      let spanIndex = 0;
+      rows.push(cells.map(cell => {
+        while (spanIndex < active.length && active[spanIndex].start < col + cell.colspan) {
+          col = Math.max(col, active[spanIndex++].end);
+        }
+        // Bound spans to physical rows so malformed HTML cannot inflate the
+        // output with thousands of implied empty rows or cross into another group.
+        const remaining = group.length - groupRow;
+        const rowspan = cell.rowspan === 0 ? remaining : Math.min(cell.rowspan, remaining);
+        const positioned = { ...cell, rowspan, row, col };
+        col += cell.colspan;
+        colCount = Math.max(colCount, col);
+        if (rowspan > 1) additions.push({ start: positioned.col, end: col, endRow: row + rowspan });
+        return positioned;
+      }));
+      if (additions.length) active = active.concat(additions).sort((a, b) => a.start - b.start);
     }
   }
 
-  // Determine column count (max logical columns considering colspan)
-  let colCount = 0;
-  for (const row of rows) {
-    let count = 0;
-    for (const cell of row) {
-      count += cell.colspan;
-    }
-    if (count > colCount) colCount = count;
-  }
-
-  return { rows, colCount: colCount || 1 };
+  return { rows, colCount };
 }
 
 function htmlToHwpParagraphs(html: string): HwpParagraph[] {
@@ -618,7 +643,7 @@ function generateTableXml(table: HwpTable, options: GenerateMessage['options']):
     <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
     <hp:run>
       <hp:rPr><hp:charPrIDRef ha:val="0"/></hp:rPr>
-      <hp:tbl ha:borderFillIDRef="2" ha:cellSpacing="0" ha:pageBreak="CELL" ha:repeatHeader="false">
+      <hp:tbl ha:rowCnt="${table.rows.length}" ha:colCnt="${table.colCount}" ha:borderFillIDRef="2" ha:cellSpacing="0" ha:pageBreak="CELL" ha:repeatHeader="false">
         <hp:inMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
         <hp:tblPr>
           <hp:tblSize ha:width="${contentWidth}" ha:widthRelTo="paper"/>
@@ -631,7 +656,7 @@ function generateTableXml(table: HwpTable, options: GenerateMessage['options']):
       const cellWidth = colWidth * cell.colspan;
       xml += `
           <hp:tc ha:name="" ha:header="false" ha:hasMargin="false" ha:protect="false" ha:editable="false">
-            <hp:cellAddr ha:colAddr="0" ha:rowAddr="0"/>
+            <hp:cellAddr ha:colAddr="${cell.col}" ha:rowAddr="${cell.row}"/>
             <hp:cellSpan ha:colSpan="${cell.colspan}" ha:rowSpan="${cell.rowspan}"/>
             <hp:cellSz ha:width="${cellWidth}" ha:height="${cellHeight}"/>
             <hp:cellMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
