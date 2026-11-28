@@ -32,7 +32,17 @@ async function mounted(strict,run){
    const input=container.querySelector('input');assert.ok(input);
    Object.defineProperty(input,'files',{configurable:true,value:[{name,size:10,text:()=>d.promise}]});
    await act(async()=>input.dispatchEvent(new window.Event('change',{bubbles:true})));
-  },close:async()=>act(async()=>container.querySelector('[aria-label="닫기"]').click()),reopen:async()=>act(async()=>{open=true;render();}),settle:async(d,value,reject=false)=>act(async()=>{if(reject)d.reject(new Error(value));else d.resolve(value);}),confirm:async()=>act(async()=>Array.from(container.querySelectorAll('button')).find(b=>b.textContent==='확인').click())});
+  },keyboardPick:async(key)=>act(async()=>{
+   const zone=container.querySelector('[aria-label="마크다운 파일 선택"]'), input=container.querySelector('input');
+   assert.ok(zone); assert.equal(zone.getAttribute('role'),'button'); assert.equal(zone.getAttribute('tabindex'),'0');
+   assert.ok(input); let clicks=0;
+   const click=()=>clicks++;
+   input.addEventListener('click',click);
+   const e=new window.Event('keydown',{bubbles:true,cancelable:true});Object.defineProperty(e,'key',{value:key});
+   zone.dispatchEvent(e);
+   input.removeEventListener('click',click);
+   assert.equal(clicks,1); assert.equal(e.defaultPrevented,true);
+  }),close:async()=>act(async()=>container.querySelector('[aria-label="닫기"]').click()),reopen:async()=>act(async()=>{open=true;render();}),settle:async(d,value,reject=false)=>act(async()=>{if(reject)d.reject(new Error(value));else d.resolve(value);}),confirm:async()=>act(async()=>Array.from(container.querySelectorAll('button')).find(b=>b.textContent==='확인').click())});
  }finally{await act(async()=>root.unmount());for(const[k,d]of previous){if(d)Object.defineProperty(globalThis,k,d);else delete globalThis[k];}}
 }
 for(const strict of [false,true]){
@@ -60,4 +70,8 @@ for(const strict of [false,true]){
 test('empty-file feedback remains recoverable in the real dialog',async()=>mounted(false,async h=>{
  const empty=deferred();await h.select('empty.md',empty);await h.settle(empty,'');assert.match(h.container.textContent,/텍스트 내용이 없습니다/);assert.ok(h.container.querySelector('input'));assert.ok(!h.container.querySelector('pre'));assert.equal(h.imported.length,0);
  const retry=deferred();await h.select('empty.md',retry);await h.settle(retry,'RECOVERED');assert.equal(h.container.querySelector('pre').textContent,'RECOVERED');await h.confirm();assert.deepEqual(h.imported,[['RECOVERED','empty']]);
+}));
+
+test('Markdown chooser activates once with either Enter or Space',async()=>mounted(false,async h=>{
+ await h.keyboardPick('Enter'); await h.keyboardPick(' ');
 }));

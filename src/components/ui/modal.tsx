@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useCallback, type ReactNode } from 'react';
+import React, { useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 export type ModalSize = 'sm' | 'md' | 'lg';
@@ -20,25 +20,69 @@ const sizeMap: Record<ModalSize, string> = {
   lg: 'max-w-[720px]',
 };
 
+const focusableSelector = 'button, input, select, textarea, a[href], [tabindex]';
+
+function focusableControls(dialog: HTMLElement) {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)).filter(
+    (element) => element.tabIndex >= 0 && !element.matches(':disabled') && !!element.getClientRects?.().length,
+  );
+}
+
 export function Modal({ open, onClose, title, size = 'md', dismissible = true, children }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.isComposing || e.keyCode === 229) return;
-      if (e.key === 'Escape' && dismissible) onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (dismissible) onClose();
+        return;
+      }
+      const dialog = dialogRef.current;
+      if (!dialog || e.key !== 'Tab') return;
+      const controls = focusableControls(dialog);
+      const active = dialog.ownerDocument.activeElement;
+      const boundary = e.shiftKey ? controls[0] : controls.at(-1);
+      if (!controls.length || !controls.some((control) => control === active) || active === boundary) {
+        e.preventDefault();
+        (e.shiftKey ? controls.at(-1) ?? dialog : controls[0] ?? dialog).focus({ preventScroll: true });
+      }
     },
     [dismissible, onClose]
   );
 
   useEffect(() => {
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
+    if (!open) return;
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, handleKeyDown]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    const doc = dialog.ownerDocument;
+    const previous = doc.activeElement as HTMLElement | null;
+    const overflow = doc.body.style.overflow;
+    doc.body.style.overflow = 'hidden';
+    function focusInside() {
+      if (!dialog) return;
+      const controls = focusableControls(dialog);
+      (controls.find((element) => element.hasAttribute('data-modal-initial-focus')) ?? controls[0] ?? dialog)
+        .focus({ preventScroll: true });
+    }
+    function keepFocus(event: FocusEvent) {
+      if (dialog && !dialog.contains(event.target as Node)) focusInside();
+    }
+    focusInside();
+    doc.addEventListener('focusin', keepFocus);
+    return () => {
+      doc.removeEventListener('focusin', keepFocus);
+      doc.body.style.overflow = overflow;
+      if (previous?.isConnected && previous !== doc.body && !dialog.contains(previous)) {
+        previous.focus({ preventScroll: true });
+      }
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -60,6 +104,9 @@ export function Modal({ open, onClose, title, size = 'md', dismissible = true, c
           will-change-transform
           animate-[scale-in_200ms_cubic-bezier(0.16,1,0.3,1)]
         `}
+        ref={dialogRef}
+        tabIndex={-1}
+        data-file-modal
         role="dialog"
         aria-modal="true"
         aria-label={title}

@@ -150,6 +150,7 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
           <div
             role="button"
             tabIndex={0}
+            data-modal-initial-focus
             aria-label="PDF 파일 선택"
             onDrop={handleDrop}
             onDragOver={handleDragOver}

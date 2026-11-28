@@ -153,6 +153,16 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
         {/* Drop zone */}
         {!isReading && !content && (
           <div
+            role="button"
+            tabIndex={0}
+            data-modal-initial-focus
+            aria-label="마크다운 파일 선택"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -160,6 +170,7 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
               flex flex-col items-center justify-center gap-3
               h-[200px] rounded-xl border-2 border-dashed
               transition-colors duration-200 cursor-pointer
+              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]
               ${
                 isDragOver
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
