@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-11-28
+
+### Fixed
+- HWPX로 내보낸 파일이 일부 뷰어에서 빈 페이지로 열리던 문제를 수정했습니다. 본문, 여러 페이지에 걸친 표, 삽입 그림, 가로 용지를 독립 뷰어에서 검증했고 가이드 예제도 교체했습니다. (#145)
+
 ## [0.3.14] - 2026-11-28
 
 ### Fixed
@@ -468,7 +473,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.14...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.15...HEAD
+[0.3.15]: https://github.com/revfactory/mdview/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/revfactory/mdview/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/revfactory/mdview/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/revfactory/mdview/compare/v0.3.11...v0.3.12
