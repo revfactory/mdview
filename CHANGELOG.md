@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-11-28
+
+### Changed
+- GitHub 소개의 첫 화면에서 편집기, PDF 변환 예제, 한글 예제 파일을 더 쉽게 찾을 수 있습니다. (#139)
+
+### Fixed
+- 새 문서와 샘플을 저장하지 못하면 다시 시도할 수 있도록 안내합니다. 저장 요청이 진행되는 동안 같은 동작을 반복해도 문서를 중복 생성하지 않습니다. (#140)
+- PDF를 확인하는 동안에는 취소할 수 있습니다. 실제로 브라우저에 저장되는 동안에는 상태를 보여 주며, 저장에 실패하면 같은 파일을 다시 열 수 있습니다. (#141)
+
 ## [0.3.12] - 2026-11-28
 
 ### Added
@@ -454,7 +463,9 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.11...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.13...HEAD
+[0.3.13]: https://github.com/revfactory/mdview/compare/v0.3.12...v0.3.13
+[0.3.12]: https://github.com/revfactory/mdview/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/revfactory/mdview/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/revfactory/mdview/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/revfactory/mdview/compare/v0.3.8...v0.3.9
