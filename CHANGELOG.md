@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.24] - 2026-11-29
+
+### Fixed
+- 대용량 마크다운·한글 가져오기와 PDF에서 변환한 문서를 저장할 때, 중간에 저장이 실패해도 문서 목록에 빈 페이지가 남지 않습니다. 다시 시도하면 문서와 모든 페이지가 함께 저장됩니다.
+
 ## [0.3.23] - 2026-11-29
 
 ### Fixed
@@ -519,7 +524,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.23...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.24...HEAD
+[0.3.24]: https://github.com/revfactory/mdview/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/revfactory/mdview/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/revfactory/mdview/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/revfactory/mdview/compare/v0.3.20...v0.3.21

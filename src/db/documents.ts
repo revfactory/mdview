@@ -36,6 +36,8 @@ export async function createDocument(partial?: Partial<Document>): Promise<strin
     createdAt: partial?.createdAt ?? now,
     updatedAt: partial?.updatedAt ?? now,
     lastOpenedAt: partial?.lastOpenedAt ?? now,
+    ...(partial?.isChunked !== undefined && { isChunked: partial.isChunked }),
+    ...(partial?.chunkCount !== undefined && { chunkCount: partial.chunkCount }),
   };
 
   await db.documents.add(doc);
