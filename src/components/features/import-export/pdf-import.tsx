@@ -22,6 +22,8 @@ interface PdfImportProps {
 export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +39,8 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
   }, []);
 
   const handleClose = useCallback(() => {
+    // Once the IndexedDB write begins, closing cannot cancel its commit.
+    if (savingRef.current) return;
     runRef.current++;
     cancelTaskRef.current?.();
     cancelTaskRef.current = null;
@@ -48,6 +52,7 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
   }, [onClose]);
 
   const processFile = useCallback(async (file: File) => {
+    if (savingRef.current) return;
     const run = ++runRef.current;
     cancelTaskRef.current?.();
     cancelTaskRef.current = null;
@@ -63,6 +68,7 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
 
     let task: import('@/lib/pdfjs').PDFDocumentLoadingTask | null = null;
     let destroyed = false;
+    let startedSaving = false;
     const destroyTask = () => {
       if (!task || destroyed) return;
       destroyed = true;
@@ -87,7 +93,15 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
       const excerpt = await readPdfExcerpt(doc).catch(() => '');
       if (run !== runRef.current) return;
 
-      await onImportComplete({ file, title: pdfTitleFromFileName(file.name), pageCount: doc.numPages, excerpt });
+      startedSaving = true;
+      savingRef.current = true;
+      setIsSaving(true);
+      try {
+        await onImportComplete({ file, title: pdfTitleFromFileName(file.name), pageCount: doc.numPages, excerpt });
+      } finally {
+        savingRef.current = false;
+        if (run === runRef.current) setIsSaving(false);
+      }
       if (run !== runRef.current) return;
       handleClose();
     } catch (err) {
@@ -95,7 +109,9 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
       const { describePdfError } = await import('@/lib/pdfjs');
       if (run !== runRef.current) return;
       const quota = err instanceof Error && err.name === 'QuotaExceededError';
-      setError(quota ? '브라우저 저장 공간이 부족해 PDF를 보관하지 못했습니다. 먼저 중요한 기존 문서를 파일로 내보내 백업하세요. 백업을 확인한 뒤 불필요한 문서만 삭제하고 다시 시도해 주세요. 사이트 데이터는 지우지 마세요.' : describePdfError(err));
+      setError(quota ? '브라우저 저장 공간이 부족해 PDF를 보관하지 못했습니다. 먼저 중요한 기존 문서를 파일로 내보내 백업하세요. 백업을 확인한 뒤 불필요한 문서만 삭제하고 다시 시도해 주세요. 사이트 데이터는 지우지 마세요.' : startedSaving
+        ? 'PDF를 브라우저에 저장하지 못했습니다. 같은 파일을 다시 선택해 보세요.'
+        : describePdfError(err));
       setIsProcessing(false);
     } finally {
       if (cancelTaskRef.current === destroyTask) cancelTaskRef.current = null;
@@ -128,7 +144,7 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
   }, []);
 
   return (
-    <Modal open={open} onClose={handleClose} title="PDF 열기" size="md">
+    <Modal open={open} onClose={handleClose} title="PDF 열기" size="md" dismissible={!isSaving}>
       <div className="flex flex-col gap-4">
         {!isProcessing && (
           <div
@@ -172,8 +188,8 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
                   <X className="w-6 h-6 text-[var(--color-danger)]" />
                 </div>
                 <p className="text-sm font-medium text-[var(--color-danger)]">PDF를 열지 못했습니다</p>
-                <p className="text-xs text-[var(--color-danger)]/80 text-center max-w-[320px]">{error}</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">다른 파일을 선택해주세요</p>
+                <p role="alert" className="text-xs text-[var(--color-danger)]/80 text-center max-w-[320px]">{error}</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">같은 파일을 다시 선택하거나 다른 파일을 열 수 있습니다.</p>
               </>
             ) : (
               <>
@@ -195,7 +211,7 @@ export function PdfImport({ open, onClose, onImportComplete }: PdfImportProps) {
               <FileText className="w-5 h-5 text-[var(--color-accent)] shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--color-text)] truncate">{selectedFile.name}</p>
-                <p className="text-xs text-[var(--color-text-muted)]">PDF를 확인하고 브라우저에 보관하는 중...</p>
+                <p className="text-xs text-[var(--color-text-muted)]">{isSaving ? 'PDF를 브라우저에 저장하는 중입니다. 완료될 때까지 기다려 주세요.' : 'PDF 파일을 확인하는 중입니다.'}</p>
               </div>
               <span className="text-xs font-mono text-[var(--color-text-muted)]">{formatFileSize(selectedFile.size)}</span>
             </div>

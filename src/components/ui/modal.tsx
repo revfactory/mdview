@@ -10,6 +10,7 @@ export interface ModalProps {
   onClose: () => void;
   title?: string;
   size?: ModalSize;
+  dismissible?: boolean;
   children: ReactNode;
 }
 
@@ -19,13 +20,13 @@ const sizeMap: Record<ModalSize, string> = {
   lg: 'max-w-[720px]',
 };
 
-export function Modal({ open, onClose, title, size = 'md', children }: ModalProps) {
+export function Modal({ open, onClose, title, size = 'md', dismissible = true, children }: ModalProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.isComposing || e.keyCode === 229) return;
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && dismissible) onClose();
     },
-    [onClose]
+    [dismissible, onClose]
   );
 
   useEffect(() => {
@@ -46,7 +47,7 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-[fade-in_200ms_ease-out]"
-        onClick={onClose}
+        onClick={dismissible ? onClose : undefined}
       />
 
       {/* Content */}
@@ -70,7 +71,8 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
             <button
               onClick={onClose}
               aria-label="닫기"
-              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-all duration-150 cursor-pointer active:scale-90"
+              disabled={!dismissible}
+              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-all duration-150 cursor-pointer active:scale-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X className="w-4 h-4" />
             </button>
