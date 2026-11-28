@@ -6,7 +6,7 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
-import { Image } from '@tiptap/extension-image';
+import { EmbeddedRasterImage } from '@/extensions/embedded-raster-image';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Typography } from '@tiptap/extension-typography';
 import { CharacterCount } from '@tiptap/extension-character-count';
@@ -82,7 +82,7 @@ export function Editor({ content, onChange, onVisualEdit, editable = true, onEdi
       TableRow,
       TableHeader,
       TableCell,
-      Image,
+      EmbeddedRasterImage,
       MarkdownTaskList,
       MarkdownTaskItem.configure({
         nested: true,

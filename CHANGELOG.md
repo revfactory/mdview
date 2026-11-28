@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.21] - 2026-11-28
+
+### Fixed
+- 한글 파일에서 가져온 지원 형식의 작은 그림이 시각 편집기에서도 표시되고, 다른 내용을 수정하거나 마크다운을 내려받을 때 원본 이미지가 함께 저장됩니다.
+
 ## [0.3.20] - 2026-11-28
 
 ### Fixed
@@ -504,7 +509,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.20...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.21...HEAD
+[0.3.21]: https://github.com/revfactory/mdview/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/revfactory/mdview/compare/v0.3.19...v0.3.20
 [0.3.19]: https://github.com/revfactory/mdview/compare/v0.3.18...v0.3.19
 [0.3.18]: https://github.com/revfactory/mdview/compare/v0.3.17...v0.3.18
