@@ -126,6 +126,7 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
           <div
             role="button"
             tabIndex={0}
+            data-modal-initial-focus
             aria-label="HWP/HWPX 파일 선택"
             onKeyDown={(e) => {
               if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;

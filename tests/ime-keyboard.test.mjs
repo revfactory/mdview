@@ -150,3 +150,15 @@ for (const state of compositionStates) {
     assert.deepEqual(actionsTaken, ['toggleFocusMode', 'new', 'quick', 'toggleSidebar', 'setViewMode', 'save', 'search', 'toggleFocusMode']);
   });
 }
+
+test('focused file modal does not trigger app document shortcuts', () => {
+  let created = 0;
+  const h = harness('hooks/use-keyboard-shortcuts.ts', { '@/stores/ui-store': { useUIStore: () => ({ actions: {} }) } });
+  h.exports.useKeyboardShortcuts({ onNewDocument: () => created++ });
+  const handler = h.listeners.get('keydown');
+  handler(key('n', {}, { ctrlKey: true, target: { closest: (selector) => selector === '[data-file-modal]' ? {} : null } }));
+  handler(key('n', {}, { ctrlKey: true, defaultPrevented: true }));
+  assert.equal(created, 0);
+  handler(key('n', {}, { ctrlKey: true, target: { closest: () => null } }));
+  assert.equal(created, 1);
+});
