@@ -24,6 +24,8 @@ export function AppShell({ sidebar, children, focusMode = false }: AppShellProps
     if (mq.matches) closeSidebar();
 
     const handler = (e: MediaQueryListEvent) => {
+      // Print uses the paper width as its viewport; keep the editor mounted.
+      if (window.matchMedia('print').matches) return;
       setMobile(e.matches);
       if (e.matches) closeSidebar();
     };

@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [0.3.25] - 2026-11-29
+
+### Added
+- 한글(HWP·HWPX) 내용을 편집해 PDF로 저장하는 가이드를 추가했습니다. 원본 쪽 모양을 보존해야 할 때는 한글에서 PDF로 저장하는 방법을 안내합니다.
+
+### Fixed
+- PDF 인쇄 시 짧은 문서 끝에 빈 페이지가 붙는 문제와, 모바일 인쇄 미리보기가 화면 너비를 바꾸면서 제목이나 최신 편집 내용이 빠질 수 있는 문제를 수정했습니다.
+
 ## [0.3.24] - 2026-11-29
 
 ### Fixed
@@ -524,7 +532,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.24...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.25...HEAD
+[0.3.25]: https://github.com/revfactory/mdview/compare/v0.3.24...v0.3.25
 [0.3.24]: https://github.com/revfactory/mdview/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/revfactory/mdview/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/revfactory/mdview/compare/v0.3.21...v0.3.22

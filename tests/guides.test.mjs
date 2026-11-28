@@ -10,7 +10,7 @@ async function loadModule(path) {
 const { guides, getGuide, guideActionHref, guideMarkdownImportHref, guidePasteHref } = await loadModule('../src/lib/guides.ts');
 const { readEntryAction } = await loadModule('../src/lib/entry-actions.ts');
 test('every guide has a distinct URL, title and description', () => {
-  assert.equal(guides.length, 6);
+  assert.equal(guides.length, 7);
   for (const field of ['slug', 'title', 'description']) assert.equal(new Set(guides.map((guide) => guide[field])).size, guides.length);
   for (const guide of guides) assert.match(guide.slug, /^[a-z]+(?:-[a-z]+)*$/);
 });
@@ -104,4 +104,13 @@ test('PDF guide adds a static before/after example without changing old anchors 
   assert.match(example.comparison.after, /확인한 항목 수: 48$/);
   assert.equal(getGuide('markdown-to-hwpx').previewSectionId, 'chatgpt-to-hwpx');
   assert.ok(guides.filter(({ slug }) => !['pdf-to-markdown', 'markdown-to-hwpx'].includes(slug)).every(other => other.previewSectionId === undefined));
+});
+
+
+test('HWP to PDF guide opens the HWP importer and distinguishes editable content from original layout', () => {
+  const guide = getGuide('hwp-to-pdf');
+  assert.equal(guideActionHref(guide), '/?action=import-hwp&source=hwp-to-pdf');
+  assert.match(guide.summary, /원본의 페이지 모양을 그대로 보존하는 변환은 아닙니다/);
+  assert.ok(guide.sections.some(section => section.id === 'original-layout'));
+  assert.ok(guide.sections.some(section => section.id === 'no-print-menu' && section.paragraphs.join(' ').includes('페이지로 나뉜')));
 });

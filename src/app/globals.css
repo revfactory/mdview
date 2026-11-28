@@ -278,8 +278,9 @@
     overflow: visible !important;
   }
 
-  .tiptap {
-    min-height: auto;
+  /* The editor stylesheet loads later and sets a screen-height minimum. */
+  [data-app-shell] .tiptap {
+    min-height: 0;
     padding: 0;
   }
 
