@@ -86,7 +86,30 @@ export const guides: Guide[] = [
     questions: [
       { question: '한글 프로그램이 설치되어 있어야 하나요?', answer: 'MDView의 HWP·HWPX 가져오기는 브라우저에서 처리하므로 가져오기 자체에 한글 설치가 필요하지 않습니다. 다만 원본과의 정확한 비교나 암호 해제에는 원본을 열 수 있는 프로그램이 필요할 수 있습니다.' },
       { question: '변환하면 원본 파일이 바뀌나요?', answer: '선택한 파일을 읽어 새 편집 문서를 만드는 방식입니다. 내려받은 .md는 원본 .hwp·.hwpx와 다른 파일이며, 변환 결과가 원본을 완전히 대체한다고 보장하지 않습니다.' },
-    ], related: ['markdown-editor', 'markdown-to-hwpx'],
+    ], related: ['hwp-to-pdf', 'markdown-editor', 'markdown-to-hwpx'],
+  },
+  {
+    slug: 'hwp-to-pdf', title: '한글(HWP·HWPX) 문서를 편집해 PDF로 저장하는 방법',
+    description: '브라우저에서 .hwp·.hwpx를 열어 수정한 뒤 PDF로 저장하세요. 원본 한글 서식이 필요한 경우와 브라우저 인쇄가 맞는 경우를 구분해 안내합니다.',
+    eyebrow: '한글 문서 내용을 수정하고 PDF로 공유하기',
+    summary: 'MDView는 HWP·HWPX의 내용을 편집 가능한 문서로 가져옵니다. 제목이나 본문을 고친 뒤 브라우저 인쇄로 PDF를 만들 수 있습니다. 원본의 페이지 모양을 그대로 보존하는 변환은 아닙니다.',
+    outcome: '.hwp 또는 .hwpx 열기 → 내용 수정 → 인쇄 미리보기 → PDF 저장',
+    action: 'import-hwp', actionLabel: 'PDF로 만들 HWP·HWPX 열기',
+    steps: [
+      { title: '한글 파일 열기', text: '아래의 파일 열기 버튼으로 .hwp 또는 .hwpx 파일을 선택합니다. 가져오기가 끝나면 경고를 읽고 확인을 눌러 문서를 엽니다. 원본 파일은 그대로 남습니다.' },
+      { title: '시각 편집기에서 필요한 부분 수정', text: 'WYSIWYG 모드에서 수정하고, 원본과 표의 숫자·단위, 그림, 마지막 문단을 대조합니다. 가져올 때 경고가 표시된 항목은 특히 확인하세요.' },
+      { title: '내보내기에서 PDF (인쇄) 선택', text: '인쇄 창이 열리면 대상을 PDF로 저장으로 바꿉니다. 파일이 자동으로 내려받아지는 방식은 아니며, 저장 옵션 이름은 브라우저와 운영체제에 따라 다릅니다.' },
+      { title: '마지막 쪽까지 확인하고 저장', text: '미리보기에서 첫 장과 마지막 장, 넓은 표, 그림을 살펴봅니다. URL·날짜가 필요 없다면 머리글·바닥글 옵션을 확인하세요. 저장한 PDF를 다시 열어 내용을 비교합니다.' },
+    ],
+    sections: [
+      { id: 'original-layout', title: '제출 양식을 그대로 보존해야 한다면', paragraphs: ['브라우저 인쇄는 수정한 내용을 새로 배치합니다. 원본의 글꼴, 쪽 나눔, 결재란이나 각주가 중요하면 한글에서 원본을 열고 PDF로 저장한 뒤 미리보기를 확인하세요.'], links: [{ href: 'https://help.hancom.com/hoffice130/ko-KR/Hword/file/to_pdf.htm', label: '한컴 도움말: PDF로 저장하기' }] },
+      { id: 'print-checklist', title: '저장 전에 확인할 항목', bullets: ['긴 표는 양쪽 끝과 행 순서를 확인하세요. 필요하면 가로 용지나 다른 배율로 미리 봅니다.', '변환 시 빠진 그림이나 표 안 글자는 인쇄에서 자동으로 복구되지 않습니다. 원본을 옆에 놓고 대조하세요.', '첫 장만 확인하지 말고, 마지막 문장과 여러 쪽 사이의 내용도 확인하세요.'] },
+      { id: 'no-print-menu', title: 'PDF 메뉴를 사용할 수 없을 때', paragraphs: ['소스 보기나 분할 보기에서는 WYSIWYG 모드로 바꾸세요. 편집용 페이지로 나뉜 큰 문서는 일부 페이지만 출력되는 일을 막기 위해 PDF 메뉴를 비활성화합니다. 그런 문서는 전체 .md 또는 .hwpx를 내려받아 지원 프로그램에서 인쇄하세요.', '휴대폰의 인쇄 창에 PDF 저장 옵션이 없다면 데스크톱 브라우저에서 시도하세요.'] },
+    ],
+    questions: [
+      { question: '한글 프로그램을 설치해야 하나요?', answer: 'MDView에서 문서 내용을 가져와 편집하는 데에는 한글 설치가 필요하지 않습니다. 원본 쪽 모양이 중요하다면 원본 형식을 지원하는 프로그램을 사용하세요.' },
+      { question: '나중에 다시 편집하려면 무엇을 보관하나요?', answer: '배포용 PDF와 별도로 원본 한글 파일과 편집본 .md 또는 .hwpx를 보관하세요. 브라우저에 저장된 문서는 다른 기기와 자동으로 동기화되지 않습니다.' },
+    ], related: ['hwp-to-markdown', 'markdown-to-pdf', 'markdown-to-hwpx'],
   },
   {
     slug: 'markdown-to-hwpx', title: '마크다운을 HWPX 한글 문서로 내보내기',
@@ -133,7 +156,7 @@ export const guides: Guide[] = [
     questions: [
       { question: 'PDF 저장 버튼이 보이지 않으면 어떻게 하나요?', answer: '브라우저와 운영체제마다 인쇄 창이 다릅니다. 인쇄 대상 또는 프린터 목록에서 PDF 저장 옵션을 찾으세요. 모바일에서 해당 옵션이 제공되지 않는다면 데스크톱 브라우저에서 시도할 수 있습니다.' },
       { question: 'PDF를 나중에 다시 편집할 수 있나요?', answer: 'PDF는 배포용 결과물로 사용하고, 수정할 원본은 .md로 별도 저장해 두는 것이 좋습니다. 한글 프로그램에서 수정할 파일이 필요하면 HWPX 내보내기 안내를 참고하세요.' },
-    ], related: ['markdown-editor', 'markdown-to-hwpx'],
+    ], related: ['hwp-to-pdf', 'markdown-editor', 'markdown-to-hwpx'],
   },
   {
     slug: 'markdown-editor', title: '온라인 마크다운 에디터: .md 파일 열기와 편집',

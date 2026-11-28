@@ -22,6 +22,7 @@
 - **PDF → 마크다운**: [PDF 파일 바로 열기](https://mdview.kr/?action=import-pdf&utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=pdf_quick_open) · [변환 방법](https://mdview.kr/guides/pdf-to-markdown) · [예제로 먼저 써보기](https://mdview.kr/guides/pdf-to-markdown#conversion-example)
 - **HWP·HWPX → 마크다운**: [한글 파일 바로 열기](https://mdview.kr/?action=import-hwp&utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=hwp_quick_open) · [변환 방법](https://mdview.kr/guides/hwp-to-markdown)
 - [마크다운을 한글 HWPX로 내보내기](https://mdview.kr/guides/markdown-to-hwpx) · [편집 가능한 한글 HWPX 예제 내려받기](https://mdview.kr/guides/markdown-to-hwpx#chatgpt-to-hwpx)
+- [한글(HWP·HWPX) 문서를 편집해 PDF로 저장](https://www.mdview.kr/guides/hwp-to-pdf)
 - [마크다운을 PDF로 저장하기](https://mdview.kr/guides/markdown-to-pdf)
 - [에디터 사용법과 로컬 저장 안내](https://mdview.kr/guides/markdown-editor)
 - [마크다운 문법 모음: 제목·목록·표·코드 예제](https://mdview.kr/guides/markdown-cheatsheet)

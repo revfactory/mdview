@@ -24,6 +24,7 @@ The interface and these task guides are in Korean:
 - **PDF to Markdown**: [Open a PDF file](https://mdview.kr/?action=import-pdf&utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=pdf_quick_open) · [Conversion guide](https://mdview.kr/guides/pdf-to-markdown) · [Try the sample PDF](https://mdview.kr/guides/pdf-to-markdown#conversion-example)
 - **HWP/HWPX to Markdown**: [Open an HWP or HWPX file](https://mdview.kr/?action=import-hwp&utm_source=github&utm_medium=referral&utm_campaign=mdview_readme&utm_content=hwp_quick_open) · [Conversion guide](https://mdview.kr/guides/hwp-to-markdown)
 - [Export Markdown as HWPX](https://mdview.kr/guides/markdown-to-hwpx) or [download the editable example first](https://mdview.kr/guides/markdown-to-hwpx#chatgpt-to-hwpx).
+- [Edit HWP/HWPX content and save as PDF (Korean)](https://www.mdview.kr/guides/hwp-to-pdf)
 - [Save Markdown as PDF](https://mdview.kr/guides/markdown-to-pdf)
 - [Editor and local storage guide](https://mdview.kr/guides/markdown-editor)
 - [Markdown syntax reference: headings, lists, tables, and code](https://mdview.kr/guides/markdown-cheatsheet)
