@@ -87,9 +87,15 @@ export default function Home() {
     }
   }, [isLargeDocument, isChunked, viewMode]);
 
-  const handleNewDocument = useCallback(async () => {
+  const creatingDocument = useRef(false);
+  const handleCreateDocument = useCallback(async (kind: 'blank' | 'sample', showVisualEditor = false) => {
+    if (creatingDocument.current) return;
+    creatingDocument.current = true;
     try {
-      const id = await createDocument({ title: '제목 없음' });
+      const id = kind === 'blank'
+        ? await createDocument({ title: '제목 없음' })
+        : await createSampleDocument();
+      if (showVisualEditor) useUIStore.getState().actions.setViewMode('wysiwyg');
       actions.setActiveDocument(id);
       analytics.documentCreate();
       if (useUIStore.getState().isMobile) {
@@ -97,21 +103,18 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to create document:', error);
+      useToastStore.getState().actions.addToast(
+        kind === 'blank'
+          ? '새 문서를 저장하지 못했습니다. 다시 시도해 주세요.'
+          : '샘플 문서를 저장하지 못했습니다. 다시 시도해 주세요.',
+        'error',
+      );
+    } finally {
+      creatingDocument.current = false;
     }
   }, [actions]);
 
-  const handleSampleDocument = useCallback(async () => {
-    try {
-      const id = await createSampleDocument();
-      actions.setActiveDocument(id);
-      analytics.documentCreate();
-      if (useUIStore.getState().isMobile) {
-        useUIStore.getState().actions.closeSidebar();
-      }
-    } catch (error) {
-      console.error('Failed to create sample document:', error);
-    }
-  }, [actions]);
+  const handleNewDocument = useCallback(() => handleCreateDocument('blank'), [handleCreateDocument]);
 
   const handleStart = useCallback((action: EntryAction, source: EntrySource) => {
     analytics.startAction(action, source);
@@ -129,10 +132,9 @@ export default function Home() {
       setPasteSource(source);
     }
     if (action === 'new' || action === 'sample') {
-      useUIStore.getState().actions.setViewMode('wysiwyg');
-      void (action === 'new' ? handleNewDocument() : handleSampleDocument());
+      void handleCreateDocument(action === 'new' ? 'blank' : 'sample', true);
     }
-  }, [handleNewDocument, handleSampleDocument]);
+  }, [handleCreateDocument]);
 
   const entryHandled = useRef(false);
   useEffect(() => {
