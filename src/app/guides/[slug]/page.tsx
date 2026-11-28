@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getGuide, guideActionHref, guides, GUIDE_SITE_URL } from '@/lib/guides';
+import { PdfGuideExample } from '../pdf-guide-example';
+import { getGuide, guideActionHref, guideMarkdownImportHref, guidePasteHref, guides, GUIDE_SITE_URL } from '@/lib/guides';
 interface GuidePageProps { params: Promise<{ slug: string }> }
 export const dynamicParams = false;
 export function generateStaticParams() { return guides.map(({ slug }) => ({ slug })); }
@@ -21,6 +22,14 @@ export default async function GuidePage({ params }: GuidePageProps) {
   const { slug } = await params;
   const guide = getGuide(slug);
   if (!guide) notFound();
+  const pasteHref = guidePasteHref(guide);
+  const pasteLink = pasteHref ? (
+    <Link className="guide-button guide-button-secondary" href={pasteHref}>{guide.pasteLabel}<span aria-hidden="true">↗</span></Link>
+  ) : null;
+  const importHref = guideMarkdownImportHref(guide);
+  const importLink = importHref ? (
+    <Link className="guide-button guide-button-secondary" href={importHref}>{guide.importMarkdownLabel}<span aria-hidden="true">↗</span></Link>
+  ) : null;
   const breadcrumbs = {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
     itemListElement: [
@@ -34,15 +43,28 @@ export default async function GuidePage({ params }: GuidePageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbs).replace(/</g, '\\u003c') }} />
       <nav aria-label="현재 위치" className="guide-breadcrumb"><Link href="/guides">사용 가이드</Link><span aria-hidden="true">/</span><span>{guide.title}</span></nav>
       <article>
-        <header className="guide-hero guide-article-hero"><p className="guide-eyebrow">{guide.eyebrow}</p><h1>{guide.title}</h1><p className="guide-lead">{guide.summary}</p><p className="guide-outcome">{guide.outcome}</p><Link className="guide-button" href={guideActionHref(guide)}>{guide.actionLabel}<span aria-hidden="true">↗</span></Link></header>
+        <header className="guide-hero guide-article-hero"><p className="guide-eyebrow">{guide.eyebrow}</p><h1>{guide.title}</h1><p className="guide-lead">{guide.summary}</p><p className="guide-outcome">{guide.outcome}</p><div className="guide-actions"><Link className="guide-button" href={guideActionHref(guide)}>{guide.actionLabel}<span aria-hidden="true">↗</span></Link>{importLink}{pasteLink}{guide.previewSectionId && <a className="guide-button guide-button-secondary" href={`#${guide.previewSectionId}`}>변환 예시 보기</a>}</div></header>
         <div className="guide-article-layout">
           <nav className="guide-toc" aria-label="이 가이드의 목차"><p>이 가이드에서</p><a href="#steps">작업 순서</a>{guide.sections.map((section, index) => <a key={section.title} href={`#${section.id ?? `section-${index}`}`}>{section.title}</a>)}<a href="#questions">자주 묻는 질문</a></nav>
           <div className="guide-body">
             <section id="steps" className="guide-section"><h2>작업 순서</h2><ol className="guide-steps">{guide.steps.map((step, index) => <li key={step.title}><span className="guide-step-number" aria-hidden="true">{index + 1}</span><div><h3>{step.title}</h3><p>{step.text}</p></div></li>)}</ol></section>
-            {guide.sections.map((section, index) => <section key={section.title} id={section.id ?? `section-${index}`} className="guide-section"><h2>{section.title}</h2>{section.code && <pre className="guide-code" role="region" tabIndex={0} aria-label={section.title}><code>{section.code}</code></pre>}{section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.links && <ul className="guide-bullets">{section.links.map((link) => <li key={link.href}><a href={link.href} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] underline underline-offset-4">{link.label} (새 탭)</a></li>)}</ul>}{section.bullets && <ul className="guide-bullets">{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}</section>)}
+            {guide.sections.map((section, index) => <section key={section.title} id={section.id ?? `section-${index}`} className="guide-section"><h2>{section.title}</h2>{section.code && <pre className="guide-code" role="region" tabIndex={0} aria-label={section.title}><code>{section.code}</code></pre>}{section.comparison && (
+                <div className="guide-comparison">
+                  <figure><figcaption>PDF 원본의 글줄 (예시)</figcaption><pre>{section.comparison.before}</pre></figure>
+                  <PdfGuideExample preview={section.comparison.after} />
+                </div>
+              )}{section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.sampleOutput && (
+                <div className="guide-example-own">
+                  <p>위 예제를 MDView로 내보낸 파일입니다. 한글에서 열어 표의 ‘금요일’을 바꿔 보고, 내 문서에 적용할 때는 아래에서 원문을 붙여넣으세요.</p>
+                  <div className="guide-actions">
+                    <a className="guide-button guide-button-secondary" href={section.sampleOutput.href} download>{section.sampleOutput.label}</a>
+                    {pasteLink}
+                  </div>
+                </div>
+              )}{section.comparison && <div className="guide-example-own"><Link className="guide-button guide-button-secondary" href={guideActionHref(guide)}>내 PDF 열기<span aria-hidden="true">↗</span></Link></div>}{section.links && <ul className="guide-bullets">{section.links.map((link) => <li key={link.href}><a href={link.href} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] underline underline-offset-4">{link.label} (새 탭)</a></li>)}</ul>}{section.bullets && <ul className="guide-bullets">{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}</section>)}
             <section id="questions" className="guide-section"><h2>자주 묻는 질문</h2>{guide.questions.map((item) => <div key={item.question} className="guide-question"><h3>{item.question}</h3><p>{item.answer}</p></div>)}</section>
             <aside className="guide-note"><h2>브라우저에서 처리하고, 중요한 문서는 따로 백업하세요</h2><p>MDView의 HWP·HWPX 변환은 브라우저에서 실행되고, 편집 문서는 브라우저의 로컬 저장소에 저장됩니다. 외부 이미지 주소를 포함하면 해당 서버로 이미지 요청이 발생할 수 있고, 사이트는 외부 글꼴과 방문 통계 서비스를 사용합니다. 로컬 저장은 클라우드 백업을 의미하지 않으므로 중요한 문서는 파일로 내려받아 보관하세요.</p></aside>
-            <div className="guide-bottom-cta"><h2>이제 문서로 직접 해보세요</h2><Link className="guide-button" href={guideActionHref(guide)}>{guide.actionLabel}<span aria-hidden="true">↗</span></Link></div>
+            <div className="guide-bottom-cta"><h2>이제 문서로 직접 해보세요</h2><div className="guide-actions"><Link className="guide-button" href={guideActionHref(guide)}>{guide.actionLabel}<span aria-hidden="true">↗</span></Link>{importLink}{pasteLink}</div></div>
           </div>
         </div>
       </article>

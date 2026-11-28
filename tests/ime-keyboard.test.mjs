@@ -47,7 +47,7 @@ function find(node, predicate) {
 }
 
 function key(key, native = {}, modifiers = {}) {
-  const event = { key, isComposing: false, keyCode: key === 'Enter' ? 13 : 0, ...native, ...modifiers, prevented: false, preventDefault() { this.prevented = true; } };
+  const event = { key, isComposing: false, keyCode: key === 'Enter' ? 13 : 0, ...native, ...modifiers, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } };
   event.nativeEvent = event;
   return event;
 }
@@ -94,7 +94,7 @@ for (const state of compositionStates) {
     const selectedButton = () => find(render(), n => n.type === 'button' && /\sbg-\[var\(--color-accent-light\)\]/.test(n.props.className));
     const first = selectedButton();
     for (const name of ['ArrowDown', 'ArrowUp', 'Enter', 'Escape']) {
-      const event = key(name, state); render().props.onKeyDown(event); assert.equal(event.prevented, false);
+      const event = key(name, state); render().props.onKeyDown(event); assert.equal(event.prevented, false); assert.equal(event.stopped, false);
       assert.deepEqual(selectedButton().props.children, first.props.children);
     }
     assert.deepEqual(selected, []); assert.equal(closed, 0);
@@ -102,7 +102,8 @@ for (const state of compositionStates) {
     render().props.onKeyDown(key('ArrowDown'));
     render().props.onKeyDown(key('ArrowUp', state));
     render().props.onKeyDown(key('Enter')); assert.deepEqual(selected, ['0', '1']);
-    render().props.onKeyDown(key('Escape')); assert.equal(closed, 3);
+    const escape = key('Escape'); render().props.onKeyDown(escape);
+    assert.equal(escape.stopped, true); assert.equal(closed, 3);
     assert.equal(h.render('QuickOpen', { ...props, open: false }), null);
   });
 
@@ -149,3 +150,15 @@ for (const state of compositionStates) {
     assert.deepEqual(actionsTaken, ['toggleFocusMode', 'new', 'quick', 'toggleSidebar', 'setViewMode', 'save', 'search', 'toggleFocusMode']);
   });
 }
+
+test('focused file modal does not trigger app document shortcuts', () => {
+  let created = 0;
+  const h = harness('hooks/use-keyboard-shortcuts.ts', { '@/stores/ui-store': { useUIStore: () => ({ actions: {} }) } });
+  h.exports.useKeyboardShortcuts({ onNewDocument: () => created++ });
+  const handler = h.listeners.get('keydown');
+  handler(key('n', {}, { ctrlKey: true, target: { closest: (selector) => selector === '[data-file-modal]' ? {} : null } }));
+  handler(key('n', {}, { ctrlKey: true, defaultPrevented: true }));
+  assert.equal(created, 0);
+  handler(key('n', {}, { ctrlKey: true, target: { closest: () => null } }));
+  assert.equal(created, 1);
+});

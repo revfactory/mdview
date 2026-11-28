@@ -6,9 +6,7 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
-import { Image } from '@tiptap/extension-image';
-import { TaskList } from '@tiptap/extension-task-list';
-import { TaskItem } from '@tiptap/extension-task-item';
+import { EmbeddedRasterImage } from '@/extensions/embedded-raster-image';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Typography } from '@tiptap/extension-typography';
 import { CharacterCount } from '@tiptap/extension-character-count';
@@ -25,6 +23,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { htmlToMarkdown, htmlToMarkdownAsync } from '@/lib/markdown';
 import { InlineMath, BlockMath } from '@/extensions/math';
 import { TrailingNode } from '@/extensions/trailing-node';
+import { MarkdownTaskItem, MarkdownTaskList } from '@/extensions/markdown-task-list';
 import { UniqueID } from '@/extensions/unique-id';
 import { EditorBubbleMenu } from '@/components/features/editor/bubble-menu';
 import { useImageDrop, DropOverlay } from '@/components/features/editor/drop-zone';
@@ -33,19 +32,22 @@ import { useEditorStore } from '@/stores/editor-store';
 interface EditorProps {
   content: string;
   onChange?: (markdown: string, html: string) => void;
+  onVisualEdit?: (editor: NonNullable<ReturnType<typeof useEditor>>) => void;
   editable?: boolean;
   sourceContent?: string;
   onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
 }
 
-export function Editor({ content, onChange, editable = true, onEditorReady, sourceContent }: EditorProps) {
+export function Editor({ content, onChange, onVisualEdit, editable = true, onEditorReady, sourceContent }: EditorProps) {
   const { actions } = useEditorStore();
   const [initialContent] = useState(content);
   const initialContentRef = useRef(content);
   const onChangeRef = useRef(onChange);
+  const onVisualEditRef = useRef(onVisualEdit);
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
-  }, [onChange]);
+    onVisualEditRef.current = onVisualEdit;
+  }, [onChange, onVisualEdit]);
   const markdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const editRevision = useRef(0);
@@ -80,9 +82,9 @@ export function Editor({ content, onChange, editable = true, onEditorReady, sour
       TableRow,
       TableHeader,
       TableCell,
-      Image,
-      TaskList,
-      TaskItem.configure({
+      EmbeddedRasterImage,
+      MarkdownTaskList,
+      MarkdownTaskItem.configure({
         nested: true,
       }),
       Placeholder.configure({
@@ -117,6 +119,8 @@ export function Editor({ content, onChange, editable = true, onEditorReady, sour
     content: initialContent || '<p></p>',
     onUpdate: ({ editor: ed }) => {
       if (!ed.isEditable) return;
+      // A page switch may arrive before the debounced serialization.
+      onVisualEditRef.current?.(ed);
       const revision = ++editRevision.current;
       const html = ed.getHTML();
 

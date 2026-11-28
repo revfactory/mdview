@@ -31,6 +31,7 @@ export function PaginatedSplitView({
     isPageLoading,
     pageChanging,
     editorRef,
+    markVisualEdit,
     handlePageChange,
     handleChange,
   } = usePaginatedChunks(documentId, totalChunks);
@@ -148,6 +149,7 @@ export function PaginatedSplitView({
               key={`split-${documentId}-${currentPage}`}
               content={chunkHtml}
               onChange={handleWysiwygChange}
+              onVisualEdit={markVisualEdit}
               onEditorReady={handleEditorReady}
             />
           </div>

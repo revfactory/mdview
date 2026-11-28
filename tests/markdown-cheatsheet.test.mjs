@@ -42,6 +42,7 @@ vm.runInNewContext(worker, { self, exports: {}, require: name => {
 } });
 const { default: GuidePage } = loadSource(read('../src/app/guides/[slug]/page.tsx'), {
   '@/lib/guides': guideModule, 'next/link': 'a',
+  '../pdf-guide-example': { PdfGuideExample: 'figure' },
   'next/navigation': { notFound() { throw new Error('unexpected missing guide'); } },
 });
 const renderGuide = async slug => renderToStaticMarkup(await GuidePage({ params: Promise.resolve({ slug }) }));
@@ -134,9 +135,9 @@ test('source newline behavior matches the documented MDView-specific caveat', ()
 });
 
 
-test('checklist guidance discloses the current editor conversion limit and source backup path', () => {
+test('checklist guidance explains supported lists, remaining limits and source backup', () => {
   const notes = guide.sections.find(section => section.title === '목록과 체크리스트').paragraphs.join(' ');
-  for (const text of ['소스 → WYSIWYG', '일반 목록', '체크 상태', '소스 보기를 유지', '원문 .md']) assert.ok(notes.includes(text));
-  assert.ok(guide.steps.some(step => step.text.includes('체크리스트는 아래의 변환 제한부터')));
+  for (const text of ['체크 항목만 모은 글머리표 목록', '한 목록에 일반 항목과 체크 항목을 섞거나', '번호를 붙인 체크리스트', '체크 상태', '소스 보기를 유지', '원문 .md']) assert.ok(notes.includes(text));
+  assert.ok(guide.steps.some(step => step.text.includes('일반 글머리표와 빈 줄로 구분')));
   assert.ok(guide.steps.some(step => step.text.includes('넓은 화면의 분할 보기')));
 });

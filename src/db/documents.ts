@@ -36,6 +36,8 @@ export async function createDocument(partial?: Partial<Document>): Promise<strin
     createdAt: partial?.createdAt ?? now,
     updatedAt: partial?.updatedAt ?? now,
     lastOpenedAt: partial?.lastOpenedAt ?? now,
+    ...(partial?.isChunked !== undefined && { isChunked: partial.isChunked }),
+    ...(partial?.chunkCount !== undefined && { chunkCount: partial.chunkCount }),
   };
 
   await db.documents.add(doc);
@@ -90,6 +92,41 @@ export async function createPdfDocument(input: PdfDocumentInput): Promise<string
     });
   });
   return id;
+}
+
+/** Preserve the current saved pages without rewriting or reopening the source. */
+export async function duplicateSavedPages(id: string): Promise<string> {
+  const newId = nanoid();
+  const now = new Date();
+  await db.transaction('rw', db.documents, db.chunks, async () => {
+    const original = await db.documents.get(id);
+    if (!original?.isChunked || original.kind === 'pdf') {
+      throw new Error('복제할 페이지 문서를 찾을 수 없습니다.');
+    }
+
+    const pages = await db.chunks.where('docId').equals(id).sortBy('chunkIndex');
+    if (pages.length === 0 || pages.length !== original.chunkCount ||
+      pages.some((page, index) => page.chunkIndex !== index)) {
+      throw new Error('문서 페이지가 누락되어 복제할 수 없습니다.');
+    }
+
+    await db.documents.add({
+      ...original,
+      id: newId,
+      title: `${original.title} (복사본)`,
+      isFavorite: false,
+      isPinned: false,
+      createdAt: now,
+      updatedAt: now,
+      lastOpenedAt: now,
+      sortOrder: now.getTime(),
+    });
+    await db.chunks.bulkAdd(pages.map(({ chunkIndex, markdown, htmlContent }) => ({
+      docId: newId, chunkIndex, markdown, htmlContent, updatedAt: now,
+    })));
+  });
+
+  return newId;
 }
 
 export async function getDocument(id: string): Promise<Document | undefined> {

@@ -2,6 +2,7 @@
 
 import JSZip from 'jszip';
 import { marked } from 'marked';
+import { getSmallEmbeddedRasterSize } from '../lib/embedded-raster';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -43,7 +44,7 @@ function postProgress(percent: number, message: string) {
   self.postMessage({ type: 'progress', percent, message } as WorkerResponse);
 }
 
-// ---------- Paper sizes (unit: 1/100mm per HWPX spec) ----------
+// ---------- Paper sizes in hundredths of a millimetre ----------
 
 const PAPER_SIZES: Record<string, { width: number; height: number }> = {
   A4:     { width: 21000, height: 29700 },
@@ -62,18 +63,24 @@ const HEADING_SIZES: Record<number, number> = {
   6: 1100,
 };
 
-const BODY_SIZE = 1000;
-
 // ---------- HTML to HWPX XML conversion ----------
+
+type CellPart = { text: string } | { image: HwpImageData; pixels: [number, number] };
 
 interface HwpTableCell {
   text: string;
+  parts?: CellPart[];
   colspan: number;
   rowspan: number;
 }
 
+interface PositionedTableCell extends HwpTableCell {
+  row: number;
+  col: number;
+}
+
 interface HwpTable {
-  rows: HwpTableCell[][];
+  rows: PositionedTableCell[][];
   colCount: number;
 }
 
@@ -100,47 +107,97 @@ interface HwpParagraph {
   imageData?: HwpImageData;
 }
 
-function parseHtmlTable(tableHtml: string): HwpTable {
-  const rows: HwpTableCell[][] = [];
-  const trPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let trMatch: RegExpExecArray | null;
+const imageTagPattern = /<img\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi;
+const MAX_CELL_IMAGES = 30;
 
-  while ((trMatch = trPattern.exec(tableHtml)) !== null) {
-    const rowHtml = trMatch[1];
+function cellParts(
+  html: string,
+  register: (src: string) => Extract<CellPart, { image: HwpImageData }> | undefined,
+): CellPart[] | undefined {
+  let cursor = 0;
+  let found = false;
+  const parts: CellPart[] = [];
+  for (const match of html.matchAll(imageTagPattern)) {
+    const src = [...match[1].matchAll(/([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)]
+      .find(([, name]) => name.toLowerCase() === 'src');
+    const picture = src && register(src[2] ?? src[3] ?? src[4]);
+    if (!picture) continue;
+    const before = stripHtml(html.slice(cursor, match.index)).trim();
+    if (before) parts.push({ text: before });
+    parts.push(picture);
+    cursor = match.index + match[0].length;
+    found = true;
+  }
+  if (!found) return;
+  const after = stripHtml(html.slice(cursor)).trim();
+  if (after) parts.push({ text: after });
+  return parts;
+}
+
+function parseHtmlTable(
+  tableHtml: string,
+  register: (src: string) => Extract<CellPart, { image: HwpImageData }> | undefined,
+): HwpTable {
+  const groups: HwpTableCell[][][] = [[]];
+  // Treat consecutive ungrouped rows as one implicit group. A zero rowspan
+  // extends through the last row of its own group, not through the entire table.
+  const rowOrBoundary = /<\/?(?:thead|tbody|tfoot)\b[^>]*>|<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  for (const [, rowHtml] of tableHtml.matchAll(rowOrBoundary)) {
+    const group = groups[groups.length - 1];
+    if (rowHtml === undefined) {
+      if (group.length) groups.push([]);
+      continue;
+    }
     const cells: HwpTableCell[] = [];
-    const tdPattern = /<(?:td|th)([^>]*)>([\s\S]*?)<\/(?:td|th)>/gi;
-    let tdMatch: RegExpExecArray | null;
-
-    while ((tdMatch = tdPattern.exec(rowHtml)) !== null) {
-      const attrs = tdMatch[1];
-      const cellText = stripHtml(tdMatch[2]).trim();
-
-      const colspanMatch = attrs.match(/colspan\s*=\s*["']?(\d+)["']?/i);
-      const rowspanMatch = attrs.match(/rowspan\s*=\s*["']?(\d+)["']?/i);
-
-      cells.push({
-        text: cellText,
-        colspan: colspanMatch ? parseInt(colspanMatch[1], 10) : 1,
-        rowspan: rowspanMatch ? parseInt(rowspanMatch[1], 10) : 1,
-      });
+    const tdPattern = /<(?:td|th)\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/(?:td|th)>/gi;
+    for (const [, attrs, cellHtml] of rowHtml.matchAll(tdPattern)) {
+      let colspan = 1;
+      let rowspan = 1;
+      for (const [, name, double, single, unquoted] of attrs.matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+)))?/g)) {
+        const value = (double ?? single ?? unquoted ?? '').match(/^\s*\+?(\d+)/);
+        if (!value) continue;
+        if (name.toLowerCase() === 'colspan') colspan = Math.min(Number(value[1]) || 1, 1000);
+        if (name.toLowerCase() === 'rowspan') rowspan = Math.min(Number(value[1]), 65534);
+      }
+      cells.push({ text: stripHtml(cellHtml).trim(), parts: cellParts(cellHtml, register), colspan, rowspan });
     }
+    group.push(cells);
+  }
 
-    if (cells.length > 0) {
-      rows.push(cells);
+  return layoutTableRows(groups);
+}
+
+function layoutTableRows(groups: HwpTableCell[][][]): HwpTable {
+  const rows: PositionedTableCell[][] = [];
+  let colCount = 1;
+  for (const group of groups) {
+    // Store occupied column intervals only, not a full row × column grid.
+    let active: { start: number; end: number; endRow: number }[] = [];
+    for (const [groupRow, cells] of group.entries()) {
+      const row = rows.length;
+      active = active.filter(span => span.endRow > row);
+      const additions: typeof active = [];
+      let col = 0;
+      let spanIndex = 0;
+      rows.push(cells.map(cell => {
+        while (spanIndex < active.length && active[spanIndex].start < col + cell.colspan) {
+          col = Math.max(col, active[spanIndex++].end);
+        }
+        // Bound spans to physical rows so malformed HTML cannot inflate the
+        // output with thousands of implied empty rows or cross into another group.
+        const remaining = group.length - groupRow;
+        const rowspan = cell.rowspan === 0 ? remaining : Math.min(cell.rowspan, remaining);
+        const positioned = { ...cell, rowspan, row, col };
+        col += cell.colspan;
+        colCount = Math.max(colCount, col);
+        if (rowspan > 1) additions.push({ start: positioned.col, end: col, endRow: row + rowspan });
+        return positioned;
+      }));
+      if (additions.length) active = active.concat(additions).sort((a, b) => a.start - b.start);
     }
   }
 
-  // Determine column count (max logical columns considering colspan)
-  let colCount = 0;
-  for (const row of rows) {
-    let count = 0;
-    for (const cell of row) {
-      count += cell.colspan;
-    }
-    if (count > colCount) colCount = count;
-  }
-
-  return { rows, colCount: colCount || 1 };
+  return { rows, colCount };
 }
 
 function htmlToHwpParagraphs(html: string): HwpParagraph[] {
@@ -152,48 +209,48 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
   // Remove doctype, html, head, body wrappers
   let content = html.replace(/<\/?(?:html|head|body|!doctype)[^>]*>/gi, '');
 
-  // Extract tables first and replace with placeholders
+  const images: HwpImageData[] = [];
+  function registerImage(src: string): HwpImageData | undefined {
+    const dataUrlMatch = src.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
+    if (!dataUrlMatch) return;
+    const mimeSubtype = dataUrlMatch[1].toLowerCase().replace(/^jpg$/, 'jpeg');
+    const imageData = {
+      base64: dataUrlMatch[2],
+      mimeType: `image/${mimeSubtype}`,
+      id: `image${images.length + 1}`,
+      extension: mimeSubtype === 'jpeg' ? 'jpg' : mimeSubtype,
+    };
+    images.push(imageData);
+    return imageData;
+  }
+
+  // Extract tables before replacing body images. Cell images remain within
+  // their cell and share the same unique package image IDs as body images.
+  let cellImageCount = 0;
   const tables: HwpTable[] = [];
   const tablePattern = /<table[^>]*>[\s\S]*?<\/table>/gi;
   content = content.replace(tablePattern, (tableHtml) => {
-    const table = parseHtmlTable(tableHtml);
+    const table = parseHtmlTable(tableHtml, src => {
+      if (cellImageCount >= MAX_CELL_IMAGES) return;
+      const pixels = getSmallEmbeddedRasterSize(src);
+      if (!pixels) return;
+      const image = registerImage(src);
+      if (!image) return;
+      cellImageCount++;
+      return { image, pixels };
+    });
     const idx = tables.length;
     tables.push(table);
     return `\n__HWPTABLE_${idx}__\n`;
   });
 
-  // Extract images and replace with placeholders
-  const images: HwpImageData[] = [];
+  // Existing behavior for body pictures.
   const imgPattern = /<img[^>]*>/gi;
   content = content.replace(imgPattern, (imgTag) => {
-    const srcMatch = imgTag.match(/src\s*=\s*["']([^"']+)["']/i);
-    if (!srcMatch) return '';
-
-    const src = srcMatch[1];
-
-    // Only handle base64 data URLs
-    const dataUrlMatch = src.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
-    if (!dataUrlMatch) {
-      // External URL — skip with warning
-      console.warn('[HWP Export] Skipping external image URL:', src.substring(0, 80));
-      return '\n__HWPIMG_SKIP__\n';
-    }
-
-    let mimeSubtype = dataUrlMatch[1].toLowerCase();
-    // Normalize jpeg
-    if (mimeSubtype === 'jpg') mimeSubtype = 'jpeg';
-    const extension = mimeSubtype === 'jpeg' ? 'jpg' : mimeSubtype;
-    const base64Data = dataUrlMatch[2];
-    const id = `image${images.length + 1}`;
-
-    const imageData: HwpImageData = {
-      base64: base64Data,
-      mimeType: `image/${mimeSubtype}`,
-      id,
-      extension,
-    };
+    const src = imgTag.match(/src\s*=\s*["']([^"']+)["']/i)?.[1];
+    if (!src) return '';
     const idx = images.length;
-    images.push(imageData);
+    if (!registerImage(src)) return '\n__HWPIMG_SKIP__\n';
     return `\n__HWPIMAGE_${idx}__\n`;
   });
 
@@ -494,22 +551,22 @@ function generateContentHpf(sections: number, imageEntries: HwpImageData[] = [])
   let items = '';
   for (let i = 0; i < sections; i++) {
     items += `
-    <opf:item id="section${i}" href="section${i}.xml" media-type="text/xml"/>`;
+    <opf:item id="section${i}" href="Contents/section${i}.xml" media-type="application/xml"/>`;
   }
 
   for (const img of imageEntries) {
     items += `
-    <opf:item id="${img.id}" href="../BinData/${img.id}.${img.extension}" media-type="${img.mimeType}"/>`;
+    <opf:item id="${img.id}" href="BinData/${img.id}.${img.extension}" media-type="${img.mimeType}" isEmbeded="1"/>`;
   }
 
   let itemRefs = '';
   for (let i = 0; i < sections; i++) {
     itemRefs += `
-    <opf:itemref idref="section${i}"/>`;
+    <opf:itemref idref="section${i}" linear="yes"/>`;
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<opf:package xmlns:opf="http://www.idpf.org/2007/opf" version="1.0">
+<opf:package xmlns:opf="http://www.idpf.org/2007/opf/" version="1.0">
   <opf:metadata>
     <opf:title>MDView Document</opf:title>
     <opf:language>ko</opf:language>
@@ -517,253 +574,196 @@ function generateContentHpf(sections: number, imageEntries: HwpImageData[] = [])
     <opf:meta name="date" content="${new Date().toISOString().split('T')[0]}"/>
   </opf:metadata>
   <opf:manifest>
-    <opf:item id="header" href="header.xml" media-type="text/xml"/>${items}
+    <opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>${items}
   </opf:manifest>
-  <opf:spine>${itemRefs}
+  <opf:spine><opf:itemref idref="header" linear="yes"/>${itemRefs}
   </opf:spine>
 </opf:package>`;
 }
 
-function generateHeader(options: GenerateMessage['options']): string {
-  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
-  const width = options.orientation === 'landscape' ? paper.height : paper.width;
-  const height = options.orientation === 'landscape' ? paper.width : paper.height;
+const HWPML = 'http://www.hancom.co.kr/hwpml/2011';
 
-  // Convert margin from mm to 1/100mm
-  const marginTop = options.marginTop * 100;
-  const marginBottom = options.marginBottom * 100;
-  const marginLeft = options.marginLeft * 100;
-  const marginRight = options.marginRight * 100;
+function hwpUnits(mm: number): number {
+  return Math.round(mm * 7200 / 25.4);
+}
+
+function pageGeometry(options: GenerateMessage['options']) {
+  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
+  const landscape = options.orientation === 'landscape';
+  // pagePr stores the nominal portrait dimensions. Its orientation flag
+  // applies rotation; positioned objects use the rotated content rectangle.
+  const nominalWidth = hwpUnits(paper.width / 100);
+  const nominalHeight = hwpUnits(paper.height / 100);
+  const width = landscape ? nominalHeight : nominalWidth;
+  const height = landscape ? nominalWidth : nominalHeight;
+  const left = hwpUnits(options.marginLeft);
+  const right = hwpUnits(options.marginRight);
+  return { width, height, nominalWidth, nominalHeight, left, right, top: hwpUnits(options.marginTop), bottom: hwpUnits(options.marginBottom), contentWidth: Math.max(1, width - left - right) };
+}
+
+function generateContainer(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <ocf:rootfiles>
+    <ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>
+  </ocf:rootfiles>
+</ocf:container>`;
+}
+
+function characterStyles(options: GenerateMessage['options']) {
+  const body = Math.round(options.fontSize * 100);
+  return [
+    { height: body, bold: false, italic: false },
+    ...Object.values(HEADING_SIZES).map(height => ({ height, bold: true, italic: false })),
+    { height: body, bold: true, italic: false },
+    { height: body, bold: false, italic: true },
+    { height: body, bold: true, italic: true },
+    { height: Math.round(body * 0.9), bold: false, italic: false },
+  ];
+}
+
+function generateHeader(options: GenerateMessage['options']): string {
+  const face = escapeXml(options.fontFamily);
+  const languages = ['hangul', 'latin', 'hanja', 'japanese', 'other', 'symbol', 'user'];
+  const langAttrs = (value: number) => languages.map(lang => `${lang}="${value}"`).join(' ');
+  const styles = characterStyles(options);
+  const fonts = languages.map(lang => `<hh:fontface lang="${lang.toUpperCase()}" fontCnt="1"><hh:font id="0" face="${face}" type="TTF" isEmbedded="0"/></hh:fontface>`).join('\n');
+  const charPr = styles.map(({ height, bold, italic }, id) =>
+    `<hh:charPr id="${id}" height="${height}" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" borderFillIDRef="1">
+      <hh:fontRef ${langAttrs(0)}/><hh:ratio ${langAttrs(100)}/><hh:spacing ${langAttrs(0)}/>
+      <hh:relSz ${langAttrs(100)}/><hh:offset ${langAttrs(0)}/>${bold ? '<hh:bold/>' : ''}${italic ? '<hh:italic/>' : ''}
+    </hh:charPr>`).join('\n');
+  const borders = (id: number, type: string) => `<hh:borderFill id="${id}" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">
+    ${['left', 'right', 'top', 'bottom'].map(side => `<hh:${side}Border type="${type}" width="0.12 mm" color="#000000"/>`).join('')}
+    <hh:diagonal type="NONE" width="0.12 mm" color="#000000"/>
+  </hh:borderFill>`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<hp:head xmlns:hp="http://www.hancom.co.kr/hwpml/2016/HwpMl"
-         xmlns:ha="http://www.hancom.co.kr/hwpml/2016/HwpMl/Attr">
-  <hp:beginNum ha:page="1" ha:footnote="1" ha:endnote="1"/>
-  <hp:refList>
-    <hp:fontfaces>
-      <hp:fontface ha:lang="HANGUL">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-      <hp:fontface ha:lang="LATIN">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-      <hp:fontface ha:lang="HANJA">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-      <hp:fontface ha:lang="SYMBOL">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-    </hp:fontfaces>
-    <hp:borderFills>
-      <hp:borderFill ha:id="1">
-        <hp:slash ha:type="NONE"/>
-        <hp:leftBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-        <hp:rightBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-        <hp:topBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-        <hp:bottomBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-      </hp:borderFill>
-      <hp:borderFill ha:id="2">
-        <hp:slash ha:type="NONE"/>
-        <hp:leftBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-        <hp:rightBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-        <hp:topBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-        <hp:bottomBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-      </hp:borderFill>
-    </hp:borderFills>
-    <hp:charProperties>
-      <hp:charPr ha:id="0" ha:height="${Math.round(options.fontSize * 100)}" ha:textColor="#000000">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-      <hp:charPr ha:id="1" ha:height="2400" ha:textColor="#000000" ha:bold="true">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-      <hp:charPr ha:id="2" ha:height="2000" ha:textColor="#000000" ha:bold="true">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-      <hp:charPr ha:id="3" ha:height="1600" ha:textColor="#000000" ha:bold="true">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-    </hp:charProperties>
-    <hp:paraProperties>
-      <hp:paraPr ha:id="0">
-        <hp:align ha:horizontal="JUSTIFY" ha:vertical="BASELINE"/>
-        <hp:lineSpacing ha:type="PERCENT" ha:value="${Math.round(options.lineHeight * 100)}"/>
-      </hp:paraPr>
-    </hp:paraProperties>
-  </hp:refList>
-  <hp:secDef>
-    <hp:pageDef ha:width="${width}" ha:height="${height}"
-                ha:marginTop="${marginTop}" ha:marginBottom="${marginBottom}"
-                ha:marginLeft="${marginLeft}" ha:marginRight="${marginRight}"
-                ha:headerMargin="0" ha:footerMargin="0"
-                ha:gutterType="LEFT_ONLY"/>
-  </hp:secDef>
-</hp:head>`;
+<hh:head xmlns:hh="${HWPML}/head" version="1.2" secCnt="1">
+  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
+  <hh:refList>
+    <hh:fontfaces itemCnt="${languages.length}">${fonts}</hh:fontfaces>
+    <hh:borderFills itemCnt="2">${borders(1, 'NONE')}${borders(2, 'SOLID')}</hh:borderFills>
+    <hh:charProperties itemCnt="${styles.length}">${charPr}</hh:charProperties>
+    <hh:paraProperties itemCnt="1"><hh:paraPr id="0">
+      <hh:align horizontal="LEFT" vertical="BASELINE"/>
+      <hh:lineSpacing type="PERCENT" value="${Math.round(options.lineHeight * 100)}" unit="HWPUNIT"/>
+    </hh:paraPr></hh:paraProperties>
+    <hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/></hh:styles>
+  </hh:refList>
+</hh:head>`;
 }
 
-function generateTableXml(table: HwpTable, options: GenerateMessage['options']): string {
-  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
-  const pageWidth = options.orientation === 'landscape' ? paper.height : paper.width;
-  const marginLeft = options.marginLeft * 100;
-  const marginRight = options.marginRight * 100;
-  const contentWidth = pageWidth - marginLeft - marginRight;
-  const bodySize = Math.round(options.fontSize * 100);
+function paragraph(content: string, charPrIDRef = 0): string {
+  return `<hp:p paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${charPrIDRef}">${content}</hp:run></hp:p>`;
+}
 
-  const colWidth = Math.round(contentWidth / table.colCount);
-  const cellHeight = 1000;
-  const cellMargin = 51;
+function shapeAttributes(id: number, numberingType: 'TABLE' | 'PICTURE'): string {
+  return `id="${id}" zOrder="${id}" numberingType="${numberingType}" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0"`;
+}
 
-  let xml = `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:charPrIDRef ha:val="0"/></hp:rPr>
-      <hp:tbl ha:borderFillIDRef="2" ha:cellSpacing="0" ha:pageBreak="CELL" ha:repeatHeader="false">
-        <hp:inMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
-        <hp:tblPr>
-          <hp:tblSize ha:width="${contentWidth}" ha:widthRelTo="paper"/>
-        </hp:tblPr>`;
+function shapePosition(width: number, height: number, inline: boolean): string {
+  const inlineFlag = inline ? 1 : 0;
+  return `<hp:sz width="${width}" height="${height}" widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE" protect="0"/>
+    <hp:pos treatAsChar="${inlineFlag}" affectLSpacing="${inlineFlag}" flowWithText="1" allowOverlap="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>
+    <hp:outMargin left="0" right="0" top="0" bottom="0"/>`;
+}
 
-  for (const row of table.rows) {
-    xml += `
-        <hp:tr>`;
-    for (const cell of row) {
-      const cellWidth = colWidth * cell.colspan;
-      xml += `
-          <hp:tc ha:name="" ha:header="false" ha:hasMargin="false" ha:protect="false" ha:editable="false">
-            <hp:cellAddr ha:colAddr="0" ha:rowAddr="0"/>
-            <hp:cellSpan ha:colSpan="${cell.colspan}" ha:rowSpan="${cell.rowspan}"/>
-            <hp:cellSz ha:width="${cellWidth}" ha:height="${cellHeight}"/>
-            <hp:cellMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
-            <hp:cellBorderFill ha:borderFillIDRef="2"/>
-            <hp:subList ha:textDirection="HORIZONTAL" ha:lineWrap="BREAK" ha:vertAlign="CENTER" ha:textWidth="${cellWidth - cellMargin * 2}" ha:textHeight="${cellHeight}">
-              <hp:p>
-                <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-                <hp:run>
-                  <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
-                  <hp:t>${escapeXml(cell.text)}</hp:t>
-                </hp:run>
-              </hp:p>
-            </hp:subList>
-          </hp:tc>`;
+function generateTableXml(table: HwpTable, options: GenerateMessage['options'], id: number, nextObjectId: () => number): string {
+  const { contentWidth, height, top, bottom } = pageGeometry(options);
+  const edge = (col: number) => Math.round(col * contentWidth / table.colCount);
+  const cellMargin = hwpUnits(1);
+  const textLine = Math.max(1, Math.round(options.fontSize * 100 * options.lineHeight));
+  const cellHeight = textLine + cellMargin * 2;
+  const rowHeights = table.rows.map(() => cellHeight);
+  const heightsIn = (row: number, count: number) => rowHeights.slice(row, row + count).reduce((a, b) => a + b, 0);
+
+  const prepared = table.rows.map(row => row.map(cell => {
+    const width = Math.max(1, edge(cell.col + cell.colspan) - edge(cell.col));
+    let content = paragraph(`<hp:t>${escapeXml(cell.text)}</hp:t>`);
+    if (cell.parts) {
+      let heightNeeded = cellMargin * 2;
+      const maxWidth = Math.max(1, width - cellMargin * 2);
+      const maxHeight = Math.max(1, Math.floor((height - top - bottom) / 4));
+      content = cell.parts.map(part => {
+        if ('text' in part) {
+          heightNeeded += textLine;
+          return paragraph(`<hp:t>${escapeXml(part.text)}</hp:t>`);
+        }
+        const [pw, ph] = part.pixels;
+        // At most the native 96 DPI size, shrink within cell width and page.
+        const scale = Math.min(75, maxWidth / pw, maxHeight / ph);
+        const w = Math.max(1, Math.floor(pw * scale));
+        const h = Math.max(1, Math.floor(ph * scale));
+        heightNeeded += Math.max(textLine, h);
+        return generatePictureParagraph(part.image, nextObjectId(), w, h);
+      }).join('');
+      rowHeights[cell.row] += Math.max(0, heightNeeded - heightsIn(cell.row, cell.rowspan));
     }
-    xml += `
-        </hp:tr>`;
-  }
+    return { cell, width, content };
+  }));
 
-  xml += `
-      </hp:tbl>
-    </hp:run>
-  </hp:p>`;
+  const rowOffsets = rowHeights.reduce<number[]>((offsets, h) => {
+    offsets.push(offsets[offsets.length - 1] + h);
+    return offsets;
+  }, [0]);
+  const heightFor = (row: number, span: number) => rowOffsets[row + span] - rowOffsets[row];
+  const rows = prepared.map(row => `<hp:tr>${row.map(({ cell, width, content }) => `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" borderFillIDRef="2">
+      <hp:subList textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" textWidth="0" textHeight="0">${content}</hp:subList>
+      <hp:cellAddr colAddr="${cell.col}" rowAddr="${cell.row}"/>
+      <hp:cellSpan colSpan="${cell.colspan}" rowSpan="${cell.rowspan}"/>
+      <hp:cellSz width="${width}" height="${heightFor(cell.row, cell.rowspan)}"/>
+      <hp:cellMargin left="${cellMargin}" right="${cellMargin}" top="${cellMargin}" bottom="${cellMargin}"/>
+    </hp:tc>`).join('')}</hp:tr>`).join('\n');
 
-  return xml;
+  return paragraph(`<hp:tbl ${shapeAttributes(id, 'TABLE')} rowCnt="${table.rows.length}" colCnt="${table.colCount}" borderFillIDRef="2" cellSpacing="0" pageBreak="CELL" repeatHeader="0">
+    ${shapePosition(contentWidth, heightFor(0, rowHeights.length), false)}
+    <hp:inMargin left="0" right="0" top="0" bottom="0"/>${rows}
+  </hp:tbl>`);
 }
 
-function generateImageXml(imageData: HwpImageData, options: GenerateMessage['options']): string {
-  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
-  const pageWidth = options.orientation === 'landscape' ? paper.height : paper.width;
-  const marginLeft = options.marginLeft * 100;
-  const marginRight = options.marginRight * 100;
-  const contentWidth = pageWidth - marginLeft - marginRight;
+function generateImageXml(imageData: HwpImageData, options: GenerateMessage['options'], id: number): string {
+  const { width: pageWidth, height: pageHeight, contentWidth, top, bottom } = pageGeometry(options);
+  const width = Math.min(pageWidth, contentWidth, Math.round((pageHeight - top - bottom) * 4 / 3));
+  return generatePictureParagraph(imageData, id, width, Math.round(width * 3 / 4));
+}
 
-  // Default image size: fit to content width, maintain a 4:3 aspect ratio as fallback
-  const imgWidth = contentWidth;
-  const imgHeight = Math.round(contentWidth * 3 / 4);
-
-  const binItemId = imageData.id;
-
-  return `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:charPrIDRef ha:val="0"/></hp:rPr>
-      <hp:drawing>
-        <hp:anchor ha:type="inline">
-          <hp:sz ha:width="${imgWidth}" ha:height="${imgHeight}" ha:widthRelTo="paper" ha:heightRelTo="paper"/>
-          <hp:pos ha:treatAsChar="true"/>
-          <hp:shapeComment>image</hp:shapeComment>
-          <hp:pic>
-            <hp:picRect/>
-            <hp:img ha:binaryItemIDRef="${binItemId}"/>
-          </hp:pic>
-        </hp:anchor>
-      </hp:drawing>
-    </hp:run>
-  </hp:p>`;
+function generatePictureParagraph(imageData: HwpImageData, id: number, width: number, height: number): string {
+  return paragraph(`<hp:pic ${shapeAttributes(id, 'PICTURE')} instid="${id}" reverse="0">
+    <hp:offset x="0" y="0"/><hp:orgSz width="${width}" height="${height}"/>
+    <hp:curSz width="${width}" height="${height}"/><hp:flip horizontal="0" vertical="0"/>
+    <hp:rotationInfo angle="0" centerX="${Math.round(width / 2)}" centerY="${Math.round(height / 2)}" rotateimage="1"/>
+    <hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${width}" y="0"/><hc:pt2 x="${width}" y="${height}"/><hc:pt3 x="0" y="${height}"/></hp:imgRect>
+    <hp:imgClip left="0" right="${width}" top="0" bottom="${height}"/>
+    <hp:inMargin left="0" right="0" top="0" bottom="0"/>
+    <hp:imgDim dimwidth="${width}" dimheight="${height}"/>
+    <hc:img binaryItemIDRef="${imageData.id}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>
+    ${shapePosition(width, height, true)}
+  </hp:pic>`);
 }
 
 function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['options']): string {
-  const bodySize = Math.round(options.fontSize * 100);
-
-  let paraXml = '';
-
-  for (const para of paragraphs) {
-    // Handle table
-    if (para.isTable && para.table) {
-      paraXml += generateTableXml(para.table, options);
-      continue;
-    }
-
-    // Handle image
-    if (para.isImage && para.imageData) {
-      paraXml += generateImageXml(para.imageData, options);
-      continue;
-    }
-
-    if (para.isHr) {
-      paraXml += `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
-      <hp:t>────────────────────────────────</hp:t>
-    </hp:run>
-  </hp:p>`;
-      continue;
-    }
-
-    if (para.text === '') {
-      paraXml += `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
-      <hp:t></hp:t>
-    </hp:run>
-  </hp:p>`;
-      continue;
-    }
-
-    const fontSize = para.headingLevel > 0
-      ? (HEADING_SIZES[para.headingLevel] || bodySize)
-      : (para.isCodeBlock ? Math.round(bodySize * 0.9) : bodySize);
-
-    const displayText = para.isList ? `${para.listPrefix}${para.text}` :
-                        para.isBlockquote ? `\u2502 ${para.text}` :
-                        para.text;
-
-    let rPr = `<hp:sz ha:val="${fontSize}"/>`;
-    if (para.bold || para.headingLevel > 0) {
-      rPr += '<hp:bold/>';
-    }
-    if (para.italic) {
-      rPr += '<hp:italic/>';
-    }
-
-    paraXml += `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr>${rPr}</hp:rPr>
-      <hp:t>${escapeXml(displayText)}</hp:t>
-    </hp:run>
-  </hp:p>`;
-  }
-
+  const { nominalWidth, nominalHeight, left, right, top, bottom } = pageGeometry(options);
+  const sectionProperties = `<hp:secPr textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="0" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0">
+    <hp:pagePr landscape="${options.orientation === 'landscape' ? 'NARROWLY' : 'WIDELY'}" width="${nominalWidth}" height="${nominalHeight}" gutterType="LEFT_ONLY">
+      <hp:margin header="0" footer="0" gutter="0" left="${left}" right="${right}" top="${top}" bottom="${bottom}"/>
+    </hp:pagePr>
+  </hp:secPr><hp:ctrl><hp:colPr type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>`;
+  let objectId = 1;
+  const body = paragraphs.map(para => {
+    if (para.isTable && para.table) return generateTableXml(para.table, options, objectId++, () => objectId++);
+    if (para.isImage && para.imageData) return generateImageXml(para.imageData, options, objectId++);
+    const text = para.isHr ? '────────────────────────────────' :
+      para.isList ? `${para.listPrefix}${para.text}` :
+      para.isBlockquote ? `\u2502 ${para.text}` : para.text;
+    const style = para.headingLevel || (para.isCodeBlock ? 10 : para.bold && para.italic ? 9 : para.bold ? 7 : para.italic ? 8 : 0);
+    return paragraph(`<hp:t>${escapeXml(text)}</hp:t>`, style);
+  }).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<hp:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2016/HwpMl"
-        xmlns:ha="http://www.hancom.co.kr/hwpml/2016/HwpMl/Attr">${paraXml}
-</hp:sec>`;
+<hs:sec xmlns:hs="${HWPML}/section" xmlns:hp="${HWPML}/paragraph" xmlns:hc="${HWPML}/core">
+  ${paragraph(sectionProperties)}
+  ${body}
+</hs:sec>`;
 }
 
 // ---------- Main generation pipeline ----------
@@ -784,8 +784,13 @@ async function generateHwpx(markdown: string, options: GenerateMessage['options'
   // Collect all image data from paragraphs
   const imageEntries: HwpImageData[] = [];
   for (const para of paragraphs) {
-    if (para.isImage && para.imageData) {
-      imageEntries.push(para.imageData);
+    if (para.isImage && para.imageData) imageEntries.push(para.imageData);
+    for (const row of para.table?.rows ?? []) {
+      for (const cell of row) {
+        for (const part of cell.parts ?? []) {
+          if ('image' in part) imageEntries.push(part.image);
+        }
+      }
     }
   }
 
@@ -794,6 +799,8 @@ async function generateHwpx(markdown: string, options: GenerateMessage['options'
 
   // mimetype (must be first, uncompressed)
   zip.file('mimetype', generateMimetype(), { compression: 'STORE' });
+
+  zip.file('META-INF/container.xml', generateContainer());
 
   // META-INF/manifest.xml
   zip.file('META-INF/manifest.xml', generateManifest(1, imageEntries));

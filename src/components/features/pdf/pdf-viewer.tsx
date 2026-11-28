@@ -299,9 +299,29 @@ export function PdfViewer({ documentId, title, onConvert }: PdfViewerProps) {
   }
   const converting = convertProgress !== null;
 
+  // One set of actions: first row on narrow screens, after reading controls on desktop.
+  const pdfActions = (
+    <div className="flex items-center gap-0.5 shrink-0">
+      <Tooltip content="글자를 추출해 편집할 수 있는 마크다운 문서를 새로 만듭니다" side="bottom">
+        <button
+          onClick={handleConvert}
+          disabled={!pdf || converting}
+          aria-label={converting ? `마크다운으로 변환 중 ${convertProgress}%` : '마크다운으로 변환'}
+          className="flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-md text-xs font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent-light)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode className="w-4 h-4" />}
+          <span className="whitespace-nowrap tabular-nums">
+            {converting ? `변환 중 ${convertProgress}%` : '마크다운으로 변환'}
+          </span>
+        </button>
+      </Tooltip>
+      <ToolbarButton icon={Download} tooltip="원본 PDF 다운로드" disabled={!file} onClick={handleDownload} />
+    </div>
+  );
+
   return (
     <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
-      <div data-toolbar className="mdview-toolbar flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
+      <div data-toolbar className={`mdview-toolbar flex items-center px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20 ${isMobile ? 'min-h-11 flex-wrap py-1' : 'h-11'}`}>
         <button
           onClick={toggleSidebar}
           aria-label="사이드바 토글"
@@ -322,91 +342,76 @@ export function PdfViewer({ documentId, title, onConvert }: PdfViewerProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-0.5 shrink-0">
-          <ToolbarButton
-            icon={ChevronUp}
-            tooltip="이전 페이지"
-            disabled={!pdf || range.current <= 0}
-            onClick={() => goToPage(range.current)}
-          />
-          <div className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
-            <input
-              aria-label="페이지 번호"
-              inputMode="numeric"
-              disabled={!pdf}
-              value={pageDraft ?? (pageCount ? String(range.current + 1) : '')}
-              onFocus={(e) => {
-                setPageDraft(String(range.current + 1));
-                e.currentTarget.select();
-              }}
-              onChange={(e) => setPageDraft(e.target.value.replace(/\D/g, ''))}
-              onBlur={() => setPageDraft(null)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  commitPageDraft();
-                  e.currentTarget.blur();
-                } else if (e.key === 'Escape') {
-                  e.currentTarget.blur();
-                }
-              }}
-              className="w-10 h-7 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] text-center text-xs text-[var(--color-text)] tabular-nums outline-none focus:border-[var(--color-accent)] disabled:opacity-40"
+        {isMobile && pdfActions}
+
+        <div className={`flex items-center gap-0.5 ${isMobile ? 'basis-full justify-end border-t border-[var(--color-border)] pt-1' : ''}`}>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <ToolbarButton
+              icon={ChevronUp}
+              tooltip="이전 페이지"
+              disabled={!pdf || range.current <= 0}
+              onClick={() => goToPage(range.current)}
             />
-            <span className="tabular-nums whitespace-nowrap">/ {pageCount || '-'}</span>
-          </div>
-          <ToolbarButton
-            icon={ChevronDown}
-            tooltip="다음 페이지"
-            disabled={!pdf || range.current >= pageCount - 1}
-            onClick={() => goToPage(range.current + 2)}
-          />
-        </div>
-
-        <Divider />
-
-        <div className="flex items-center gap-0.5 shrink-0">
-          <ToolbarButton icon={ZoomOut} tooltip="축소" disabled={!pdf} onClick={() => setZoom(stepZoom(zoomPercent, -1))} />
-          {!isMobile && (
-            <Tooltip content="자동 배율" side="bottom">
-              <button
-                onClick={() => setZoom('auto')}
+            <div className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+              <input
+                aria-label="페이지 번호"
+                inputMode="numeric"
                 disabled={!pdf}
-                aria-label={`현재 배율 ${zoomPercent}%, 자동 배율로 되돌리기`}
-                className="h-8 min-w-[3.25rem] px-1.5 rounded-md text-xs tabular-nums text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {zoomPercent}%
-              </button>
-            </Tooltip>
-          )}
-          <ToolbarButton icon={ZoomIn} tooltip="확대" disabled={!pdf} onClick={() => setZoom(stepZoom(zoomPercent, 1))} />
-          <ToolbarButton
-            icon={MoveHorizontal}
-            tooltip="폭 맞춤"
-            active={zoom === 'page-width'}
-            disabled={!pdf}
-            onClick={() => setZoom((current) => (current === 'page-width' ? 'auto' : 'page-width'))}
-          />
+                value={pageDraft ?? (pageCount ? String(range.current + 1) : '')}
+                onFocus={(e) => {
+                  setPageDraft(String(range.current + 1));
+                  e.currentTarget.select();
+                }}
+                onChange={(e) => setPageDraft(e.target.value.replace(/\D/g, ''))}
+                onBlur={() => setPageDraft(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitPageDraft();
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                className="w-8 sm:w-10 h-7 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] text-center text-xs text-[var(--color-text)] tabular-nums outline-none focus:border-[var(--color-accent)] disabled:opacity-40"
+              />
+              <span className="tabular-nums whitespace-nowrap">/ {pageCount || '-'}</span>
+            </div>
+            <ToolbarButton
+              icon={ChevronDown}
+              tooltip="다음 페이지"
+              disabled={!pdf || range.current >= pageCount - 1}
+              onClick={() => goToPage(range.current + 2)}
+            />
+          </div>
+
+          <Divider />
+
+          <div className="flex items-center gap-0.5 shrink-0">
+            <ToolbarButton icon={ZoomOut} tooltip="축소" disabled={!pdf} onClick={() => setZoom(stepZoom(zoomPercent, -1))} />
+            {!isMobile && (
+              <Tooltip content="자동 배율" side="bottom">
+                <button
+                  onClick={() => setZoom('auto')}
+                  disabled={!pdf}
+                  aria-label={`현재 배율 ${zoomPercent}%, 자동 배율로 되돌리기`}
+                  className="h-8 min-w-[3.25rem] px-1.5 rounded-md text-xs tabular-nums text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {zoomPercent}%
+                </button>
+              </Tooltip>
+            )}
+            <ToolbarButton icon={ZoomIn} tooltip="확대" disabled={!pdf} onClick={() => setZoom(stepZoom(zoomPercent, 1))} />
+            <ToolbarButton
+              icon={MoveHorizontal}
+              tooltip="폭 맞춤"
+              active={zoom === 'page-width'}
+              disabled={!pdf}
+              onClick={() => setZoom((current) => (current === 'page-width' ? 'auto' : 'page-width'))}
+            />
+          </div>
         </div>
 
-        <Divider />
-
-        <div className="flex items-center gap-0.5 shrink-0">
-          <Tooltip content="글자를 추출해 편집할 수 있는 마크다운 문서를 새로 만듭니다" side="bottom">
-            <button
-              onClick={handleConvert}
-              disabled={!pdf || converting}
-              aria-label={converting ? `마크다운으로 변환 중 ${convertProgress}%` : '마크다운으로 변환'}
-              className="flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-md text-xs font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent-light)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {converting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode className="w-4 h-4" />}
-              {!isMobile && (
-                <span className="whitespace-nowrap tabular-nums">
-                  {converting ? `변환 중 ${convertProgress}%` : '마크다운으로 변환'}
-                </span>
-              )}
-            </button>
-          </Tooltip>
-          <ToolbarButton icon={Download} tooltip="원본 PDF 다운로드" disabled={!file} onClick={handleDownload} />
-        </div>
+        {!isMobile && <><Divider />{pdfActions}</>}
       </div>
 
       <div

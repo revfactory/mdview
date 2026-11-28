@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { createDocument, updateDocument } from '@/db/documents';
+import { createDocument } from '@/db/documents';
 
 /** 이보다 긴 마크다운은 TipTap 한 화면에 올리지 않고 페이지 단위로 나눠 저장한다. */
 export const IMPORT_CHUNK_THRESHOLD = 300_000;
@@ -20,11 +20,16 @@ export async function createImportedDocument(
     const { chunkDocument } = await import('@/lib/chunk-document');
     const { saveChunks } = await import('@/db/chunks');
     const chunks = chunkDocument(content);
+    // Publish the document only after all of its saved pages have committed.
     return db.transaction('rw', db.documents, db.chunks, async () => {
-      const id = await createDocument({ title, content, folderId });
+      const id = await createDocument({
+        title,
+        content,
+        folderId,
+        isChunked: true,
+        chunkCount: chunks.length,
+      });
       await saveChunks(id, chunks);
-      // createDocument builds ordinary metadata; record pagination explicitly.
-      await updateDocument(id, { isChunked: true, chunkCount: chunks.length });
       return { id, chunkCount: chunks.length };
     });
   }

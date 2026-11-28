@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Toolbar } from '@/components/layout/toolbar';
 import { StatusBar } from '@/components/layout/status-bar';
+import { PasteMarkdownDialog } from '@/components/growth/paste-markdown-form';
 import { WelcomePanel } from '@/components/growth/welcome-panel';
+import { SiteName } from '@/components/growth/site-name';
 import { readEntryAction, type EntryAction, type EntrySource } from '@/lib/entry-actions';
 import { Editor } from '@/components/features/editor/editor';
 import { PaginatedEditor } from '@/components/features/editor/paginated-editor';
@@ -21,6 +23,7 @@ import { QuickOpen } from '@/components/features/quick-open/quick-open';
 import { ToastContainer } from '@/components/ui/toast';
 import { useEditorStore } from '@/stores/editor-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useToastStore } from '@/stores/toast-store';
 import { useEditorManager } from '@/hooks/use-editor';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { SourceEditor } from '@/components/features/editor/source-editor';
@@ -33,6 +36,7 @@ import {
   createPdfDocument,
   updateDocument,
   deleteDocument,
+  duplicateSavedPages,
   updateContent,
 } from '@/db/documents';
 import type { Editor as TipTapEditor } from '@tiptap/react';
@@ -47,13 +51,18 @@ export default function Home() {
   const focusMode = useUIStore((s) => s.focusMode);
   const isMobile = useUIStore((s) => s.isMobile);
   const [tiptapEditor, setTiptapEditor] = useState<TipTapEditor | null>(null);
-  const [hwpImportOpen, setHwpImportOpen] = useState(false);
-  const [mdImportOpen, setMdImportOpen] = useState(false);
-  const [pdfImportOpen, setPdfImportOpen] = useState(false);
+  const [hwpImportSource, setHwpImportSource] = useState<EntrySource | null>(null);
+  const [mdImportSource, setMdImportSource] = useState<EntrySource | null>(null);
+  const [pdfImportSource, setPdfImportSource] = useState<EntrySource | null>(null);
+  // Match conversions to their PDF in the current tab only. IDs never reach analytics.
+  const pdfSourceByDocument = useRef(new Map<string, EntrySource>());
   const [hwpExportOpen, setHwpExportOpen] = useState(false);
   const [preparingExport, setPreparingExport] = useState(false);
   const preparingExportRef = useRef(false);
+  const [pasteSource, setPasteSource] = useState<EntrySource | null>(null);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
+  const editorRegion = useRef<HTMLDivElement>(null);
+  const focusAfterQuickOpen = useRef(false);
 
   const activeDocument = useDocument(activeDocumentId);
   // 페이지 로드 시 가장 최근 문서 자동 선택
@@ -79,9 +88,15 @@ export default function Home() {
     }
   }, [isLargeDocument, isChunked, viewMode]);
 
-  const handleNewDocument = useCallback(async () => {
+  const creatingDocument = useRef(false);
+  const handleCreateDocument = useCallback(async (kind: 'blank' | 'sample', showVisualEditor = false) => {
+    if (creatingDocument.current) return;
+    creatingDocument.current = true;
     try {
-      const id = await createDocument({ title: '제목 없음' });
+      const id = kind === 'blank'
+        ? await createDocument({ title: '제목 없음' })
+        : await createSampleDocument();
+      if (showVisualEditor) useUIStore.getState().actions.setViewMode('wysiwyg');
       actions.setActiveDocument(id);
       analytics.documentCreate();
       if (useUIStore.getState().isMobile) {
@@ -89,32 +104,38 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to create document:', error);
+      useToastStore.getState().actions.addToast(
+        kind === 'blank'
+          ? '새 문서를 저장하지 못했습니다. 다시 시도해 주세요.'
+          : '샘플 문서를 저장하지 못했습니다. 다시 시도해 주세요.',
+        'error',
+      );
+    } finally {
+      creatingDocument.current = false;
     }
   }, [actions]);
 
-  const handleSampleDocument = useCallback(async () => {
-    try {
-      const id = await createSampleDocument();
-      actions.setActiveDocument(id);
-      analytics.documentCreate();
-      if (useUIStore.getState().isMobile) {
-        useUIStore.getState().actions.closeSidebar();
-      }
-    } catch (error) {
-      console.error('Failed to create sample document:', error);
-    }
-  }, [actions]);
+  const handleNewDocument = useCallback(() => handleCreateDocument('blank'), [handleCreateDocument]);
 
   const handleStart = useCallback((action: EntryAction, source: EntrySource) => {
     analytics.startAction(action, source);
-    if (action === 'import-hwp') setHwpImportOpen(true);
-    if (action === 'import-markdown') setMdImportOpen(true);
-    if (action === 'import-pdf') setPdfImportOpen(true);
-    if (action === 'new' || action === 'sample') {
-      useUIStore.getState().actions.setViewMode('wysiwyg');
-      void (action === 'new' ? handleNewDocument() : handleSampleDocument());
+    if (action === 'import-hwp' || action === 'import-markdown' || action === 'import-pdf') {
+      const ui = useUIStore.getState();
+      // An open mobile sidebar would cover the file chooser's drop area.
+      if (ui.isMobile) ui.actions.closeSidebar();
+      if (action === 'import-hwp') setHwpImportSource(source);
+      else if (action === 'import-markdown') setMdImportSource(source);
+      else setPdfImportSource(source);
     }
-  }, [handleNewDocument, handleSampleDocument]);
+    if (action === 'paste-markdown') {
+      const ui = useUIStore.getState();
+      if (ui.isMobile) ui.actions.closeSidebar();
+      setPasteSource(source);
+    }
+    if (action === 'new' || action === 'sample') {
+      void handleCreateDocument(action === 'new' ? 'blank' : 'sample', true);
+    }
+  }, [handleCreateDocument]);
 
   const entryHandled = useRef(false);
   useEffect(() => {
@@ -145,6 +166,18 @@ export default function Home() {
     [actions]
   );
 
+  const handleQuickOpenSelect = useCallback((id: string, viaKeyboard: boolean) => {
+    focusAfterQuickOpen.current = viaKeyboard;
+    handleSelectDocument(id);
+  }, [handleSelectDocument]);
+
+  useLayoutEffect(() => {
+    if (quickOpenOpen || !focusAfterQuickOpen.current) return;
+    focusAfterQuickOpen.current = false;
+    // Do not steal focus if another component already supplied a destination.
+    if (document.activeElement === document.body) editorRegion.current?.focus({ preventScroll: true });
+  }, [quickOpenOpen]);
+
   const handleToggleFavorite = useCallback(async (id: string) => {
     try {
       const { db } = await import('@/db');
@@ -161,6 +194,7 @@ export default function Home() {
     async (id: string) => {
       try {
         await deleteDocument(id);
+        pdfSourceByDocument.current.delete(id);
         analytics.documentDelete();
         if (activeDocumentId === id) {
           // 삭제 후 남은 문서가 있으면 선택, 없으면 빈 상태 표시
@@ -195,6 +229,12 @@ export default function Home() {
           });
           actions.setActiveDocument(newId);
           analytics.documentDuplicate();
+        } else if (doc?.isChunked) {
+          await duplicateSavedPages(id);
+          // Leave the original editor mounted: an edit still in progress is
+          // deliberately not part of this saved snapshot.
+          useToastStore.getState().actions.addToast('저장된 페이지를 복제했습니다. 문서 목록에서 복사본을 열 수 있습니다.', 'success');
+          analytics.documentDuplicate();
         } else if (doc) {
           const newId = await createDocument({
             title: `${doc.title} (복사본)`,
@@ -208,6 +248,7 @@ export default function Home() {
         }
       } catch (error) {
         console.error('Failed to duplicate document:', error);
+        useToastStore.getState().actions.addToast('문서를 복제하지 못했습니다. 다시 시도해 주세요.', 'error');
       }
     },
     [actions]
@@ -333,39 +374,46 @@ export default function Home() {
   const handleImportComplete = useCallback(
     async (importedContent: string, title: string) => {
       await openImportedDocument(importedContent, title);
-      setHwpImportOpen(false);
-      analytics.importHwp();
+      analytics.importHwp(hwpImportSource ?? undefined);
     },
-    [openImportedDocument]
+    [openImportedDocument, hwpImportSource]
   );
 
   const handleMdImportComplete = useCallback(
     async (importedContent: string, title: string) => {
       await openImportedDocument(importedContent, title);
-      setMdImportOpen(false);
-      analytics.importMarkdown();
+      analytics.importMarkdown(mdImportSource ?? undefined);
     },
-    [openImportedDocument]
+    [openImportedDocument, mdImportSource]
   );
+
+  const handlePasteMarkdown = useCallback(async (markdown: string, source: EntrySource = 'home') => {
+    await openImportedDocument(markdown, '붙여넣은 문서');
+    useUIStore.getState().actions.setViewMode('wysiwyg');
+    analytics.pasteMarkdown(source);
+  }, [openImportedDocument]);
 
   const handlePdfImportComplete = useCallback(
     async ({ file, title, pageCount, excerpt }: PdfImportResult) => {
+      const source = pdfImportSource ?? 'direct';
       const id = await createPdfDocument({ title, file, fileName: file.name, pageCount, excerpt });
+      pdfSourceByDocument.current.set(id, source);
       actions.setActiveDocument(id);
-      analytics.importPdf();
+      analytics.importPdf(source);
       if (useUIStore.getState().isMobile) {
         useUIStore.getState().actions.closeSidebar();
       }
     },
-    [actions]
+    [actions, pdfImportSource]
   );
 
   const activePdfTitle = activeDocument?.title ?? '';
   const activePdfFolderId = activeDocument?.folderId ?? null;
   const handlePdfConvert = useCallback(
     async (markdown: string) => {
+      const source = activeDocumentId ? pdfSourceByDocument.current.get(activeDocumentId) : undefined;
       const importedChunks = await openImportedDocument(markdown, activePdfTitle || '제목 없음', activePdfFolderId);
-      analytics.convertPdf();
+      analytics.convertPdf(source);
       if (importedChunks === null) {
         const { useToastStore } = await import('@/stores/toast-store');
         useToastStore.getState().actions.addToast(
@@ -374,7 +422,7 @@ export default function Home() {
         );
       }
     },
-    [openImportedDocument, activePdfTitle, activePdfFolderId]
+    [openImportedDocument, activeDocumentId, activePdfTitle, activePdfFolderId]
   );
 
   useKeyboardShortcuts({
@@ -400,14 +448,16 @@ export default function Home() {
           onToggleFavorite={handleToggleFavorite}
           onDeleteDocument={handleDeleteDocument}
           onDuplicateDocument={handleDuplicateDocument}
-          onImport={() => setHwpImportOpen(true)}
-          onImportMarkdown={() => setMdImportOpen(true)}
-          onImportPdf={() => setPdfImportOpen(true)}
+          onImport={() => handleStart('import-hwp', 'direct')}
+          onImportMarkdown={() => handleStart('import-markdown', 'direct')}
+          onImportPdf={() => handleStart('import-pdf', 'direct')}
+          onPasteMarkdown={() => handleStart('paste-markdown', 'direct')}
         />
       }
       focusMode={focusMode}
     >
-      <div className="flex h-full overflow-hidden">
+      <SiteName />
+      <div ref={editorRegion} role="region" aria-label="문서 작업 영역" tabIndex={-1} className="flex h-full overflow-hidden">
         {isPdf && activeDocumentId ? (
           <PdfViewer
             key={activeDocumentId}
@@ -520,7 +570,7 @@ export default function Home() {
                   )
                 )
               ) : (
-                <WelcomePanel onStart={(action) => handleStart(action, 'home')} />
+                <WelcomePanel onStart={(action) => handleStart(action, 'home')} onPasteMarkdown={handlePasteMarkdown} />
               )}
             </div>
 
@@ -542,20 +592,30 @@ export default function Home() {
       </div>
 
       <HwpImport
-        open={hwpImportOpen}
-        onClose={() => setHwpImportOpen(false)}
+        open={hwpImportSource !== null}
+        onClose={() => setHwpImportSource(null)}
         onImportComplete={handleImportComplete}
       />
 
       <MarkdownImport
-        open={mdImportOpen}
-        onClose={() => setMdImportOpen(false)}
+        open={mdImportSource !== null}
+        onClose={() => setMdImportSource(null)}
         onImportComplete={handleMdImportComplete}
       />
 
+      {pasteSource !== null && (
+        <PasteMarkdownDialog
+          onCancel={() => setPasteSource(null)}
+          onCreate={async (markdown) => {
+            await handlePasteMarkdown(markdown, pasteSource);
+            setPasteSource(null);
+          }}
+        />
+      )}
+
       <PdfImport
-        open={pdfImportOpen}
-        onClose={() => setPdfImportOpen(false)}
+        open={pdfImportSource !== null}
+        onClose={() => setPdfImportSource(null)}
         onImportComplete={handlePdfImportComplete}
       />
 
@@ -568,7 +628,7 @@ export default function Home() {
       <QuickOpen
         open={quickOpenOpen}
         onClose={() => setQuickOpenOpen(false)}
-        onSelectDocument={handleSelectDocument}
+        onSelectDocument={handleQuickOpenSelect}
       />
 
       <ToastContainer />

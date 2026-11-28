@@ -12,6 +12,10 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [pageChanging, setPageChanging] = useState(false);
   const editorRef = useRef<TipTapEditor | null>(null);
+  const changedEditors = useRef(new WeakSet<TipTapEditor>());
+  const markVisualEdit = useCallback((editor: TipTapEditor) => {
+    changedEditors.current.add(editor);
+  }, []);
 
   // Load a chunk and return { html, markdown }
   const loadChunk = useCallback(async (page: number) => {
@@ -63,9 +67,11 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
       setPageChanging(true);
 
       try {
-        // Save current page from editor
-        if (editorRef.current) {
-          const html = editorRef.current.getHTML();
+        // A read-only turn must not rewrite source through the lossy WYSIWYG converter.
+        // Still flush a real edit before leaving, even if its debounce has not fired.
+        const editor = editorRef.current;
+        if (editor && changedEditors.current.has(editor)) {
+          const html = editor.getHTML();
           const md = htmlToMarkdown(html);
           await updateChunk(documentId, currentPage, md, html);
         }
@@ -118,6 +124,7 @@ export function usePaginatedChunks(documentId: string, totalChunks: number) {
     isPageLoading,
     pageChanging,
     editorRef,
+    markVisualEdit,
     handlePageChange,
     handleChange,
   };

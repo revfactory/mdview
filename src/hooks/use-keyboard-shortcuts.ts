@@ -20,7 +20,9 @@ export function useKeyboardShortcuts({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.isComposing || e.keyCode === 229) return;
+      if (e.isComposing || e.keyCode === 229 || e.defaultPrevented) return;
+      // File-dialog keys must not act on the document behind the modal.
+      if ((e.target as Element | null)?.closest?.('[data-file-modal]')) return;
       const isMeta = e.metaKey || e.ctrlKey;
 
       if (isMeta && e.key === 'n') {

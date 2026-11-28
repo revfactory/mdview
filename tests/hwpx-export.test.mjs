@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { requireWithEmbeddedRaster } from './load-embedded-raster.mjs';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
@@ -7,16 +8,135 @@ import ts from 'typescript';
 import JSZip from 'jszip';
 
 const require = createRequire(import.meta.url);
-test('HWPX generator preserves Korean heading, table and final paragraph in a valid ZIP', async () => {
+const defaultOptions = { paperSize: 'A4', orientation: 'portrait', marginTop: 20, marginBottom: 20, marginLeft: 20, marginRight: 20, fontSize: 10, fontFamily: '맑은 고딕', lineHeight: 1.6 };
+
+async function exportZip(markdown, overrides = {}) {
   const source = readFileSync(new URL('../src/workers/hwp-generator.worker.ts', import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 } }).outputText;
   const messages = [];
   const self = { postMessage(message) { messages.push(message); } };
-  vm.runInNewContext(js, { exports: {}, require, self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, setTimeout, clearTimeout });
-  await self.onmessage({ data: { type: 'generate', markdown: '# 회의록\n\n- 첫 항목\n\n| 작업 | 담당 |\n| --- | --- |\n| 검토 | 사용자 |\n\n마지막 문장.', options: { paperSize: 'A4', orientation: 'portrait', marginTop: 20, marginBottom: 20, marginLeft: 20, marginRight: 20, fontSize: 10, fontFamily: '맑은 고딕', lineHeight: 1.6 } } });
+  vm.runInNewContext(js, { exports: {}, require: name => requireWithEmbeddedRaster(require, name), self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, atob, setTimeout, clearTimeout });
+  await self.onmessage({ data: { type: 'generate', markdown, options: { ...defaultOptions, ...overrides } } });
   assert.equal(messages.find((message) => message.type === 'error'), undefined);
   const complete = messages.find((message) => message.type === 'complete'); assert.ok(complete);
-  const zip = await JSZip.loadAsync(complete.buffer);
-  const section = zip.file('Contents/section0.xml'); assert.ok(section);
-  const xml = await section.async('text'); assert.match(xml, /회의록/); assert.match(xml, /검토/); assert.match(xml, /마지막 문장/);
+  const zip = await JSZip.loadAsync(complete.buffer, { checkCRC32: true });
+  assert.equal(await zip.file('mimetype').async('text'), 'application/hwp+zip');
+  return zip;
+}
+
+async function exportSection(markdown) {
+  const section = (await exportZip(markdown)).file('Contents/section0.xml'); assert.ok(section);
+  return section.async('text');
+}
+
+function checkTable(xml, rows, cols, anchors) {
+  assert.match(xml, new RegExp(`<hp:tbl [^>]*rowCnt="${rows}" colCnt="${cols}"`));
+  const cells = [...xml.matchAll(/<hp:tc\b[^>]*>([\s\S]*?)<\/hp:tc>/g)].map(([, cell]) => {
+    const [, col, row] = cell.match(/<hp:cellAddr colAddr="(\d+)" rowAddr="(\d+)"\/>/);
+    const [, width, height] = cell.match(/<hp:cellSpan colSpan="(\d+)" rowSpan="(\d+)"\/>/);
+    const [, text] = cell.match(/<hp:t>([^<]*)<\/hp:t>/);
+    return [Number(row), Number(col), Number(height), Number(width), text];
+  });
+  assert.deepEqual(cells, anchors);
+  const occupied = new Set();
+  for (const [row, col, height, width] of cells) {
+    assert.ok(height > 0 && width > 0 && row + height <= rows && col + width <= cols);
+    for (let y = row; y < row + height; y++) {
+      for (let x = col; x < col + width; x++) {
+        const slot = `${y},${x}`;
+        assert.equal(occupied.has(slot), false, `overlap at ${slot}`);
+        occupied.add(slot);
+      }
+    }
+  }
+}
+
+test('HWPX generator preserves Korean heading, distinct table cells and final paragraph in a valid ZIP', async () => {
+  const xml = await exportSection('# 회의록\n\n- 첫 항목\n\n| 작업 | 담당 |\n| --- | --- |\n| 검토 | 사용자 |\n\n마지막 문장.');
+  assert.match(xml, /회의록/);
+  assert.match(xml, /마지막 문장/);
+  checkTable(xml, 2, 2, [[0, 0, 1, 1, '작업'], [0, 1, 1, 1, '담당'], [1, 0, 1, 1, '검토'], [1, 1, 1, 1, '사용자']]);
+});
+
+test('HWPX table layout skips occupied cells and counts columns carried from earlier rows', async () => {
+  const xml = await exportSection('<table><tr><td rowspan="2">왼쪽</td><td>가운데</td></tr><tr><td colspan="2">아래</td></tr><tr><td>하단</td></tr></table>');
+  checkTable(xml, 3, 3, [[0, 0, 2, 1, '왼쪽'], [0, 1, 1, 1, '가운데'], [1, 1, 1, 2, '아래'], [2, 0, 1, 1, '하단']]);
+});
+
+test('HWPX table layout finds room for a whole colspan beside a carried middle cell', async () => {
+  const xml = await exportSection('<table><tr><td>윗줄</td><td rowspan="2">가운데</td></tr><tr><td colspan="2">아랫줄</td></tr></table>');
+  checkTable(xml, 2, 4, [[0, 0, 1, 1, '윗줄'], [0, 1, 2, 1, '가운데'], [1, 2, 1, 2, '아랫줄']]);
+});
+
+test('HWPX table layout expands zero rowspan within its group, including an empty covered row', async () => {
+  const xml = await exportSection('<table><thead><tr><th rowspan="99999999999">제목</th></tr></thead><tbody><tr><td rowspan="0" data-colspan="9" title="> colspan=5">왼쪽</td><td>윗줄</td></tr><tr></tr><tr><td>아랫줄</td></tr></tbody><tbody><tr><td colspan="0" rowspan="-3">다음</td></tr></tbody></table>');
+  checkTable(xml, 5, 2, [[0, 0, 1, 1, '제목'], [1, 0, 3, 1, '왼쪽'], [1, 1, 1, 1, '윗줄'], [3, 1, 1, 1, '아랫줄'], [4, 0, 1, 1, '다음']]);
+});
+
+test('HWPX package indexes XML and embedded pictures by exact ZIP paths and media types', async () => {
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==';
+  const zip = await exportZip(`# 한글 제목\n\n![도형](data:image/png;base64,${png})\n\n마지막 문단`);
+  const hpf = await zip.file('Contents/content.hpf').async('text');
+  const container = await zip.file('META-INF/container.xml').async('text');
+  assert.match(container, /full-path="Contents\/content\.hpf"/);
+  const manifest = [...hpf.matchAll(/<opf:item id="([^"]+)" href="([^"]+)" media-type="([^"]+)"/g)]
+    .map(([, id, path, type]) => [id, path, type]);
+  assert.deepEqual(manifest, [
+    ['header', 'Contents/header.xml', 'application/xml'],
+    ['section0', 'Contents/section0.xml', 'application/xml'],
+    ['image1', 'BinData/image1.png', 'image/png'],
+  ]);
+  for (const [, path] of manifest) assert.ok(zip.file(path));
+  assert.equal(await zip.file('BinData/image1.png').async('base64'), png);
+  const xml = await zip.file('Contents/section0.xml').async('text');
+  assert.match(xml, /<hp:pic\b[\s\S]*?<hc:img binaryItemIDRef="image1"[^>]*\/>[\s\S]*?<\/hp:pic>/);
+});
+
+test('HWPX page settings, text styling and table placement use declared IDs and HWP units', async () => {
+  const markdown = '# 제목\n\n본문\n\n| 표 | 제목 |\n| --- | --- |\n| 내용 | 값 |\n\n끝';
+  const zip = await exportZip(markdown, { paperSize: 'B5', orientation: 'landscape', marginLeft: 12, marginRight: 12, fontFamily: '돋움' });
+  const header = await zip.file('Contents/header.xml').async('text');
+  const xml = await zip.file('Contents/section0.xml').async('text');
+  assert.match(header, /<hh:font id="0" face="돋움"/);
+  assert.match(header, /<hh:charPr id="1" height="2400"[^>]*>[\s\S]*?<hh:bold\/>/);
+  assert.match(xml, /<hp:run charPrIDRef="1"><hp:t>제목<\/hp:t>/);
+  assert.match(xml, /<hp:pagePr landscape="NARROWLY" width="49890" height="70866"/);
+  assert.match(xml, /<hp:margin[^>]+left="3402" right="3402"/);
+  assert.match(xml, /<hp:tbl[^>]+textWrap="TOP_AND_BOTTOM"[^>]+pageBreak="CELL"/);
+  assert.match(xml, /<hp:sz width="64062"[^>]+widthRelTo="ABSOLUTE"/);
+  assert.match(xml, /<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0"/);
+  assert.match(xml, /<hp:tc [^>]+borderFillIDRef="2"/);
+});
+
+const tablePng = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==';
+const tableSrc = `data:image/png;base64,${tablePng}`;
+
+test('HWPX table pictures, body pictures, row heights and relationships are consistent', async () => {
+  const zip = await exportZip(`![body](${tableSrc})\n\n<table><tr><td rowspan="2"><p>앞 &amp; 뒤</p><img src="${tableSrc}"><p>마지막 설명</p></td><td>첫 셀</td></tr><tr><td>아래 셀</td></tr></table>`);
+  const xml = await zip.file('Contents/section0.xml').async('text');
+  const cells = [...xml.matchAll(/<hp:tc\b[^>]*>([\s\S]*?)<\/hp:tc>/g)].map(m => m[1]);
+  assert.equal(cells.length, 3);
+  assert.match(cells[0], /<hp:t>앞 &amp; 뒤<\/hp:t>[\s\S]*<hp:pic [\s\S]*<\/hp:pic>[\s\S]*<hp:t>마지막 설명<\/hp:t>/);
+  const [, cellW, cellH] = cells[0].match(/<hp:cellSz width="(\d+)" height="(\d+)"/);
+  const [, w, h] = cells[0].match(/<hp:curSz width="(\d+)" height="(\d+)"/);
+  assert.equal(Number(w), 150);
+  assert.equal(Number(h), 150);
+  assert.ok(Number(w) < Number(cellW) && Number(h) < Number(cellH));
+  const ids = [...xml.matchAll(/<hp:(?:tbl|pic) id="(\d+)"/g)].map(m => m[1]);
+  assert.equal(new Set(ids).size, 3);
+  const refs = [...xml.matchAll(/binaryItemIDRef="([^"]+)"/g)].map(m => m[1]);
+  assert.equal(new Set(refs).size, 2);
+  const hpf = await zip.file('Contents/content.hpf').async('text');
+  for (const id of refs) {
+    assert.match(hpf, new RegExp(`id="${id}" href="BinData/${id}\\.png"`));
+    assert.equal(await zip.file(`BinData/${id}.png`).async('base64'), tablePng);
+  }
+});
+
+test('HWPX table export skips external pictures without dropping neighboring captions', async () => {
+  const zip = await exportZip('<table><tr><td>Before <img src="https://example.org/picture.png"> After</td><td>Neighbor</td></tr></table>');
+  const xml = await zip.file('Contents/section0.xml').async('text');
+  assert.match(xml, /<hp:t>Before\s+After<\/hp:t>/);
+  assert.match(xml, /<hp:t>Neighbor<\/hp:t>/);
+  assert.doesNotMatch(xml, /binaryItemIDRef|example\.org/);
 });

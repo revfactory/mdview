@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, FileText, CheckCircle, X } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 interface MarkdownImportProps {
   open: boolean;
   onClose: () => void;
-  onImportComplete: (content: string, title: string) => void;
+  onImportComplete: (content: string, title: string) => void | Promise<void>;
 }
 
 export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImportProps) {
@@ -19,7 +19,27 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Ignore obsolete file reads after replacement, close, or unmount.
+  const readRunRef = useRef(0);
+  useEffect(() => () => { readRunRef.current++; }, []);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const attemptedRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const handleClose = useCallback(() => {
+    // Closing cannot cancel an already-started write. Keep its result visible.
+    if (savingRef.current) return;
+    attemptedRef.current = false;
+    setIsSaving(false);
+    setSaveError(null);
+    readRunRef.current++;
     setSelectedFile(null);
     setContent(null);
     setIsDragOver(false);
@@ -29,8 +49,12 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
   }, [onClose]);
 
   const processFile = useCallback(async (file: File) => {
+    const run = ++readRunRef.current;
     const validExts = /\.(md|markdown|txt|mdx)$/i;
     if (!validExts.test(file.name)) {
+      setSelectedFile(null);
+      setContent(null);
+      setIsReading(false);
       setError('마크다운 파일(.md, .markdown, .txt, .mdx)만 지원합니다.');
       return;
     }
@@ -42,18 +66,25 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
 
     try {
       const text = await file.text();
+      if (run !== readRunRef.current) return;
+      if (text.length === 0) {
+        setError('파일에 텍스트 내용이 없습니다. 다른 파일을 선택하거나 새 문서를 만들어 주세요.');
+        return;
+      }
       setContent(text);
     } catch {
+      if (run !== readRunRef.current) return;
       setError('파일을 읽는 중 오류가 발생했습니다.');
     } finally {
-      setIsReading(false);
+      if (run === readRunRef.current) setIsReading(false);
     }
   }, []);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) processFile(file);
+      e.target.value = '';
+      if (file) void processFile(file);
     },
     [processFile]
   );
@@ -63,7 +94,7 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
       e.preventDefault();
       setIsDragOver(false);
       const file = e.dataTransfer.files[0];
-      if (file) processFile(file);
+      if (file) void processFile(file);
     },
     [processFile]
   );
@@ -78,11 +109,25 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
     setIsDragOver(false);
   }, []);
 
-  const handleConfirm = useCallback(() => {
-    if (!content || !selectedFile) return;
+  const handleConfirm = useCallback(async () => {
+    if (!content || !selectedFile || attemptedRef.current) return;
+    // The ref closes the same-tick double-click gap before React rerenders.
+    attemptedRef.current = true;
+    savingRef.current = true;
+    setIsSaving(true);
+    setSaveError(null);
     const title = selectedFile.name.replace(/\.(md|markdown|txt|mdx)$/i, '');
-    onImportComplete(content, title);
-    handleClose();
+    try {
+      await onImportComplete(content, title);
+      savingRef.current = false;
+      if (mountedRef.current) handleClose();
+    } catch {
+      savingRef.current = false;
+      if (mountedRef.current) {
+        setIsSaving(false);
+        setSaveError('저장을 완료하지 못했습니다. 원본 파일을 보관하고 아래 복구 원문을 복사해 두세요. 일부 문서가 이미 생성되었을 수 있어 재시도는 막았습니다. 문서 목록을 확인하기 전 같은 파일을 다시 가져오지 마세요.');
+      }
+    }
   }, [content, selectedFile, onImportComplete, handleClose]);
 
   const titleFromFile = selectedFile
@@ -100,9 +145,24 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
   return (
     <Modal open={open} onClose={handleClose} title="Markdown 가져오기" size="md">
       <div className="flex flex-col gap-4">
+        {isSaving && <p role="status" className="text-sm text-[var(--color-text-muted)]">문서를 저장하는 중입니다. 중복 저장을 막기 위해 확인과 닫기를 잠시 제한합니다.</p>}
+        {saveError && <p role="alert" className="text-sm text-[var(--color-danger)]">{saveError}</p>}
+        {saveError && content !== null && (
+          <textarea aria-label="저장 실패 복구 원문" readOnly value={content} className="w-full min-h-32 p-3 rounded border border-[var(--color-border)] text-sm" />
+        )}
         {/* Drop zone */}
         {!isReading && !content && (
           <div
+            role="button"
+            tabIndex={0}
+            data-modal-initial-focus
+            aria-label="마크다운 파일 선택"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -110,6 +170,7 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
               flex flex-col items-center justify-center gap-3
               h-[200px] rounded-xl border-2 border-dashed
               transition-colors duration-200 cursor-pointer
+              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]
               ${
                 isDragOver
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
@@ -201,10 +262,10 @@ export function MarkdownImport({ open, onClose, onImportComplete }: MarkdownImpo
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">
-              <Button variant="secondary" size="sm" onClick={handleClose}>
+              <Button variant="secondary" size="sm" onClick={handleClose} disabled={isSaving}>
                 취소
               </Button>
-              <Button variant="primary" size="sm" onClick={handleConfirm}>
+              <Button variant="primary" size="sm" onClick={handleConfirm} disabled={isSaving || !!saveError}>
                 확인
               </Button>
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, FileText, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { useHwpImport } from '@/hooks/use-hwp';
 interface HwpImportProps {
   open: boolean;
   onClose: () => void;
-  onImportComplete: (content: string, title: string) => void;
+  onImportComplete: (content: string, title: string) => void | Promise<void>;
 }
 
 export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
@@ -19,7 +19,22 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const attemptedRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const handleClose = useCallback(() => {
+    // Closing cannot cancel an already-started write. Keep its result visible.
+    if (savingRef.current) return;
+    attemptedRef.current = false;
+    setIsSaving(false);
+    setSaveError(null);
     setSelectedFile(null);
     setResult(null);
     setIsDragOver(false);
@@ -73,11 +88,25 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
     setIsDragOver(false);
   }, []);
 
-  const handleConfirm = useCallback(() => {
-    if (!result || !selectedFile) return;
+  const handleConfirm = useCallback(async () => {
+    if (!result || !selectedFile || attemptedRef.current) return;
+    // The ref closes the same-tick double-click gap before React rerenders.
+    attemptedRef.current = true;
+    savingRef.current = true;
+    setIsSaving(true);
+    setSaveError(null);
     const title = selectedFile.name.replace(/\.(hwp|hwpx)$/i, '');
-    onImportComplete(result.content, title);
-    handleClose();
+    try {
+      await onImportComplete(result.content, title);
+      savingRef.current = false;
+      if (mountedRef.current) handleClose();
+    } catch {
+      savingRef.current = false;
+      if (mountedRef.current) {
+        setIsSaving(false);
+        setSaveError('저장을 완료하지 못했습니다. 원본 파일을 보관하고 아래 복구 원문을 복사해 두세요. 일부 문서가 이미 생성되었을 수 있어 재시도는 막았습니다. 문서 목록을 확인하기 전 같은 파일을 다시 가져오지 마세요.');
+      }
+    }
   }, [result, selectedFile, onImportComplete, handleClose]);
 
   const titleFromFile = selectedFile
@@ -87,9 +116,25 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
   return (
     <Modal open={open} onClose={handleClose} title="HWP 가져오기" size="md">
       <div className="flex flex-col gap-4">
+        {isSaving && <p role="status" className="text-sm text-[var(--color-text-muted)]">문서를 저장하는 중입니다. 중복 저장을 막기 위해 확인과 닫기를 잠시 제한합니다.</p>}
+        {saveError && <p role="alert" className="text-sm text-[var(--color-danger)]">{saveError}</p>}
+        {saveError && result && (
+          <textarea aria-label="저장 실패 복구 원문" readOnly value={result.content} className="w-full min-h-32 p-3 rounded border border-[var(--color-border)] text-sm" />
+        )}
         {/* Drop zone - shown when no file is selected or after error */}
         {!isImporting && !result && (
           <div
+            role="button"
+            tabIndex={0}
+            data-modal-initial-focus
+            aria-label="HWP/HWPX 파일 선택"
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -97,6 +142,7 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
               flex flex-col items-center justify-center gap-3
               h-[200px] rounded-xl border-2 border-dashed
               transition-colors duration-200 cursor-pointer
+              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]
               ${
                 isDragOver
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
@@ -211,10 +257,10 @@ export function HwpImport({ open, onClose, onImportComplete }: HwpImportProps) {
 
             {/* Action buttons */}
             <div className="flex items-center justify-end gap-2 pt-1">
-              <Button variant="secondary" size="sm" onClick={handleClose}>
+              <Button variant="secondary" size="sm" onClick={handleClose} disabled={isSaving}>
                 취소
               </Button>
-              <Button variant="primary" size="sm" onClick={handleConfirm}>
+              <Button variant="primary" size="sm" onClick={handleConfirm} disabled={isSaving || !!saveError}>
                 확인
               </Button>
             </div>
