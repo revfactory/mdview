@@ -13,7 +13,7 @@ async function runWorker(name, data) {
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 } }).outputText;
   const messages = [];
   const self = { postMessage(message) { messages.push(message); } };
-  vm.runInNewContext(js, { exports: {}, require, self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, setTimeout, clearTimeout });
+  vm.runInNewContext(js, { exports: {}, require, self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, atob, btoa, setTimeout, clearTimeout });
   await self.onmessage({ data });
   assert.equal(messages.find(message => message.type === 'error'), undefined, JSON.stringify(messages));
   const result = messages.find(message => message.type === 'complete');
@@ -51,4 +51,12 @@ test('merged cells decode numeric XML entities once and keep markup inert', asyn
   const content = await parse(await zip.generateAsync({ type: 'arraybuffer' }));
   assert.match(content, /한글 &lt;b&gt;텍스트&lt;\/b&gt; &amp;lt; &amp;#x110000;/);
   assert.doesNotMatch(content, /<b>/);
+});
+
+test('exported image package returns its original embedded bytes and following paragraph on import', async () => {
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==';
+  const content = await parse(await generate(`앞 문장\n\n![사각형](data:image/png;base64,${png})\n\n뒤 문장`));
+  const expected = `data:image/png;base64,${png}`;
+  assert.ok(content.includes(expected));
+  assert.ok(content.indexOf('앞 문장') < content.indexOf(expected) && content.indexOf(expected) < content.indexOf('뒤 문장'));
 });
