@@ -43,7 +43,7 @@ function postProgress(percent: number, message: string) {
   self.postMessage({ type: 'progress', percent, message } as WorkerResponse);
 }
 
-// ---------- Paper sizes (unit: 1/100mm per HWPX spec) ----------
+// ---------- Paper sizes in hundredths of a millimetre ----------
 
 const PAPER_SIZES: Record<string, { width: number; height: number }> = {
   A4:     { width: 21000, height: 29700 },
@@ -61,8 +61,6 @@ const HEADING_SIZES: Record<number, number> = {
   5: 1200,
   6: 1100,
 };
-
-const BODY_SIZE = 1000;
 
 // ---------- HTML to HWPX XML conversion ----------
 
@@ -519,22 +517,22 @@ function generateContentHpf(sections: number, imageEntries: HwpImageData[] = [])
   let items = '';
   for (let i = 0; i < sections; i++) {
     items += `
-    <opf:item id="section${i}" href="section${i}.xml" media-type="text/xml"/>`;
+    <opf:item id="section${i}" href="Contents/section${i}.xml" media-type="application/xml"/>`;
   }
 
   for (const img of imageEntries) {
     items += `
-    <opf:item id="${img.id}" href="../BinData/${img.id}.${img.extension}" media-type="${img.mimeType}"/>`;
+    <opf:item id="${img.id}" href="BinData/${img.id}.${img.extension}" media-type="${img.mimeType}" isEmbeded="1"/>`;
   }
 
   let itemRefs = '';
   for (let i = 0; i < sections; i++) {
     itemRefs += `
-    <opf:itemref idref="section${i}"/>`;
+    <opf:itemref idref="section${i}" linear="yes"/>`;
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<opf:package xmlns:opf="http://www.idpf.org/2007/opf" version="1.0">
+<opf:package xmlns:opf="http://www.idpf.org/2007/opf/" version="1.0">
   <opf:metadata>
     <opf:title>MDView Document</opf:title>
     <opf:language>ko</opf:language>
@@ -542,253 +540,165 @@ function generateContentHpf(sections: number, imageEntries: HwpImageData[] = [])
     <opf:meta name="date" content="${new Date().toISOString().split('T')[0]}"/>
   </opf:metadata>
   <opf:manifest>
-    <opf:item id="header" href="header.xml" media-type="text/xml"/>${items}
+    <opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>${items}
   </opf:manifest>
-  <opf:spine>${itemRefs}
+  <opf:spine><opf:itemref idref="header" linear="yes"/>${itemRefs}
   </opf:spine>
 </opf:package>`;
 }
 
-function generateHeader(options: GenerateMessage['options']): string {
-  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
-  const width = options.orientation === 'landscape' ? paper.height : paper.width;
-  const height = options.orientation === 'landscape' ? paper.width : paper.height;
+const HWPML = 'http://www.hancom.co.kr/hwpml/2011';
 
-  // Convert margin from mm to 1/100mm
-  const marginTop = options.marginTop * 100;
-  const marginBottom = options.marginBottom * 100;
-  const marginLeft = options.marginLeft * 100;
-  const marginRight = options.marginRight * 100;
+function hwpUnits(mm: number): number {
+  return Math.round(mm * 7200 / 25.4);
+}
+
+function pageGeometry(options: GenerateMessage['options']) {
+  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
+  const landscape = options.orientation === 'landscape';
+  // pagePr stores the nominal portrait dimensions. Its orientation flag
+  // applies rotation; positioned objects use the rotated content rectangle.
+  const nominalWidth = hwpUnits(paper.width / 100);
+  const nominalHeight = hwpUnits(paper.height / 100);
+  const width = landscape ? nominalHeight : nominalWidth;
+  const height = landscape ? nominalWidth : nominalHeight;
+  const left = hwpUnits(options.marginLeft);
+  const right = hwpUnits(options.marginRight);
+  return { width, height, nominalWidth, nominalHeight, left, right, top: hwpUnits(options.marginTop), bottom: hwpUnits(options.marginBottom), contentWidth: Math.max(1, width - left - right) };
+}
+
+function generateContainer(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <ocf:rootfiles>
+    <ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>
+  </ocf:rootfiles>
+</ocf:container>`;
+}
+
+function characterStyles(options: GenerateMessage['options']) {
+  const body = Math.round(options.fontSize * 100);
+  return [
+    { height: body, bold: false, italic: false },
+    ...Object.values(HEADING_SIZES).map(height => ({ height, bold: true, italic: false })),
+    { height: body, bold: true, italic: false },
+    { height: body, bold: false, italic: true },
+    { height: body, bold: true, italic: true },
+    { height: Math.round(body * 0.9), bold: false, italic: false },
+  ];
+}
+
+function generateHeader(options: GenerateMessage['options']): string {
+  const face = escapeXml(options.fontFamily);
+  const languages = ['hangul', 'latin', 'hanja', 'japanese', 'other', 'symbol', 'user'];
+  const langAttrs = (value: number) => languages.map(lang => `${lang}="${value}"`).join(' ');
+  const styles = characterStyles(options);
+  const fonts = languages.map(lang => `<hh:fontface lang="${lang.toUpperCase()}" fontCnt="1"><hh:font id="0" face="${face}" type="TTF" isEmbedded="0"/></hh:fontface>`).join('\n');
+  const charPr = styles.map(({ height, bold, italic }, id) =>
+    `<hh:charPr id="${id}" height="${height}" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" borderFillIDRef="1">
+      <hh:fontRef ${langAttrs(0)}/><hh:ratio ${langAttrs(100)}/><hh:spacing ${langAttrs(0)}/>
+      <hh:relSz ${langAttrs(100)}/><hh:offset ${langAttrs(0)}/>${bold ? '<hh:bold/>' : ''}${italic ? '<hh:italic/>' : ''}
+    </hh:charPr>`).join('\n');
+  const borders = (id: number, type: string) => `<hh:borderFill id="${id}" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0">
+    ${['left', 'right', 'top', 'bottom'].map(side => `<hh:${side}Border type="${type}" width="0.12 mm" color="#000000"/>`).join('')}
+    <hh:diagonal type="NONE" width="0.12 mm" color="#000000"/>
+  </hh:borderFill>`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<hp:head xmlns:hp="http://www.hancom.co.kr/hwpml/2016/HwpMl"
-         xmlns:ha="http://www.hancom.co.kr/hwpml/2016/HwpMl/Attr">
-  <hp:beginNum ha:page="1" ha:footnote="1" ha:endnote="1"/>
-  <hp:refList>
-    <hp:fontfaces>
-      <hp:fontface ha:lang="HANGUL">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-      <hp:fontface ha:lang="LATIN">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-      <hp:fontface ha:lang="HANJA">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-      <hp:fontface ha:lang="SYMBOL">
-        <hp:font ha:face="${escapeXml(options.fontFamily)}" ha:type="TTF"/>
-      </hp:fontface>
-    </hp:fontfaces>
-    <hp:borderFills>
-      <hp:borderFill ha:id="1">
-        <hp:slash ha:type="NONE"/>
-        <hp:leftBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-        <hp:rightBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-        <hp:topBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-        <hp:bottomBorder ha:type="NONE" ha:width="0.1mm" ha:color="#000000"/>
-      </hp:borderFill>
-      <hp:borderFill ha:id="2">
-        <hp:slash ha:type="NONE"/>
-        <hp:leftBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-        <hp:rightBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-        <hp:topBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-        <hp:bottomBorder ha:type="SOLID" ha:width="0.12mm" ha:color="#000000"/>
-      </hp:borderFill>
-    </hp:borderFills>
-    <hp:charProperties>
-      <hp:charPr ha:id="0" ha:height="${Math.round(options.fontSize * 100)}" ha:textColor="#000000">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-      <hp:charPr ha:id="1" ha:height="2400" ha:textColor="#000000" ha:bold="true">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-      <hp:charPr ha:id="2" ha:height="2000" ha:textColor="#000000" ha:bold="true">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-      <hp:charPr ha:id="3" ha:height="1600" ha:textColor="#000000" ha:bold="true">
-        <hp:fontRef ha:hangul="0" ha:latin="0"/>
-      </hp:charPr>
-    </hp:charProperties>
-    <hp:paraProperties>
-      <hp:paraPr ha:id="0">
-        <hp:align ha:horizontal="JUSTIFY" ha:vertical="BASELINE"/>
-        <hp:lineSpacing ha:type="PERCENT" ha:value="${Math.round(options.lineHeight * 100)}"/>
-      </hp:paraPr>
-    </hp:paraProperties>
-  </hp:refList>
-  <hp:secDef>
-    <hp:pageDef ha:width="${width}" ha:height="${height}"
-                ha:marginTop="${marginTop}" ha:marginBottom="${marginBottom}"
-                ha:marginLeft="${marginLeft}" ha:marginRight="${marginRight}"
-                ha:headerMargin="0" ha:footerMargin="0"
-                ha:gutterType="LEFT_ONLY"/>
-  </hp:secDef>
-</hp:head>`;
+<hh:head xmlns:hh="${HWPML}/head" version="1.2" secCnt="1">
+  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
+  <hh:refList>
+    <hh:fontfaces itemCnt="${languages.length}">${fonts}</hh:fontfaces>
+    <hh:borderFills itemCnt="2">${borders(1, 'NONE')}${borders(2, 'SOLID')}</hh:borderFills>
+    <hh:charProperties itemCnt="${styles.length}">${charPr}</hh:charProperties>
+    <hh:paraProperties itemCnt="1"><hh:paraPr id="0">
+      <hh:align horizontal="LEFT" vertical="BASELINE"/>
+      <hh:lineSpacing type="PERCENT" value="${Math.round(options.lineHeight * 100)}" unit="HWPUNIT"/>
+    </hh:paraPr></hh:paraProperties>
+    <hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/></hh:styles>
+  </hh:refList>
+</hh:head>`;
 }
 
-function generateTableXml(table: HwpTable, options: GenerateMessage['options']): string {
-  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
-  const pageWidth = options.orientation === 'landscape' ? paper.height : paper.width;
-  const marginLeft = options.marginLeft * 100;
-  const marginRight = options.marginRight * 100;
-  const contentWidth = pageWidth - marginLeft - marginRight;
-  const bodySize = Math.round(options.fontSize * 100);
-
-  const colWidth = Math.round(contentWidth / table.colCount);
-  const cellHeight = 1000;
-  const cellMargin = 51;
-
-  let xml = `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:charPrIDRef ha:val="0"/></hp:rPr>
-      <hp:tbl ha:rowCnt="${table.rows.length}" ha:colCnt="${table.colCount}" ha:borderFillIDRef="2" ha:cellSpacing="0" ha:pageBreak="CELL" ha:repeatHeader="false">
-        <hp:inMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
-        <hp:tblPr>
-          <hp:tblSize ha:width="${contentWidth}" ha:widthRelTo="paper"/>
-        </hp:tblPr>`;
-
-  for (const row of table.rows) {
-    xml += `
-        <hp:tr>`;
-    for (const cell of row) {
-      const cellWidth = colWidth * cell.colspan;
-      xml += `
-          <hp:tc ha:name="" ha:header="false" ha:hasMargin="false" ha:protect="false" ha:editable="false">
-            <hp:cellAddr ha:colAddr="${cell.col}" ha:rowAddr="${cell.row}"/>
-            <hp:cellSpan ha:colSpan="${cell.colspan}" ha:rowSpan="${cell.rowspan}"/>
-            <hp:cellSz ha:width="${cellWidth}" ha:height="${cellHeight}"/>
-            <hp:cellMargin ha:left="${cellMargin}" ha:right="${cellMargin}" ha:top="0" ha:bottom="0"/>
-            <hp:cellBorderFill ha:borderFillIDRef="2"/>
-            <hp:subList ha:textDirection="HORIZONTAL" ha:lineWrap="BREAK" ha:vertAlign="CENTER" ha:textWidth="${cellWidth - cellMargin * 2}" ha:textHeight="${cellHeight}">
-              <hp:p>
-                <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-                <hp:run>
-                  <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
-                  <hp:t>${escapeXml(cell.text)}</hp:t>
-                </hp:run>
-              </hp:p>
-            </hp:subList>
-          </hp:tc>`;
-    }
-    xml += `
-        </hp:tr>`;
-  }
-
-  xml += `
-      </hp:tbl>
-    </hp:run>
-  </hp:p>`;
-
-  return xml;
+function paragraph(content: string, charPrIDRef = 0): string {
+  return `<hp:p paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${charPrIDRef}">${content}</hp:run></hp:p>`;
 }
 
-function generateImageXml(imageData: HwpImageData, options: GenerateMessage['options']): string {
-  const paper = PAPER_SIZES[options.paperSize] || PAPER_SIZES.A4;
-  const pageWidth = options.orientation === 'landscape' ? paper.height : paper.width;
-  const marginLeft = options.marginLeft * 100;
-  const marginRight = options.marginRight * 100;
-  const contentWidth = pageWidth - marginLeft - marginRight;
+function shapeAttributes(id: number, numberingType: 'TABLE' | 'PICTURE'): string {
+  return `id="${id}" zOrder="${id}" numberingType="${numberingType}" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0"`;
+}
 
-  // Default image size: fit to content width, maintain a 4:3 aspect ratio as fallback
-  const imgWidth = contentWidth;
-  const imgHeight = Math.round(contentWidth * 3 / 4);
+function shapePosition(width: number, height: number, inline: boolean): string {
+  const inlineFlag = inline ? 1 : 0;
+  return `<hp:sz width="${width}" height="${height}" widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE" protect="0"/>
+    <hp:pos treatAsChar="${inlineFlag}" affectLSpacing="${inlineFlag}" flowWithText="1" allowOverlap="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>
+    <hp:outMargin left="0" right="0" top="0" bottom="0"/>`;
+}
 
-  const binItemId = imageData.id;
+function generateTableXml(table: HwpTable, options: GenerateMessage['options'], id: number): string {
+  const { contentWidth } = pageGeometry(options);
+  const edge = (col: number) => Math.round(col * contentWidth / table.colCount);
+  const cellMargin = hwpUnits(1);
+  const cellHeight = Math.max(1, Math.round(options.fontSize * 100 * options.lineHeight) + cellMargin * 2);
 
-  return `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:charPrIDRef ha:val="0"/></hp:rPr>
-      <hp:drawing>
-        <hp:anchor ha:type="inline">
-          <hp:sz ha:width="${imgWidth}" ha:height="${imgHeight}" ha:widthRelTo="paper" ha:heightRelTo="paper"/>
-          <hp:pos ha:treatAsChar="true"/>
-          <hp:shapeComment>image</hp:shapeComment>
-          <hp:pic>
-            <hp:picRect/>
-            <hp:img ha:binaryItemIDRef="${binItemId}"/>
-          </hp:pic>
-        </hp:anchor>
-      </hp:drawing>
-    </hp:run>
-  </hp:p>`;
+  const rows = table.rows.map(row => `<hp:tr>${row.map(cell => {
+    const width = Math.max(1, edge(cell.col + cell.colspan) - edge(cell.col));
+    return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" borderFillIDRef="2">
+      <hp:subList textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" textWidth="0" textHeight="0">
+        ${paragraph(`<hp:t>${escapeXml(cell.text)}</hp:t>`)}
+      </hp:subList>
+      <hp:cellAddr colAddr="${cell.col}" rowAddr="${cell.row}"/>
+      <hp:cellSpan colSpan="${cell.colspan}" rowSpan="${cell.rowspan}"/>
+      <hp:cellSz width="${width}" height="${cellHeight * cell.rowspan}"/>
+      <hp:cellMargin left="${cellMargin}" right="${cellMargin}" top="${cellMargin}" bottom="${cellMargin}"/>
+    </hp:tc>`;
+  }).join('')}</hp:tr>`).join('\n');
+
+  return paragraph(`<hp:tbl ${shapeAttributes(id, 'TABLE')} rowCnt="${table.rows.length}" colCnt="${table.colCount}" borderFillIDRef="2" cellSpacing="0" pageBreak="CELL" repeatHeader="0">
+    ${shapePosition(contentWidth, cellHeight * table.rows.length, false)}
+    <hp:inMargin left="0" right="0" top="0" bottom="0"/>${rows}
+  </hp:tbl>`);
+}
+
+function generateImageXml(imageData: HwpImageData, options: GenerateMessage['options'], id: number): string {
+  const { width: pageWidth, height: pageHeight, contentWidth, top, bottom } = pageGeometry(options);
+  const width = Math.min(pageWidth, contentWidth, Math.round((pageHeight - top - bottom) * 4 / 3));
+  const height = Math.round(width * 3 / 4);
+  return paragraph(`<hp:pic ${shapeAttributes(id, 'PICTURE')} instid="${id}" reverse="0">
+    <hp:offset x="0" y="0"/><hp:orgSz width="${width}" height="${height}"/>
+    <hp:curSz width="${width}" height="${height}"/><hp:flip horizontal="0" vertical="0"/>
+    <hp:rotationInfo angle="0" centerX="${Math.round(width / 2)}" centerY="${Math.round(height / 2)}" rotateimage="1"/>
+    <hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${width}" y="0"/><hc:pt2 x="${width}" y="${height}"/><hc:pt3 x="0" y="${height}"/></hp:imgRect>
+    <hp:imgClip left="0" right="${width}" top="0" bottom="${height}"/>
+    <hp:inMargin left="0" right="0" top="0" bottom="0"/>
+    <hp:imgDim dimwidth="${width}" dimheight="${height}"/>
+    <hc:img binaryItemIDRef="${imageData.id}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>
+    ${shapePosition(width, height, true)}
+  </hp:pic>`);
 }
 
 function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['options']): string {
-  const bodySize = Math.round(options.fontSize * 100);
-
-  let paraXml = '';
-
-  for (const para of paragraphs) {
-    // Handle table
-    if (para.isTable && para.table) {
-      paraXml += generateTableXml(para.table, options);
-      continue;
-    }
-
-    // Handle image
-    if (para.isImage && para.imageData) {
-      paraXml += generateImageXml(para.imageData, options);
-      continue;
-    }
-
-    if (para.isHr) {
-      paraXml += `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
-      <hp:t>────────────────────────────────</hp:t>
-    </hp:run>
-  </hp:p>`;
-      continue;
-    }
-
-    if (para.text === '') {
-      paraXml += `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:sz ha:val="${bodySize}"/></hp:rPr>
-      <hp:t></hp:t>
-    </hp:run>
-  </hp:p>`;
-      continue;
-    }
-
-    const fontSize = para.headingLevel > 0
-      ? (HEADING_SIZES[para.headingLevel] || bodySize)
-      : (para.isCodeBlock ? Math.round(bodySize * 0.9) : bodySize);
-
-    const displayText = para.isList ? `${para.listPrefix}${para.text}` :
-                        para.isBlockquote ? `\u2502 ${para.text}` :
-                        para.text;
-
-    let rPr = `<hp:sz ha:val="${fontSize}"/>`;
-    if (para.bold || para.headingLevel > 0) {
-      rPr += '<hp:bold/>';
-    }
-    if (para.italic) {
-      rPr += '<hp:italic/>';
-    }
-
-    paraXml += `
-  <hp:p>
-    <hp:pPr><hp:paraPrIDRef ha:val="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr>${rPr}</hp:rPr>
-      <hp:t>${escapeXml(displayText)}</hp:t>
-    </hp:run>
-  </hp:p>`;
-  }
-
+  const { nominalWidth, nominalHeight, left, right, top, bottom } = pageGeometry(options);
+  const sectionProperties = `<hp:secPr textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="0" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0">
+    <hp:pagePr landscape="${options.orientation === 'landscape' ? 'NARROWLY' : 'WIDELY'}" width="${nominalWidth}" height="${nominalHeight}" gutterType="LEFT_ONLY">
+      <hp:margin header="0" footer="0" gutter="0" left="${left}" right="${right}" top="${top}" bottom="${bottom}"/>
+    </hp:pagePr>
+  </hp:secPr><hp:ctrl><hp:colPr type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>`;
+  let objectId = 1;
+  const body = paragraphs.map(para => {
+    if (para.isTable && para.table) return generateTableXml(para.table, options, objectId++);
+    if (para.isImage && para.imageData) return generateImageXml(para.imageData, options, objectId++);
+    const text = para.isHr ? '────────────────────────────────' :
+      para.isList ? `${para.listPrefix}${para.text}` :
+      para.isBlockquote ? `\u2502 ${para.text}` : para.text;
+    const style = para.headingLevel || (para.isCodeBlock ? 10 : para.bold && para.italic ? 9 : para.bold ? 7 : para.italic ? 8 : 0);
+    return paragraph(`<hp:t>${escapeXml(text)}</hp:t>`, style);
+  }).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<hp:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2016/HwpMl"
-        xmlns:ha="http://www.hancom.co.kr/hwpml/2016/HwpMl/Attr">${paraXml}
-</hp:sec>`;
+<hs:sec xmlns:hs="${HWPML}/section" xmlns:hp="${HWPML}/paragraph" xmlns:hc="${HWPML}/core">
+  ${paragraph(sectionProperties)}
+  ${body}
+</hs:sec>`;
 }
 
 // ---------- Main generation pipeline ----------
@@ -819,6 +729,8 @@ async function generateHwpx(markdown: string, options: GenerateMessage['options'
 
   // mimetype (must be first, uncompressed)
   zip.file('mimetype', generateMimetype(), { compression: 'STORE' });
+
+  zip.file('META-INF/container.xml', generateContainer());
 
   // META-INF/manifest.xml
   zip.file('META-INF/manifest.xml', generateManifest(1, imageEntries));
