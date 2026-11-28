@@ -78,9 +78,10 @@ export function ToolbarExportMenu({ disabled, onMarkdown, onHwpx, onPdf, pdfDisa
           });
           setOpen(true);
         }}
-        className="flex items-center justify-center w-8 h-8 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        className="flex items-center justify-center gap-1 px-2 h-8 shrink-0 whitespace-nowrap text-xs font-medium rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
       >
-        <Download className="w-4 h-4" />
+        <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
+        <span>내보내기</span>
       </button>
       {visible && createPortal(
         <div
