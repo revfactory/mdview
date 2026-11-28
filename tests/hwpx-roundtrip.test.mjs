@@ -1,3 +1,4 @@
+import { requireWithEmbeddedRaster } from './load-embedded-raster.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -13,7 +14,7 @@ async function runWorker(name, data) {
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 } }).outputText;
   const messages = [];
   const self = { postMessage(message) { messages.push(message); } };
-  vm.runInNewContext(js, { exports: {}, require, self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, atob, btoa, setTimeout, clearTimeout });
+  vm.runInNewContext(js, { exports: {}, require: name => requireWithEmbeddedRaster(require, name), self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, atob, btoa, setTimeout, clearTimeout });
   await self.onmessage({ data });
   assert.equal(messages.find(message => message.type === 'error'), undefined, JSON.stringify(messages));
   const result = messages.find(message => message.type === 'complete');
@@ -59,4 +60,57 @@ test('exported image package returns its original embedded bytes and following p
   const expected = `data:image/png;base64,${png}`;
   assert.ok(content.includes(expected));
   assert.ok(content.indexOf('앞 문장') < content.indexOf(expected) && content.indexOf(expected) < content.indexOf('뒤 문장'));
+});
+
+const cellPng = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==';
+const imageData = `data:image/png;base64,${cellPng}`;
+
+async function pictureTable(markdown, injected, withFiles = () => {}) {
+  const zip = await JSZip.loadAsync(await generate(markdown));
+  const path = 'Contents/section0.xml';
+  const xml = await zip.file(path).async('text');
+  assert.ok(xml.includes('<hp:t>그림자리</hp:t>'));
+  zip.file(path, xml.replace('<hp:t>그림자리</hp:t>', injected));
+  zip.file('BinData/image1.png', Buffer.from(cellPng, 'base64'));
+  withFiles(zip);
+  return runWorker('hwp-parser', { type: 'parse', file: await zip.generateAsync({ type: 'arraybuffer' }) });
+}
+
+const imageTag = '<hc:img binaryItemIDRef="image1"/>';
+
+test('keeps a small HWPX cell picture between its captions in a simple table', async () => {
+  const { content } = await pictureTable('| 머리 | 열 |\n| --- | --- |\n| 그림자리 | 이웃 |\n\n표 다음',
+    `<hp:t>그림 &amp; 설명</hp:t>${imageTag}<hp:t>아래 설명</hp:t>`);
+  assert.ok(content.includes(`<td><p>그림 &amp; 설명</p><img src="${imageData}" alt="이미지"><p>아래 설명</p></td>`), content);
+  assert.match(content, /<td>이웃<\/td>/);
+  assert.ok(content.indexOf('</table>') < content.indexOf('표 다음'));
+});
+
+test('keeps HWPX cell image bytes in a merged cell and leaves a text-only neighbor intact', async () => {
+  const { content } = await pictureTable('<table><tr><td colspan="2">그림자리</td></tr><tr><td>하나</td><td>둘</td></tr></table>',
+    `${imageTag}<hp:t>&lt;b&gt;테스트&lt;/b&gt;</hp:t>`);
+  assert.ok(content.includes(`<td colspan="2"><img src="${imageData}" alt="이미지"><p>&lt;b&gt;테스트&lt;/b&gt;</p></td>`), content);
+  assert.match(content, /<td>하나<\/td>\s*<td>둘<\/td>/);
+});
+
+test('keeps captions when an HWPX cell picture exceeds the import size limit', async () => {
+  const { content, warnings } = await pictureTable('| 머리 | 열 |\n| --- | --- |\n| 그림자리 | 이웃 |',
+    '<hp:t>설명</hp:t><hc:img binaryItemIDRef="large"/>', zip => {
+      zip.file('BinData/large.png', Buffer.alloc(200 * 1024 + 1));
+    });
+  assert.match(content, /\| 설명 \| 이웃 \|/);
+  assert.doesNotMatch(content, /<img|data:image/);
+  assert.ok(warnings.some(warning => warning.includes('제외되었습니다')));
+});
+
+test('applies the aggregate output limit to resolved cell images without losing the caption', async () => {
+  const { content, warnings } = await pictureTable('| 머리 | 열 |\n| --- | --- |\n| 그림자리 | 이웃 |',
+    `<hp:t>유지</hp:t>${'<hc:img binaryItemIDRef="reused"/>'.repeat(9)}`, zip => {
+      const png = Buffer.alloc(195 * 1024);
+      Buffer.from(cellPng, 'base64').copy(png);
+      zip.file('BinData/reused.png', png);
+    });
+  assert.doesNotMatch(content, /data:image/);
+  assert.match(content, /<p>유지<\/p><p>이미지 제외됨<\/p>/);
+  assert.ok(warnings.some(warning => warning.includes('문서가 매우 커서')));
 });

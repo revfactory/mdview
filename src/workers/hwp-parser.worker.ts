@@ -2,6 +2,7 @@
 
 import * as CFB from 'cfb';
 import { inflate, inflateRaw } from 'pako';
+import { isSmallEmbeddedRaster } from '../lib/embedded-raster';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -963,6 +964,9 @@ async function parseHwpx(
 
   // Extract images from BinData/ directory in the ZIP
   const hwpxImageMap = new Map<string, string>();
+  // Cell images are emitted as HTML, not Markdown image syntax. Keep their
+  // admission identical to the visual editor's bounded raster policy.
+  const cellImageUrls = new Set<string>();
   const binDataFiles: string[] = [];
   zip.forEach((relativePath) => {
     if (/BinData\//i.test(relativePath) && !/\/$/.test(relativePath)) {
@@ -995,6 +999,7 @@ async function parseHwpx(
 
       const base64 = uint8ArrayToBase64(binData);
       const dataUrl = `data:${mime};base64,${base64}`;
+      if (isSmallEmbeddedRaster(dataUrl)) cellImageUrls.add(dataUrl);
 
       // Store with multiple key formats for flexible matching
       const fileName = binPath.split('/').pop() || '';
@@ -1058,7 +1063,7 @@ async function parseHwpx(
     const file = zip.file(sectionPath);
     if (!file) continue;
     const xmlContent = await file.async('text');
-    const markdown = parseHwpxXml(xmlContent, hwpxImageMap);
+    const markdown = parseHwpxXml(xmlContent, hwpxImageMap, cellImageUrls);
     if (markdown) allMarkdown.push(markdown);
   }
 
@@ -1073,7 +1078,9 @@ async function parseHwpx(
   // Guard: strip base64 images if content is too large
   const MAX_CONTENT_LENGTH = 2 * 1024 * 1024;
   if (hwpxContent.length > MAX_CONTENT_LENGTH) {
-    hwpxContent = hwpxContent.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지 제외됨)');
+    hwpxContent = hwpxContent
+      .replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, '![$1](이미지 제외됨)')
+      .replace(/<img src="data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+" alt="이미지">/g, '<p>이미지 제외됨</p>');
     warnings.push('문서가 매우 커서 일부 이미지가 제외되었습니다.');
   }
 
@@ -1126,7 +1133,41 @@ function findBalancedTags(xml: string, tagName: string): { start: number; end: n
   return results;
 }
 
-function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
+/**
+ * Keep admitted pictures between the text runs that surround them. The XML's
+ * own attributes never become HTML: the only src comes from the raster map.
+ */
+function renderHwpxCellImages(xml: string, imageMap: Map<string, string>, allowedUrls: Set<string>): string | undefined {
+  if (allowedUrls.size === 0) return;
+  const tokens = /<hp:t>([\s\S]*?)<\/hp:t>|<(?:hc|hp|dr):img\b([^>]*)>/g;
+  const parts: string[] = [];
+  let text = '';
+  let foundImage = false;
+  const flushText = () => {
+    const escaped = escapeHtml(decodeXmlText(text));
+    if (escaped) parts.push(`<p>${escaped}</p>`);
+    text = '';
+  };
+  for (const match of xml.matchAll(tokens)) {
+    if (match[1] !== undefined) {
+      text += match[1];
+      continue;
+    }
+    const ref = match[2].match(/(?:^|\s)(?:binaryItemIDRef|binItemIDRef)\s*=\s*["']([^"']+)["']/)?.[1];
+    if (!ref) continue;
+    const url = imageMap.get(ref) || imageMap.get(ref.replace(/^BinData\//, ''))
+      || imageMap.get(ref.replace(/\.\w+$/, ''));
+    if (!url || !allowedUrls.has(url)) continue;
+    flushText();
+    parts.push(`<img src="${url}" alt="이미지">`);
+    foundImage = true;
+  }
+  if (!foundImage) return;
+  flushText();
+  return parts.join('');
+}
+
+function parseHwpxXml(xml: string, imageMap: Map<string, string>, cellImageUrls: Set<string>): string {
   const lines: string[] = [];
 
   // Split XML into text and table segments using balanced tag matching
@@ -1153,11 +1194,13 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
       // Parse table with merge detection
       interface HwpxCell {
         text: string;
+        imageHtml?: string;
         colspan: number;
         rowspan: number;
       }
       const parsedRows: HwpxCell[][] = [];
       let hasComplexMerge = false;
+      let hasCellImages = false;
 
       const trTags = findBalancedTags(segment.content, 'hp:tr');
       for (const trTag of trTags) {
@@ -1171,6 +1214,8 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
           const tcAttrs = tcOpenMatch ? tcOpenMatch[1] : '';
           const tcBody = tcContent;
           const cellText = extractHwpxText(tcBody);
+          const imageHtml = renderHwpxCellImages(tcBody, imageMap, cellImageUrls);
+          if (imageHtml) hasCellImages = true;
 
           // Parse colspan/rowspan from <hp:cellAddr> or <hp:cellSpan> or tc attributes
           let colspan = 1;
@@ -1197,7 +1242,7 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
 
           if (colspan > 1 || rowspan > 1) hasComplexMerge = true;
 
-          row.push({ text: cellText, colspan, rowspan });
+          row.push({ text: cellText, imageHtml, colspan, rowspan });
         }
         if (row.length > 0) parsedRows.push(row);
       }
@@ -1213,8 +1258,9 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
           if (actualCells !== expectedCells) hasComplexMerge = true;
         }
 
-        if (hasComplexMerge) {
-          // Render as HTML table
+        if (hasComplexMerge || hasCellImages) {
+          // GFM cells cannot preserve the order of block images and text.
+          // Use an HTML table for picture cells or merged spans.
           lines.push('<table>');
           for (const row of parsedRows) {
             lines.push('  <tr>');
@@ -1223,7 +1269,7 @@ function parseHwpxXml(xml: string, imageMap?: Map<string, string>): string {
               if (cell.colspan > 1) attrs.push(`colspan="${cell.colspan}"`);
               if (cell.rowspan > 1) attrs.push(`rowspan="${cell.rowspan}"`);
               const attrStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
-              lines.push(`    <td${attrStr}>${escapeHtml(decodeXmlText(cell.text))}</td>`);
+              lines.push(`    <td${attrStr}>${cell.imageHtml ?? escapeHtml(decodeXmlText(cell.text))}</td>`);
             }
             lines.push('  </tr>');
           }

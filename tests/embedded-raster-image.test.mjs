@@ -1,3 +1,4 @@
+import { requireWithEmbeddedRaster } from './load-embedded-raster.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -13,8 +14,9 @@ const require = createRequire(import.meta.url);
 const source = readFileSync(new URL('../src/extensions/embedded-raster-image.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
 const exports = {};
-vm.runInNewContext(compiled,{exports,require,atob});
-const { EmbeddedRasterImage, isSmallEmbeddedRaster } = exports;
+vm.runInNewContext(compiled,{exports,require: name => requireWithEmbeddedRaster(require, name),atob});
+const { EmbeddedRasterImage } = exports;
+const { isSmallEmbeddedRaster } = requireWithEmbeddedRaster(require, '../lib/embedded-raster');
 const schema = getSchema([StarterKit, EmbeddedRasterImage]);
 const pngPayload='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aR1sAAAAASUVORK5CYII=';
 const png='data:image/png;base64,'+pngPayload;

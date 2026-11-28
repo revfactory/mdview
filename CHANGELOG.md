@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.22] - 2026-11-28
+
+### Fixed
+- HWPX 표 안의 지원 형식 그림을 같은 셀에 표시하고, 표 병합과 그림 주변 설명을 유지합니다. 시각 편집·자동저장·마크다운 내보내기 후에도 그림이 남습니다.
+
 ## [0.3.21] - 2026-11-28
 
 ### Fixed
@@ -509,7 +514,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.21...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.22...HEAD
+[0.3.22]: https://github.com/revfactory/mdview/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/revfactory/mdview/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/revfactory/mdview/compare/v0.3.19...v0.3.20
 [0.3.19]: https://github.com/revfactory/mdview/compare/v0.3.18...v0.3.19

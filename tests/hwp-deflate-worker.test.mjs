@@ -1,3 +1,4 @@
+import { requireWithEmbeddedRaster } from './load-embedded-raster.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -51,7 +52,7 @@ async function parse(file) {
   // Preserve the real package's ESM surface; CommonJS interop must not synthesize a default.
   const browserPako = { ...pako, __esModule: true };
   script.runInNewContext({ exports: {}, self, Uint8Array, ArrayBuffer, btoa, Error,
-    require: name => name === 'pako' ? browserPako : require(name),
+    require: name => name === 'pako' ? browserPako : requireWithEmbeddedRaster(require, name),
   });
   await self.onmessage({ data: { type: 'parse', file } });
   return messages.filter(message => message.type !== 'progress');
