@@ -21,6 +21,28 @@ function getTurndownService(): TurndownService {
 
   service.use(gfm);
 
+  // TipTap nests its checkbox inside a label, while the GFM plugin only
+  // recognizes a checkbox directly inside a list item.
+  service.addRule('editorTaskItem', {
+    filter: (node) => node.nodeName === 'LI'
+      && node.getAttribute('data-type') === 'taskItem'
+      && node.parentElement?.getAttribute('data-type') === 'taskList',
+    replacement: (content, node, options) => {
+      const marker = node.getAttribute('data-checked') === 'true' ? '[x]' : '[ ]';
+      const prefix = `${options.bulletListMarker}   `;
+      const text = content.replace(/^\n+|\n+$/g, '');
+      // GFM requires content after the checkbox marker. A non-breaking
+      // space also keeps subsequent paragraphs and nested lists on new lines.
+      const bodyElement = Array.from(node.children).find(child => child.tagName === 'DIV');
+      const firstParagraph = bodyElement?.firstElementChild;
+      const emptyFirstParagraph = firstParagraph?.tagName === 'P' && !firstParagraph.textContent?.trim()
+        && !firstParagraph.children.length;
+      const body = emptyFirstParagraph ? '&nbsp;' + (text ? '\n\n' + text : '') : text;
+      const indented = body.replace(/\n(?=.)/g, `\n${' '.repeat(prefix.length)}`);
+      return `${prefix}${marker} ${indented || '&nbsp;'}${node.nextSibling ? '\n' : ''}`;
+    },
+  });
+
   // Underline -> custom marker
   service.addRule('underline', {
     filter: ['u'],

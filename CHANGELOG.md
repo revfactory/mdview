@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.20] - 2026-11-28
+
+### Fixed
+- 마크다운에서 가져오거나 붙여넣은 글머리표 체크리스트를 화면에서 확인하고 상태를 바꿀 수 있습니다. 일반 목록과 섞지 않은 체크리스트는 수정·자동저장·마크다운 내보내기 후에도 체크 상태를 유지합니다.
+
 ## [0.3.19] - 2026-11-28
 
 ### Added
@@ -499,7 +504,11 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.16...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.20...HEAD
+[0.3.20]: https://github.com/revfactory/mdview/compare/v0.3.19...v0.3.20
+[0.3.19]: https://github.com/revfactory/mdview/compare/v0.3.18...v0.3.19
+[0.3.18]: https://github.com/revfactory/mdview/compare/v0.3.17...v0.3.18
+[0.3.17]: https://github.com/revfactory/mdview/compare/v0.3.16...v0.3.17
 [0.3.16]: https://github.com/revfactory/mdview/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/revfactory/mdview/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/revfactory/mdview/compare/v0.3.13...v0.3.14

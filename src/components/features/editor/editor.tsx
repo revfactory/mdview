@@ -7,8 +7,6 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { Image } from '@tiptap/extension-image';
-import { TaskList } from '@tiptap/extension-task-list';
-import { TaskItem } from '@tiptap/extension-task-item';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Typography } from '@tiptap/extension-typography';
 import { CharacterCount } from '@tiptap/extension-character-count';
@@ -25,6 +23,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { htmlToMarkdown, htmlToMarkdownAsync } from '@/lib/markdown';
 import { InlineMath, BlockMath } from '@/extensions/math';
 import { TrailingNode } from '@/extensions/trailing-node';
+import { MarkdownTaskItem, MarkdownTaskList } from '@/extensions/markdown-task-list';
 import { UniqueID } from '@/extensions/unique-id';
 import { EditorBubbleMenu } from '@/components/features/editor/bubble-menu';
 import { useImageDrop, DropOverlay } from '@/components/features/editor/drop-zone';
@@ -84,8 +83,8 @@ export function Editor({ content, onChange, onVisualEdit, editable = true, onEdi
       TableHeader,
       TableCell,
       Image,
-      TaskList,
-      TaskItem.configure({
+      MarkdownTaskList,
+      MarkdownTaskItem.configure({
         nested: true,
       }),
       Placeholder.configure({
