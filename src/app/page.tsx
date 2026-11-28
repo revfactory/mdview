@@ -7,6 +7,7 @@ import { Toolbar } from '@/components/layout/toolbar';
 import { StatusBar } from '@/components/layout/status-bar';
 import { PasteMarkdownDialog } from '@/components/growth/paste-markdown-form';
 import { WelcomePanel } from '@/components/growth/welcome-panel';
+import { SiteName } from '@/components/growth/site-name';
 import { readEntryAction, type EntryAction, type EntrySource } from '@/lib/entry-actions';
 import { Editor } from '@/components/features/editor/editor';
 import { PaginatedEditor } from '@/components/features/editor/paginated-editor';
@@ -454,6 +455,7 @@ export default function Home() {
       }
       focusMode={focusMode}
     >
+      <SiteName />
       <div ref={editorRegion} role="region" aria-label="문서 작업 영역" tabIndex={-1} className="flex h-full overflow-hidden">
         {isPdf && activeDocumentId ? (
           <PdfViewer

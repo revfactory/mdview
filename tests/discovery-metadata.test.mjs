@@ -206,3 +206,19 @@ test('the HWPX guide has a static downloadable example beside the personal workf
     assert.doesNotMatch(renderToStaticMarkup(await detail.default(params(slug))), /mdview-meeting-sample\.hwpx/);
   }
 });
+
+test('homepage site name is consistent with canonical metadata, without a second site name on guides', async () => {
+  const { SiteName } = load('../src/components/growth/site-name.tsx');
+  const data = structuredData(SiteName());
+  assert.equal(data.length, 1);
+  assert.equal(data[0]['@type'], 'WebSite');
+  assert.equal(data[0].name, root.metadata.openGraph.siteName);
+  assert.equal(data[0].name, root.metadata.applicationName);
+  assert.equal(data[0].url, absolute(root.metadata.alternates.canonical));
+  assert.equal(data[0].alternateName, new URL(data[0].url).hostname.replace(/^www\./, ''));
+  assert.match(read('../src/app/page.tsx'), /<SiteName \/>/);
+  assert.equal(structuredData(root.default({ children: index.default() })).some(item => item['@type'] === 'WebSite'), false);
+  for (const { slug } of guideModule.guides) {
+    assert.equal(structuredData(await detail.default(params(slug))).some(item => item['@type'] === 'WebSite'), false);
+  }
+});
