@@ -336,7 +336,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
 
       <div className="flex-1" />
 
-      <div className="flex items-center gap-0.5 shrink-0">
+      <div className="flex max-w-full shrink-0 flex-wrap items-center gap-0.5 gap-y-1">
         <ToolbarExportMenu
           key={`${documentId ?? "none"}-${exportDisabled}`}
           disabled={exportDisabled}
@@ -349,7 +349,7 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
         <Divider />
 
         {/* View Mode - segment control */}
-        <div data-view-modes className="flex items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
+        <div data-view-modes className="flex shrink-0 items-center h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-0.5 gap-0.5">
           {([
             { mode: 'wysiwyg' as const, icon: PenLine, label: 'WYSIWYG 모드' },
             ...(!isMobile ? [{ mode: 'split' as const, icon: SplitSquareVertical, label: '분할 보기' }] : []),
