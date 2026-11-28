@@ -2,6 +2,7 @@
 
 import JSZip from 'jszip';
 import { marked } from 'marked';
+import { getSmallEmbeddedRasterSize } from '../lib/embedded-raster';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -64,8 +65,11 @@ const HEADING_SIZES: Record<number, number> = {
 
 // ---------- HTML to HWPX XML conversion ----------
 
+type CellPart = { text: string } | { image: HwpImageData; pixels: [number, number] };
+
 interface HwpTableCell {
   text: string;
+  parts?: CellPart[];
   colspan: number;
   rowspan: number;
 }
@@ -103,7 +107,37 @@ interface HwpParagraph {
   imageData?: HwpImageData;
 }
 
-function parseHtmlTable(tableHtml: string): HwpTable {
+const imageTagPattern = /<img\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi;
+const MAX_CELL_IMAGES = 30;
+
+function cellParts(
+  html: string,
+  register: (src: string) => Extract<CellPart, { image: HwpImageData }> | undefined,
+): CellPart[] | undefined {
+  let cursor = 0;
+  let found = false;
+  const parts: CellPart[] = [];
+  for (const match of html.matchAll(imageTagPattern)) {
+    const src = [...match[1].matchAll(/([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)]
+      .find(([, name]) => name.toLowerCase() === 'src');
+    const picture = src && register(src[2] ?? src[3] ?? src[4]);
+    if (!picture) continue;
+    const before = stripHtml(html.slice(cursor, match.index)).trim();
+    if (before) parts.push({ text: before });
+    parts.push(picture);
+    cursor = match.index + match[0].length;
+    found = true;
+  }
+  if (!found) return;
+  const after = stripHtml(html.slice(cursor)).trim();
+  if (after) parts.push({ text: after });
+  return parts;
+}
+
+function parseHtmlTable(
+  tableHtml: string,
+  register: (src: string) => Extract<CellPart, { image: HwpImageData }> | undefined,
+): HwpTable {
   const groups: HwpTableCell[][][] = [[]];
   // Treat consecutive ungrouped rows as one implicit group. A zero rowspan
   // extends through the last row of its own group, not through the entire table.
@@ -125,7 +159,7 @@ function parseHtmlTable(tableHtml: string): HwpTable {
         if (name.toLowerCase() === 'colspan') colspan = Math.min(Number(value[1]) || 1, 1000);
         if (name.toLowerCase() === 'rowspan') rowspan = Math.min(Number(value[1]), 65534);
       }
-      cells.push({ text: stripHtml(cellHtml).trim(), colspan, rowspan });
+      cells.push({ text: stripHtml(cellHtml).trim(), parts: cellParts(cellHtml, register), colspan, rowspan });
     }
     group.push(cells);
   }
@@ -175,48 +209,48 @@ function htmlToHwpParagraphs(html: string): HwpParagraph[] {
   // Remove doctype, html, head, body wrappers
   let content = html.replace(/<\/?(?:html|head|body|!doctype)[^>]*>/gi, '');
 
-  // Extract tables first and replace with placeholders
+  const images: HwpImageData[] = [];
+  function registerImage(src: string): HwpImageData | undefined {
+    const dataUrlMatch = src.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
+    if (!dataUrlMatch) return;
+    const mimeSubtype = dataUrlMatch[1].toLowerCase().replace(/^jpg$/, 'jpeg');
+    const imageData = {
+      base64: dataUrlMatch[2],
+      mimeType: `image/${mimeSubtype}`,
+      id: `image${images.length + 1}`,
+      extension: mimeSubtype === 'jpeg' ? 'jpg' : mimeSubtype,
+    };
+    images.push(imageData);
+    return imageData;
+  }
+
+  // Extract tables before replacing body images. Cell images remain within
+  // their cell and share the same unique package image IDs as body images.
+  let cellImageCount = 0;
   const tables: HwpTable[] = [];
   const tablePattern = /<table[^>]*>[\s\S]*?<\/table>/gi;
   content = content.replace(tablePattern, (tableHtml) => {
-    const table = parseHtmlTable(tableHtml);
+    const table = parseHtmlTable(tableHtml, src => {
+      if (cellImageCount >= MAX_CELL_IMAGES) return;
+      const pixels = getSmallEmbeddedRasterSize(src);
+      if (!pixels) return;
+      const image = registerImage(src);
+      if (!image) return;
+      cellImageCount++;
+      return { image, pixels };
+    });
     const idx = tables.length;
     tables.push(table);
     return `\n__HWPTABLE_${idx}__\n`;
   });
 
-  // Extract images and replace with placeholders
-  const images: HwpImageData[] = [];
+  // Existing behavior for body pictures.
   const imgPattern = /<img[^>]*>/gi;
   content = content.replace(imgPattern, (imgTag) => {
-    const srcMatch = imgTag.match(/src\s*=\s*["']([^"']+)["']/i);
-    if (!srcMatch) return '';
-
-    const src = srcMatch[1];
-
-    // Only handle base64 data URLs
-    const dataUrlMatch = src.match(/^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i);
-    if (!dataUrlMatch) {
-      // External URL — skip with warning
-      console.warn('[HWP Export] Skipping external image URL:', src.substring(0, 80));
-      return '\n__HWPIMG_SKIP__\n';
-    }
-
-    let mimeSubtype = dataUrlMatch[1].toLowerCase();
-    // Normalize jpeg
-    if (mimeSubtype === 'jpg') mimeSubtype = 'jpeg';
-    const extension = mimeSubtype === 'jpeg' ? 'jpg' : mimeSubtype;
-    const base64Data = dataUrlMatch[2];
-    const id = `image${images.length + 1}`;
-
-    const imageData: HwpImageData = {
-      base64: base64Data,
-      mimeType: `image/${mimeSubtype}`,
-      id,
-      extension,
-    };
+    const src = imgTag.match(/src\s*=\s*["']([^"']+)["']/i)?.[1];
+    if (!src) return '';
     const idx = images.length;
-    images.push(imageData);
+    if (!registerImage(src)) return '\n__HWPIMG_SKIP__\n';
     return `\n__HWPIMAGE_${idx}__\n`;
   });
 
@@ -635,27 +669,55 @@ function shapePosition(width: number, height: number, inline: boolean): string {
     <hp:outMargin left="0" right="0" top="0" bottom="0"/>`;
 }
 
-function generateTableXml(table: HwpTable, options: GenerateMessage['options'], id: number): string {
-  const { contentWidth } = pageGeometry(options);
+function generateTableXml(table: HwpTable, options: GenerateMessage['options'], id: number, nextObjectId: () => number): string {
+  const { contentWidth, height, top, bottom } = pageGeometry(options);
   const edge = (col: number) => Math.round(col * contentWidth / table.colCount);
   const cellMargin = hwpUnits(1);
-  const cellHeight = Math.max(1, Math.round(options.fontSize * 100 * options.lineHeight) + cellMargin * 2);
+  const textLine = Math.max(1, Math.round(options.fontSize * 100 * options.lineHeight));
+  const cellHeight = textLine + cellMargin * 2;
+  const rowHeights = table.rows.map(() => cellHeight);
+  const heightsIn = (row: number, count: number) => rowHeights.slice(row, row + count).reduce((a, b) => a + b, 0);
 
-  const rows = table.rows.map(row => `<hp:tr>${row.map(cell => {
+  const prepared = table.rows.map(row => row.map(cell => {
     const width = Math.max(1, edge(cell.col + cell.colspan) - edge(cell.col));
-    return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" borderFillIDRef="2">
-      <hp:subList textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" textWidth="0" textHeight="0">
-        ${paragraph(`<hp:t>${escapeXml(cell.text)}</hp:t>`)}
-      </hp:subList>
+    let content = paragraph(`<hp:t>${escapeXml(cell.text)}</hp:t>`);
+    if (cell.parts) {
+      let heightNeeded = cellMargin * 2;
+      const maxWidth = Math.max(1, width - cellMargin * 2);
+      const maxHeight = Math.max(1, Math.floor((height - top - bottom) / 4));
+      content = cell.parts.map(part => {
+        if ('text' in part) {
+          heightNeeded += textLine;
+          return paragraph(`<hp:t>${escapeXml(part.text)}</hp:t>`);
+        }
+        const [pw, ph] = part.pixels;
+        // At most the native 96 DPI size, shrink within cell width and page.
+        const scale = Math.min(75, maxWidth / pw, maxHeight / ph);
+        const w = Math.max(1, Math.floor(pw * scale));
+        const h = Math.max(1, Math.floor(ph * scale));
+        heightNeeded += Math.max(textLine, h);
+        return generatePictureParagraph(part.image, nextObjectId(), w, h);
+      }).join('');
+      rowHeights[cell.row] += Math.max(0, heightNeeded - heightsIn(cell.row, cell.rowspan));
+    }
+    return { cell, width, content };
+  }));
+
+  const rowOffsets = rowHeights.reduce<number[]>((offsets, h) => {
+    offsets.push(offsets[offsets.length - 1] + h);
+    return offsets;
+  }, [0]);
+  const heightFor = (row: number, span: number) => rowOffsets[row + span] - rowOffsets[row];
+  const rows = prepared.map(row => `<hp:tr>${row.map(({ cell, width, content }) => `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" borderFillIDRef="2">
+      <hp:subList textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" textWidth="0" textHeight="0">${content}</hp:subList>
       <hp:cellAddr colAddr="${cell.col}" rowAddr="${cell.row}"/>
       <hp:cellSpan colSpan="${cell.colspan}" rowSpan="${cell.rowspan}"/>
-      <hp:cellSz width="${width}" height="${cellHeight * cell.rowspan}"/>
+      <hp:cellSz width="${width}" height="${heightFor(cell.row, cell.rowspan)}"/>
       <hp:cellMargin left="${cellMargin}" right="${cellMargin}" top="${cellMargin}" bottom="${cellMargin}"/>
-    </hp:tc>`;
-  }).join('')}</hp:tr>`).join('\n');
+    </hp:tc>`).join('')}</hp:tr>`).join('\n');
 
   return paragraph(`<hp:tbl ${shapeAttributes(id, 'TABLE')} rowCnt="${table.rows.length}" colCnt="${table.colCount}" borderFillIDRef="2" cellSpacing="0" pageBreak="CELL" repeatHeader="0">
-    ${shapePosition(contentWidth, cellHeight * table.rows.length, false)}
+    ${shapePosition(contentWidth, heightFor(0, rowHeights.length), false)}
     <hp:inMargin left="0" right="0" top="0" bottom="0"/>${rows}
   </hp:tbl>`);
 }
@@ -663,7 +725,10 @@ function generateTableXml(table: HwpTable, options: GenerateMessage['options'], 
 function generateImageXml(imageData: HwpImageData, options: GenerateMessage['options'], id: number): string {
   const { width: pageWidth, height: pageHeight, contentWidth, top, bottom } = pageGeometry(options);
   const width = Math.min(pageWidth, contentWidth, Math.round((pageHeight - top - bottom) * 4 / 3));
-  const height = Math.round(width * 3 / 4);
+  return generatePictureParagraph(imageData, id, width, Math.round(width * 3 / 4));
+}
+
+function generatePictureParagraph(imageData: HwpImageData, id: number, width: number, height: number): string {
   return paragraph(`<hp:pic ${shapeAttributes(id, 'PICTURE')} instid="${id}" reverse="0">
     <hp:offset x="0" y="0"/><hp:orgSz width="${width}" height="${height}"/>
     <hp:curSz width="${width}" height="${height}"/><hp:flip horizontal="0" vertical="0"/>
@@ -686,7 +751,7 @@ function generateSection(paragraphs: HwpParagraph[], options: GenerateMessage['o
   </hp:secPr><hp:ctrl><hp:colPr type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>`;
   let objectId = 1;
   const body = paragraphs.map(para => {
-    if (para.isTable && para.table) return generateTableXml(para.table, options, objectId++);
+    if (para.isTable && para.table) return generateTableXml(para.table, options, objectId++, () => objectId++);
     if (para.isImage && para.imageData) return generateImageXml(para.imageData, options, objectId++);
     const text = para.isHr ? '────────────────────────────────' :
       para.isList ? `${para.listPrefix}${para.text}` :
@@ -719,8 +784,13 @@ async function generateHwpx(markdown: string, options: GenerateMessage['options'
   // Collect all image data from paragraphs
   const imageEntries: HwpImageData[] = [];
   for (const para of paragraphs) {
-    if (para.isImage && para.imageData) {
-      imageEntries.push(para.imageData);
+    if (para.isImage && para.imageData) imageEntries.push(para.imageData);
+    for (const row of para.table?.rows ?? []) {
+      for (const cell of row) {
+        for (const part of cell.parts ?? []) {
+          if ('image' in part) imageEntries.push(part.image);
+        }
+      }
     }
   }
 

@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+## [0.3.23] - 2026-11-29
+
+### Fixed
+- 마크다운을 한글 HWPX로 내보낼 때 표 셀에 들어 있는 지원 형식의 작은 그림을 같은 셀에 저장합니다. 병합 셀과 그림 앞뒤 설명을 유지합니다.
+
 ## [0.3.22] - 2026-11-28
 
 ### Fixed
@@ -514,7 +519,8 @@
 
 ---
 
-[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.22...HEAD
+[Unreleased]: https://github.com/revfactory/mdview/compare/v0.3.23...HEAD
+[0.3.23]: https://github.com/revfactory/mdview/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/revfactory/mdview/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/revfactory/mdview/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/revfactory/mdview/compare/v0.3.19...v0.3.20

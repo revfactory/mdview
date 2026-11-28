@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { requireWithEmbeddedRaster } from './load-embedded-raster.mjs';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
@@ -14,7 +15,7 @@ async function exportZip(markdown, overrides = {}) {
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 } }).outputText;
   const messages = [];
   const self = { postMessage(message) { messages.push(message); } };
-  vm.runInNewContext(js, { exports: {}, require, self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, atob, setTimeout, clearTimeout });
+  vm.runInNewContext(js, { exports: {}, require: name => requireWithEmbeddedRaster(require, name), self, console, TextEncoder, TextDecoder, ArrayBuffer, Uint8Array, Blob, atob, setTimeout, clearTimeout });
   await self.onmessage({ data: { type: 'generate', markdown, options: { ...defaultOptions, ...overrides } } });
   assert.equal(messages.find((message) => message.type === 'error'), undefined);
   const complete = messages.find((message) => message.type === 'complete'); assert.ok(complete);
@@ -105,4 +106,37 @@ test('HWPX page settings, text styling and table placement use declared IDs and 
   assert.match(xml, /<hp:sz width="64062"[^>]+widthRelTo="ABSOLUTE"/);
   assert.match(xml, /<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0"/);
   assert.match(xml, /<hp:tc [^>]+borderFillIDRef="2"/);
+});
+
+const tablePng = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==';
+const tableSrc = `data:image/png;base64,${tablePng}`;
+
+test('HWPX table pictures, body pictures, row heights and relationships are consistent', async () => {
+  const zip = await exportZip(`![body](${tableSrc})\n\n<table><tr><td rowspan="2"><p>앞 &amp; 뒤</p><img src="${tableSrc}"><p>마지막 설명</p></td><td>첫 셀</td></tr><tr><td>아래 셀</td></tr></table>`);
+  const xml = await zip.file('Contents/section0.xml').async('text');
+  const cells = [...xml.matchAll(/<hp:tc\b[^>]*>([\s\S]*?)<\/hp:tc>/g)].map(m => m[1]);
+  assert.equal(cells.length, 3);
+  assert.match(cells[0], /<hp:t>앞 &amp; 뒤<\/hp:t>[\s\S]*<hp:pic [\s\S]*<\/hp:pic>[\s\S]*<hp:t>마지막 설명<\/hp:t>/);
+  const [, cellW, cellH] = cells[0].match(/<hp:cellSz width="(\d+)" height="(\d+)"/);
+  const [, w, h] = cells[0].match(/<hp:curSz width="(\d+)" height="(\d+)"/);
+  assert.equal(Number(w), 150);
+  assert.equal(Number(h), 150);
+  assert.ok(Number(w) < Number(cellW) && Number(h) < Number(cellH));
+  const ids = [...xml.matchAll(/<hp:(?:tbl|pic) id="(\d+)"/g)].map(m => m[1]);
+  assert.equal(new Set(ids).size, 3);
+  const refs = [...xml.matchAll(/binaryItemIDRef="([^"]+)"/g)].map(m => m[1]);
+  assert.equal(new Set(refs).size, 2);
+  const hpf = await zip.file('Contents/content.hpf').async('text');
+  for (const id of refs) {
+    assert.match(hpf, new RegExp(`id="${id}" href="BinData/${id}\\.png"`));
+    assert.equal(await zip.file(`BinData/${id}.png`).async('base64'), tablePng);
+  }
+});
+
+test('HWPX table export skips external pictures without dropping neighboring captions', async () => {
+  const zip = await exportZip('<table><tr><td>Before <img src="https://example.org/picture.png"> After</td><td>Neighbor</td></tr></table>');
+  const xml = await zip.file('Contents/section0.xml').async('text');
+  assert.match(xml, /<hp:t>Before\s+After<\/hp:t>/);
+  assert.match(xml, /<hp:t>Neighbor<\/hp:t>/);
+  assert.doesNotMatch(xml, /binaryItemIDRef|example\.org/);
 });

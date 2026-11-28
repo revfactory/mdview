@@ -52,20 +52,24 @@ function rasterSize(type: string, bytes: DataView, size: number): [number, numbe
   }
 }
 
-export function isSmallEmbeddedRaster(url: string): boolean {
+export function getSmallEmbeddedRasterSize(url: string): [number, number] | undefined {
   // Reject unbounded input before scanning or decoding the payload.
-  if (url.length > 32 + Math.ceil(MAX_BYTES / 3) * 4) return false;
+  if (url.length > 32 + Math.ceil(MAX_BYTES / 3) * 4) return undefined;
   const match = RASTER_URL.exec(url);
-  if (!match) return false;
+  if (!match) return undefined;
   const payload = url.slice(match[0].length);
-  if (!payload.length || payload.length % 4 !== 0 || !BASE64.test(payload)) return false;
+  if (!payload.length || payload.length % 4 !== 0 || !BASE64.test(payload)) return undefined;
   try {
     const binary = atob(payload);
-    if (binary.length > MAX_BYTES) return false;
+    if (binary.length > MAX_BYTES) return undefined;
     const bytes = new DataView(Uint8Array.from(binary, c => c.charCodeAt(0)).buffer);
     const size = rasterSize(match[1].toLowerCase(), bytes, binary.length);
-    return !!size && size[0] > 0 && size[1] > 0 && size[0] * size[1] <= MAX_PIXELS;
+    if (size && size[0] > 0 && size[1] > 0 && size[0] * size[1] <= MAX_PIXELS) return size;
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+export function isSmallEmbeddedRaster(url: string): boolean {
+  return getSmallEmbeddedRasterSize(url) !== undefined;
 }

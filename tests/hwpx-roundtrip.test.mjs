@@ -114,3 +114,11 @@ test('applies the aggregate output limit to resolved cell images without losing 
   assert.match(content, /<p>유지<\/p><p>이미지 제외됨<\/p>/);
   assert.ok(warnings.some(warning => warning.includes('문서가 매우 커서')));
 });
+
+test('HWPX export and reimport preserve the same merged cell picture and ordered captions', async () => {
+  const exported = await generate(`<table><tr><td colspan="2"><p>그림 전 설명</p><img src="${imageData}" alt="그림"><p>그림 후 설명</p></td></tr><tr><td>하나</td><td>둘</td></tr></table>\n\n뒤 문장`);
+  const content = await parse(exported);
+  assert.ok(content.includes(`<td colspan="2"><p>그림 전 설명</p><img src="${imageData}" alt="이미지"><p>그림 후 설명</p></td>`), content);
+  assert.match(content, /<td>하나<\/td>\s*<td>둘<\/td>/);
+  assert.ok(content.includes('뒤 문장'));
+});
