@@ -132,7 +132,7 @@ export function PasteMarkdownDialog({ onCreate, onCancel }: PasteMarkdownFormPro
   }, []);
 
   return (
-    <dialog ref={dialogRef} aria-labelledby={titleId}
+    <dialog ref={dialogRef} data-file-modal aria-labelledby={titleId}
       className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-5 text-[var(--color-text)] shadow-xl backdrop:bg-black/45"
       onCancel={(event) => {
         event.preventDefault();

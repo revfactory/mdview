@@ -18,6 +18,7 @@ import {
   Pencil,
   Trash2,
   FileCode,
+  ClipboardPaste,
 } from 'lucide-react';
 import { SearchInput } from '../ui/search-input';
 import { Tooltip } from '../ui/tooltip';
@@ -49,6 +50,7 @@ export interface SidebarProps {
   onImport?: () => void;
   onImportMarkdown?: () => void;
   onImportPdf?: () => void;
+  onPasteMarkdown?: () => void;
   onSettings?: () => void;
 }
 
@@ -219,6 +221,7 @@ export function Sidebar({
   onImport,
   onImportMarkdown,
   onImportPdf,
+  onPasteMarkdown,
   onSettings,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -383,6 +386,19 @@ export function Sidebar({
           <span className="truncate">PDF</span>
         </button>
       </div>
+
+      {activeDocumentId && onPasteMarkdown && (
+        <div className="px-3 mb-2 shrink-0">
+          <button
+            type="button"
+            onClick={onPasteMarkdown}
+            className="flex w-full min-h-11! min-w-0 items-center gap-2 rounded-lg border border-[var(--color-border)] px-2 py-1.5 text-left text-xs font-medium text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] cursor-pointer"
+          >
+            <ClipboardPaste className="w-4 h-4 shrink-0 text-[var(--color-accent)]" aria-hidden="true" />
+            <span className="min-w-0">붙여넣어 새 마크다운 문서 만들기</span>
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-3 mb-2">

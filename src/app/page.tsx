@@ -451,6 +451,7 @@ export default function Home() {
           onImport={() => handleStart('import-hwp', 'direct')}
           onImportMarkdown={() => handleStart('import-markdown', 'direct')}
           onImportPdf={() => handleStart('import-pdf', 'direct')}
+          onPasteMarkdown={() => handleStart('paste-markdown', 'direct')}
         />
       }
       focusMode={focusMode}
