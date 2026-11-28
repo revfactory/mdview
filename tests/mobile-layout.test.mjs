@@ -37,6 +37,29 @@ test('mobile toolbar can wrap and its mode tray grows with 44px touch targets', 
   assert.match(mobile, /\.mdview-toolbar \[data-view-modes\]\s*\{[^}]*height: auto;/);
 });
 
+test('editor actions can wrap when side panels narrow the pane on a desktop viewport', () => {
+  const toolbar = readFileSync(new URL('../src/components/layout/toolbar.tsx', import.meta.url), 'utf8');
+  const classes = toolbar.match(/data-toolbar className="([^"]+)"/)?.[1].split(/\s+/) ?? [];
+  assert.ok(classes.includes('flex-wrap'));
+  assert.ok(classes.includes('min-h-11'));
+  assert.ok(!classes.includes('h-11'));
+});
+
+test('export is labeled on screen, not only in its accessibility name', () => {
+  const source = readFileSync(new URL('../src/components/features/import-export/toolbar-export-menu.tsx', import.meta.url), 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText;
+  const scope = { exports: {}, require };
+  vm.runInNewContext(compiled, scope);
+  const html = renderToStaticMarkup(React.createElement(scope.exports.ToolbarExportMenu, {
+    disabled: false, onMarkdown() {}, onPdf() {},
+  }));
+  assert.match(html, /<button[^>]*aria-label="내보내기"/);
+  assert.match(html, /<span>내보내기<\/span>/);
+  assert.match(html, /<svg[^>]*aria-hidden="true"/);
+});
+
 // Exercise the actual integration wrapper, not just Toolbar's own CSS rules.
 function renderToolbarFrame(focusMode) {
   const page = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8');

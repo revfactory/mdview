@@ -178,8 +178,9 @@ export function Toolbar({ editor = null, onExport, onToggleToc, documentTitle, d
     }
   }, [editor, documentTitle, documentId, isChunked, sourceMarkdown, viewMode, exportDisabled]);
 
+  // Side panels can make the editor narrow even on a desktop-width viewport.
   return (
-    <div data-toolbar className="mdview-toolbar flex items-center h-11 px-2 sm:px-3 gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
+    <div data-toolbar className="mdview-toolbar flex min-h-11 flex-wrap items-center px-2 py-1 sm:px-3 gap-0.5 gap-y-1 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0 relative z-20">
       {/* Sidebar toggle */}
       <button
         onClick={toggleSidebar}
