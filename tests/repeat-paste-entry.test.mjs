@@ -17,5 +17,6 @@ test('the native paste dialog opts out of application-wide document shortcuts', 
   const form = read('components/growth/paste-markdown-form.tsx');
   const shortcuts = read('hooks/use-keyboard-shortcuts.ts');
   assert.match(form, /<dialog ref=\{dialogRef\} data-file-modal aria-labelledby=\{titleId\}/);
+  assert.match(form, /function dismiss\(\) \{[\s\S]*?dialogRef.current\?\.close\(\);\s*onCancel\(\);/);
   assert.match(shortcuts, /closest\?\.\('\[data-file-modal\]'\)\) return;/);
 });

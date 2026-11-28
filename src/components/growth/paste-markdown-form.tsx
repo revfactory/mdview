@@ -126,6 +126,11 @@ export function PasteMarkdownForm(props: PasteMarkdownFormProps) {
 export function PasteMarkdownDialog({ onCreate, onCancel }: PasteMarkdownFormProps & { onCancel: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  function dismiss() {
+    // Close before unmounting so the browser can restore the initiating control.
+    dialogRef.current?.close();
+    onCancel();
+  }
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
@@ -136,11 +141,11 @@ export function PasteMarkdownDialog({ onCreate, onCancel }: PasteMarkdownFormPro
       className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-5 text-[var(--color-text)] shadow-xl backdrop:bg-black/45"
       onCancel={(event) => {
         event.preventDefault();
-        if (!dialogRef.current?.querySelector('form[aria-busy="true"]')) onCancel();
+        if (!dialogRef.current?.querySelector('form[aria-busy="true"]')) dismiss();
       }}
     >
       <h2 id={titleId} className="text-lg font-semibold">마크다운 붙여넣기</h2>
-      <PasteFields onCreate={onCreate} onCancel={onCancel} />
+      <PasteFields onCreate={onCreate} onCancel={dismiss} />
     </dialog>
   );
 }
